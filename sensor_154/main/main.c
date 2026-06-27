@@ -29,10 +29,19 @@ static const EventBits_t TX_FAILED_BIT = BIT2;
 #else
 #define IOT154_SENSOR_GPIO GPIO_NUM_14
 #endif
+
+#define IOT154_SENSOR_HIGH 1
+#define IOT154_SENSOR_LOW 0
+#define IOT154_SENSOR_LOGIC_ACTIVE IOT154_SENSOR_HIGH
+
 #define IOT154_GPIO_SAMPLES 5
 #define IOT154_GPIO_ACTIVE_MIN_SAMPLES 3
 #define IOT154_GPIO_SAMPLE_DELAY_MS 3
+#define IOT154_GPIO_STABLE_READS 2
+#define IOT154_GPIO_STABLE_MAX_READS 4
+#define IOT154_GPIO_STABLE_DELAY_MS 8
 #define IOT154_MAX_TX_ATTEMPTS 3
+#define IOT154_MAX_STATE_UPDATES 4
 #define IOT154_ACK_WAIT_MS 50
 #define IOT154_STATS_WINDOW 20
 #define IOT154_ZIGBEE_BASELINE_MS 3000
@@ -116,8 +125,8 @@ static void configure_sensor_gpio(void)
     ESP_ERROR_CHECK(gpio_config(&config));
 }
 
-/// @brief Sample GPIO14 with a small debounce window; active means LOW.
-static uint8_t sample_sensor_value(void)
+/// @brief Sample GPIO14 with a small debounce window and return one debounced GPIO level.
+static uint8_t sample_sensor_gpio_level_once(void)
 {
     uint8_t low_count = 0;
 
@@ -130,7 +139,36 @@ static uint8_t sample_sensor_value(void)
         }
     }
 
-    return low_count >= IOT154_GPIO_ACTIVE_MIN_SAMPLES ? 1 : 0;
+    return low_count >= IOT154_GPIO_ACTIVE_MIN_SAMPLES ? IOT154_SENSOR_LOW : IOT154_SENSOR_HIGH;
+}
+
+/// @brief Read the physical GPIO level until it is stable across consecutive debounce windows.
+static uint8_t sample_sensor_gpio_level(void)
+{
+    uint8_t last_level = sample_sensor_gpio_level_once();
+    uint8_t stable_reads = 1;
+
+    for (uint8_t i = 1; i < IOT154_GPIO_STABLE_MAX_READS; ++i) {
+        vTaskDelay(pdMS_TO_TICKS(IOT154_GPIO_STABLE_DELAY_MS));
+        const uint8_t level = sample_sensor_gpio_level_once();
+        if (level == last_level) {
+            ++stable_reads;
+            if (stable_reads >= IOT154_GPIO_STABLE_READS) {
+                break;
+            }
+        } else {
+            last_level = level;
+            stable_reads = 1;
+        }
+    }
+
+    return last_level;
+}
+
+/// @brief Convert the sampled GPIO level to the logical value sent to the central.
+static uint8_t sensor_data_value(uint8_t gpio_level)
+{
+    return gpio_level == IOT154_SENSOR_LOGIC_ACTIVE ? 1 : 0;
 }
 
 /// @brief Initialize NVS for storing the discovered central address.
@@ -296,6 +334,54 @@ static bool discover_central(uint16_t seq)
     return false;
 }
 
+/// @brief Send the current logical value and wait for its application ACK.
+static bool transmit_data_with_ack(uint16_t seq,
+                                   uint8_t value,
+                                   uint8_t *attempts_used,
+                                   sensor_metrics_t *metrics)
+{
+    *attempts_used = 0;
+    metrics->ack_received_us = -1;
+
+    for (uint8_t attempt = 1; attempt <= IOT154_MAX_TX_ATTEMPTS; ++attempt) {
+        if (attempt == 2) {
+            vTaskDelay(pdMS_TO_TICKS(5));
+        } else if (attempt == 3) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+
+        xEventGroupClearBits(s_events, RX_DONE_BIT | TX_DONE_BIT | TX_FAILED_BIT);
+        *attempts_used = attempt;
+
+        esp_err_t err = send_data(seq, value);
+        metrics->tx_start_us = s_tx_start_us;
+        if (err != ESP_OK) {
+            continue;
+        }
+
+        EventBits_t bits = xEventGroupWaitBits(s_events,
+                                               TX_DONE_BIT | TX_FAILED_BIT,
+                                               pdTRUE,
+                                               pdFALSE,
+                                               pdMS_TO_TICKS(100));
+        if ((bits & TX_FAILED_BIT) != 0) {
+            continue;
+        }
+        if ((bits & TX_DONE_BIT) == 0) {
+            continue;
+        }
+
+        ESP_ERROR_CHECK(iot154_radio_start_rx());
+        bits = xEventGroupWaitBits(s_events, RX_DONE_BIT, pdTRUE, pdFALSE, pdMS_TO_TICKS(IOT154_ACK_WAIT_MS));
+        if ((bits & RX_DONE_BIT) != 0 && received_matching_ack()) {
+            metrics->ack_received_us = esp_timer_get_time();
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /// @brief Convert a timestamp difference to whole milliseconds.
 static uint32_t elapsed_ms(int64_t start_us, int64_t end_us)
 {
@@ -331,13 +417,13 @@ static uint32_t update_total_stats(uint32_t total_awake_ms)
 
 /// @brief Configure the next wake level opposite to the current stable state and enter deep sleep.
 static void enter_deep_sleep(uint16_t seq,
-                             uint8_t value,
+                             uint8_t gpio_level,
                              uint8_t attempts,
                              bool delivered,
                              const sensor_metrics_t *metrics)
 {
     const esp_sleep_ext1_wakeup_mode_t wake_mode =
-        value != 0 ? ESP_EXT1_WAKEUP_ANY_HIGH : ESP_EXT1_WAKEUP_ANY_LOW;
+        gpio_level != 0 ? ESP_EXT1_WAKEUP_ANY_LOW : ESP_EXT1_WAKEUP_ANY_HIGH;
     const uint32_t boot_to_gpio_ms = elapsed_ms(metrics->boot_us, metrics->gpio_sampled_us);
     const uint32_t gpio_to_radio_ms = elapsed_ms(metrics->gpio_sampled_us, metrics->radio_init_done_us);
     const uint32_t radio_to_tx_ms = elapsed_ms(metrics->radio_init_done_us, metrics->tx_start_us);
@@ -359,7 +445,7 @@ static void enter_deep_sleep(uint16_t seq,
              "min_total=%" PRIu32 "ms max_total=%" PRIu32 "ms avg20_total=%" PRIu32 "ms "
              "zigbee_baseline=%ums gain=%" PRId32 "%% next_wake=%s",
              seq,
-             value,
+             gpio_level,
              attempts,
              delivered ? "true" : "false",
              boot_to_gpio_ms,
@@ -384,7 +470,7 @@ void app_main(void)
     };
 
     configure_sensor_gpio();
-    uint8_t value = sample_sensor_value();
+    uint8_t gpio_level = sample_sensor_gpio_level();
     metrics.gpio_sampled_us = esp_timer_get_time();
 
     init_nvs();
@@ -394,56 +480,35 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_ieee802154_set_extended_address(s_sensor_ext_addr));
     metrics.radio_init_done_us = esp_timer_get_time();
 
-    const uint16_t seq = (uint16_t)(s_rtc_seq + 1);
+    uint16_t seq = (uint16_t)(s_rtc_seq + 1);
 
     if (!load_central_ext_addr(s_central_ext_addr) && !discover_central(seq)) {
         s_rtc_seq = seq;
         metrics.tx_start_us = s_tx_start_us;
         metrics.sleep_enter_us = esp_timer_get_time();
-        enter_deep_sleep(seq, value, IOT154_MAX_TX_ATTEMPTS, false, &metrics);
+        enter_deep_sleep(seq, gpio_level, IOT154_MAX_TX_ATTEMPTS, false, &metrics);
     }
 
     bool delivered = false;
     uint8_t attempts_used = 0;
-    for (uint8_t attempt = 1; attempt <= IOT154_MAX_TX_ATTEMPTS; ++attempt) {
-        if (attempt == 2) {
-            vTaskDelay(pdMS_TO_TICKS(5));
-        } else if (attempt == 3) {
-            vTaskDelay(pdMS_TO_TICKS(10));
-        }
+    for (uint8_t update = 0; update < IOT154_MAX_STATE_UPDATES; ++update) {
+        const uint8_t value = sensor_data_value(gpio_level);
+        delivered = transmit_data_with_ack(seq, value, &attempts_used, &metrics);
 
-        xEventGroupClearBits(s_events, RX_DONE_BIT | TX_DONE_BIT | TX_FAILED_BIT);
-        attempts_used = attempt;
-
-        esp_err_t err = send_data(seq, value);
-        metrics.tx_start_us = s_tx_start_us;
-        if (err != ESP_OK) {
-            continue;
-        }
-
-        EventBits_t bits = xEventGroupWaitBits(s_events,
-                                               TX_DONE_BIT | TX_FAILED_BIT,
-                                               pdTRUE,
-                                               pdFALSE,
-                                               pdMS_TO_TICKS(100));
-        if ((bits & TX_FAILED_BIT) != 0) {
-            continue;
-        }
-        if ((bits & TX_DONE_BIT) == 0) {
-            continue;
-        }
-
-        ESP_ERROR_CHECK(iot154_radio_start_rx());
-        bits = xEventGroupWaitBits(s_events, RX_DONE_BIT, pdTRUE, pdFALSE, pdMS_TO_TICKS(IOT154_ACK_WAIT_MS));
-        if ((bits & RX_DONE_BIT) != 0 && received_matching_ack()) {
-            metrics.ack_received_us = esp_timer_get_time();
-            delivered = true;
+        const uint8_t current_gpio_level = sample_sensor_gpio_level();
+        if (current_gpio_level == gpio_level) {
             break;
         }
+        if (update + 1 >= IOT154_MAX_STATE_UPDATES) {
+            break;
+        }
+
+        gpio_level = current_gpio_level;
+        seq = (uint16_t)(seq + 1);
     }
 
     s_rtc_seq = seq;
 
     metrics.sleep_enter_us = esp_timer_get_time();
-    enter_deep_sleep(seq, value, attempts_used, delivered, &metrics);
+    enter_deep_sleep(seq, gpio_level, attempts_used, delivered, &metrics);
 }

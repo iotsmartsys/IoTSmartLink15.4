@@ -213,7 +213,7 @@ static const char *type_from_event(uint8_t event_type)
 static const char *value_from_event(uint8_t event_type, uint8_t value, char *fallback, size_t fallback_len)
 {
     if (event_type == IOT154_EVENT_DOOR) {
-        return value != 0 ? "open" : "closed";
+        return value == 1 ? "open" : "closed";
     }
     if (event_type == IOT154_EVENT_POWER) {
         if (value == IOT154_VALUE_TOGGLE) {
