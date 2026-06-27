@@ -2,6 +2,9 @@
 #include <string.h>
 
 #include "driver/gpio.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+#include "esp_adc/adc_oneshot.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
@@ -30,6 +33,7 @@ static const EventBits_t TX_FAILED_BIT = BIT2;
 #define IOT154_SENSOR_GPIO GPIO_NUM_14
 #endif
 
+#define IOT154_SKIP_DEEP_SLEEP 0
 #define IOT154_SENSOR_HIGH 1
 #define IOT154_SENSOR_LOW 0
 #define IOT154_SENSOR_LOGIC_ACTIVE IOT154_SENSOR_HIGH
@@ -44,10 +48,20 @@ static const EventBits_t TX_FAILED_BIT = BIT2;
 #define IOT154_MAX_STATE_UPDATES 4
 #define IOT154_ACK_WAIT_MS 50
 #define IOT154_STATS_WINDOW 20
-#define IOT154_ZIGBEE_BASELINE_MS 3000
+#define IOT154_ISSP154_BASELINE_MS 3000
 #define IOT154_DISCOVERY_WAIT_MS 120
 #define IOT154_NVS_NAMESPACE "iot154"
 #define IOT154_NVS_CENTRAL_KEY "central"
+#define IOT154_BAT_ADC_CHANNEL ADC_CHANNEL_0
+#define IOT154_BAT_ADC_UNIT ADC_UNIT_1
+#define IOT154_BAT_R_TOP 470000.0f
+#define IOT154_BAT_R_BOTTOM 220000.0f
+#define IOT154_BAT_FULL_MV 4150
+#define IOT154_BAT_LOW_MV 3300
+
+#ifndef IOT154_SKIP_DEEP_SLEEP
+#define IOT154_SKIP_DEEP_SLEEP 0
+#endif
 
 RTC_DATA_ATTR static uint16_t s_rtc_seq;
 
@@ -60,6 +74,9 @@ static int64_t s_tx_start_us;
 static uint8_t s_mac_seq;
 static uint8_t s_sensor_ext_addr[IOT154_EXT_ADDR_LEN];
 static uint8_t s_central_ext_addr[IOT154_EXT_ADDR_LEN];
+static adc_oneshot_unit_handle_t s_battery_adc_handle;
+static adc_cali_handle_t s_battery_cali_handle;
+static bool s_battery_adc_calibrated;
 
 typedef struct {
     int64_t boot_us;
@@ -123,6 +140,86 @@ static void configure_sensor_gpio(void)
         .intr_type = GPIO_INTR_DISABLE,
     };
     ESP_ERROR_CHECK(gpio_config(&config));
+}
+
+/// @brief Configure ADC1 channel 0 for the battery divider on GPIO1.
+static void init_battery_adc(void)
+{
+    adc_oneshot_unit_init_cfg_t init_config = {
+        .unit_id = IOT154_BAT_ADC_UNIT,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &s_battery_adc_handle));
+
+    adc_oneshot_chan_cfg_t channel_config = {
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+        .atten = ADC_ATTEN_DB_12,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(s_battery_adc_handle,
+                                               IOT154_BAT_ADC_CHANNEL,
+                                               &channel_config));
+
+    adc_cali_curve_fitting_config_t cali_config = {
+        .unit_id = IOT154_BAT_ADC_UNIT,
+        .chan = IOT154_BAT_ADC_CHANNEL,
+        .atten = ADC_ATTEN_DB_12,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+
+    esp_err_t err = adc_cali_create_scheme_curve_fitting(&cali_config, &s_battery_cali_handle);
+    s_battery_adc_calibrated = err == ESP_OK;
+    if (s_battery_adc_calibrated) {
+        ESP_LOGI(TAG, "battery ADC calibration enabled");
+    } else {
+        ESP_LOGW(TAG, "battery ADC calibration not available: %s", esp_err_to_name(err));
+    }
+}
+
+/// @brief Convert battery millivolts to a linear 0-100% estimate.
+static uint8_t battery_percent_from_mv(uint16_t battery_mv)
+{
+    if (battery_mv <= IOT154_BAT_LOW_MV) {
+        return 0;
+    }
+    if (battery_mv >= IOT154_BAT_FULL_MV) {
+        return 100;
+    }
+
+    return (uint8_t)(((uint32_t)(battery_mv - IOT154_BAT_LOW_MV) * 100U) /
+                     (IOT154_BAT_FULL_MV - IOT154_BAT_LOW_MV));
+}
+
+/// @brief Read battery voltage in millivolts through the resistor divider.
+static uint16_t read_battery_mv(void)
+{
+    int raw = 0;
+    int adc_mv = 0;
+
+    ESP_ERROR_CHECK(adc_oneshot_read(s_battery_adc_handle, IOT154_BAT_ADC_CHANNEL, &raw));
+
+    if (s_battery_adc_calibrated) {
+        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(s_battery_cali_handle, raw, &adc_mv));
+    } else {
+        adc_mv = (raw * 3300) / 4095;
+    }
+
+    const float battery_mv = adc_mv * ((IOT154_BAT_R_TOP + IOT154_BAT_R_BOTTOM) / IOT154_BAT_R_BOTTOM);
+    uint16_t rounded_mv = (uint16_t)(battery_mv + 0.5f);
+    const uint8_t percent = battery_percent_from_mv(rounded_mv);
+
+    ESP_LOGI(TAG,
+             "BATTERY raw=%d adc=%dmV battery=%umV percent=%u%%",
+             raw,
+             adc_mv,
+             rounded_mv,
+             percent);
+
+    if (rounded_mv >= IOT154_BAT_FULL_MV) {
+        ESP_LOGI(TAG, "Battery: full (%u%%)", percent);
+    } else if (rounded_mv <= IOT154_BAT_LOW_MV) {
+        ESP_LOGW(TAG, "Battery: low (%u%%)", percent);
+    }
+
+    return rounded_mv;
 }
 
 /// @brief Sample GPIO14 with a small debounce window and return one debounced GPIO level.
@@ -208,15 +305,15 @@ static void save_central_ext_addr(const uint8_t *addr)
     nvs_close(nvs);
 }
 
-/// @brief Send one DATA packet with the sampled door value.
-static esp_err_t send_data(uint16_t seq, uint8_t value)
+/// @brief Send one DATA packet with the supplied event value.
+static esp_err_t send_data(uint16_t seq, uint8_t event_type, uint8_t value)
 {
     iot154_packet_t packet = {
         .version = IOT154_VERSION,
         .msg_type = IOT154_MSG_DATA,
         .device_id = IOT154_SENSOR_DEVICE_ID,
         .seq = seq,
-        .event_type = IOT154_EVENT_DOOR,
+        .event_type = event_type,
         .value = value,
     };
     iot154_packet_finalize(&packet);
@@ -336,6 +433,7 @@ static bool discover_central(uint16_t seq)
 
 /// @brief Send the current logical value and wait for its application ACK.
 static bool transmit_data_with_ack(uint16_t seq,
+                                   uint8_t event_type,
                                    uint8_t value,
                                    uint8_t *attempts_used,
                                    sensor_metrics_t *metrics)
@@ -353,7 +451,7 @@ static bool transmit_data_with_ack(uint16_t seq,
         xEventGroupClearBits(s_events, RX_DONE_BIT | TX_DONE_BIT | TX_FAILED_BIT);
         *attempts_used = attempt;
 
-        esp_err_t err = send_data(seq, value);
+        esp_err_t err = send_data(seq, event_type, value);
         metrics->tx_start_us = s_tx_start_us;
         if (err != ESP_OK) {
             continue;
@@ -431,19 +529,18 @@ static void enter_deep_sleep(uint16_t seq,
     const uint32_t total_awake_ms = elapsed_ms(metrics->boot_us, metrics->sleep_enter_us);
     const uint32_t avg20_total_ms = update_total_stats(total_awake_ms);
     const int32_t gain_percent =
-        (int32_t)(((int64_t)IOT154_ZIGBEE_BASELINE_MS - total_awake_ms) * 100 / IOT154_ZIGBEE_BASELINE_MS);
+        (int32_t)(((int64_t)IOT154_ISSP154_BASELINE_MS - total_awake_ms) * 100 / IOT154_ISSP154_BASELINE_MS);
 
     ESP_ERROR_CHECK(esp_ieee802154_sleep());
     ESP_ERROR_CHECK(esp_ieee802154_disable());
     configure_sensor_gpio();
-    ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup_io(BIT64(IOT154_SENSOR_GPIO), wake_mode));
 
     ESP_LOGI(TAG,
              "RESULT seq=%u gpio=%u attempts=%u ack=%s "
              "boot_to_gpio=%" PRIu32 "ms gpio_to_radio=%" PRIu32 "ms "
              "radio_to_tx=%" PRIu32 "ms tx_to_ack=%" PRIu32 "ms total_awake=%" PRIu32 "ms "
              "min_total=%" PRIu32 "ms max_total=%" PRIu32 "ms avg20_total=%" PRIu32 "ms "
-             "zigbee_baseline=%ums gain=%" PRId32 "%% next_wake=%s",
+             "ISSP154_baseline=%ums gain=%" PRId32 "%% next_wake=%s skip_deep_sleep=%s",
              seq,
              gpio_level,
              attempts,
@@ -456,10 +553,20 @@ static void enter_deep_sleep(uint16_t seq,
              s_rtc_stats.min_total_ms,
              s_rtc_stats.max_total_ms,
              avg20_total_ms,
-             IOT154_ZIGBEE_BASELINE_MS,
+             IOT154_ISSP154_BASELINE_MS,
              gain_percent,
-             wake_mode == ESP_EXT1_WAKEUP_ANY_HIGH ? "HIGH" : "LOW");
+             wake_mode == ESP_EXT1_WAKEUP_ANY_HIGH ? "HIGH" : "LOW",
+             IOT154_SKIP_DEEP_SLEEP ? "true" : "false");
+
+#if IOT154_SKIP_DEEP_SLEEP
+    ESP_LOGW(TAG, "IOT154_SKIP_DEEP_SLEEP enabled; staying awake");
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+#else
+    ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup_io(BIT64(IOT154_SENSOR_GPIO), wake_mode));
     esp_deep_sleep_start();
+#endif
 }
 
 void app_main(void)
@@ -472,6 +579,9 @@ void app_main(void)
     configure_sensor_gpio();
     uint8_t gpio_level = sample_sensor_gpio_level();
     metrics.gpio_sampled_us = esp_timer_get_time();
+    init_battery_adc();
+    const uint16_t battery_mv = read_battery_mv();
+    const uint8_t battery_percent = battery_percent_from_mv(battery_mv);
 
     init_nvs();
     ESP_ERROR_CHECK(esp_read_mac(s_sensor_ext_addr, ESP_MAC_IEEE802154));
@@ -493,7 +603,7 @@ void app_main(void)
     uint8_t attempts_used = 0;
     for (uint8_t update = 0; update < IOT154_MAX_STATE_UPDATES; ++update) {
         const uint8_t value = sensor_data_value(gpio_level);
-        delivered = transmit_data_with_ack(seq, value, &attempts_used, &metrics);
+        delivered = transmit_data_with_ack(seq, IOT154_EVENT_DOOR, value, &attempts_used, &metrics);
 
         const uint8_t current_gpio_level = sample_sensor_gpio_level();
         if (current_gpio_level == gpio_level) {
@@ -506,6 +616,9 @@ void app_main(void)
         gpio_level = current_gpio_level;
         seq = (uint16_t)(seq + 1);
     }
+
+    seq = (uint16_t)(seq + 1);
+    delivered = transmit_data_with_ack(seq, IOT154_EVENT_BATTERY, battery_percent, &attempts_used, &metrics);
 
     s_rtc_seq = seq;
 
