@@ -58,6 +58,10 @@ static const EventBits_t TX_FAILED_BIT = BIT2;
 #define IOT154_BAT_R_BOTTOM 220000.0f
 #define IOT154_BAT_FULL_MV 4150
 #define IOT154_BAT_LOW_MV 3300
+#define IOT154_BAT_ADC_DISCARD_SAMPLES 4
+#define IOT154_BAT_ADC_VALID_SAMPLES 15
+#define IOT154_BAT_ADC_CENTER_SAMPLES 5
+#define IOT154_BAT_ADC_SAMPLE_DELAY_MS 5
 
 #ifndef IOT154_SKIP_DEEP_SLEEP
 #define IOT154_SKIP_DEEP_SLEEP 0
@@ -191,15 +195,43 @@ static uint8_t battery_percent_from_mv(uint16_t battery_mv)
 /// @brief Read battery voltage in millivolts through the resistor divider.
 static uint16_t read_battery_mv(void)
 {
-    int raw = 0;
+    int samples[IOT154_BAT_ADC_VALID_SAMPLES] = {0};
     int adc_mv = 0;
 
-    ESP_ERROR_CHECK(adc_oneshot_read(s_battery_adc_handle, IOT154_BAT_ADC_CHANNEL, &raw));
+    for (uint8_t i = 0; i < IOT154_BAT_ADC_DISCARD_SAMPLES; ++i) {
+        int discard = 0;
+        ESP_ERROR_CHECK(adc_oneshot_read(s_battery_adc_handle, IOT154_BAT_ADC_CHANNEL, &discard));
+    }
+
+    for (uint8_t i = 0; i < IOT154_BAT_ADC_VALID_SAMPLES; ++i) {
+        ESP_ERROR_CHECK(adc_oneshot_read(s_battery_adc_handle, IOT154_BAT_ADC_CHANNEL, &samples[i]));
+        if (i + 1 < IOT154_BAT_ADC_VALID_SAMPLES) {
+            vTaskDelay(pdMS_TO_TICKS(IOT154_BAT_ADC_SAMPLE_DELAY_MS));
+        }
+    }
+
+    for (uint8_t i = 1; i < IOT154_BAT_ADC_VALID_SAMPLES; ++i) {
+        int value = samples[i];
+        uint8_t j = i;
+        while (j > 0 && samples[j - 1] > value) {
+            samples[j] = samples[j - 1];
+            --j;
+        }
+        samples[j] = value;
+    }
+
+    int center_sum = 0;
+    const uint8_t center_start = (IOT154_BAT_ADC_VALID_SAMPLES - IOT154_BAT_ADC_CENTER_SAMPLES) / 2;
+    for (uint8_t i = 0; i < IOT154_BAT_ADC_CENTER_SAMPLES; ++i) {
+        center_sum += samples[center_start + i];
+    }
+    const int filtered_raw = (center_sum + (IOT154_BAT_ADC_CENTER_SAMPLES / 2)) /
+                             IOT154_BAT_ADC_CENTER_SAMPLES;
 
     if (s_battery_adc_calibrated) {
-        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(s_battery_cali_handle, raw, &adc_mv));
+        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(s_battery_cali_handle, filtered_raw, &adc_mv));
     } else {
-        adc_mv = (raw * 3300) / 4095;
+        adc_mv = (filtered_raw * 3300) / 4095;
     }
 
     const float battery_mv = adc_mv * ((IOT154_BAT_R_TOP + IOT154_BAT_R_BOTTOM) / IOT154_BAT_R_BOTTOM);
@@ -207,8 +239,10 @@ static uint16_t read_battery_mv(void)
     const uint8_t percent = battery_percent_from_mv(rounded_mv);
 
     ESP_LOGI(TAG,
-             "BATTERY raw=%d adc=%dmV battery=%umV percent=%u%%",
-             raw,
+             "BATTERY raw_min=%d raw_max=%d raw_center_avg=%d adc=%dmV battery=%umV percent=%u%%",
+             samples[0],
+             samples[IOT154_BAT_ADC_VALID_SAMPLES - 1],
+             filtered_raw,
              adc_mv,
              rounded_mv,
              percent);
