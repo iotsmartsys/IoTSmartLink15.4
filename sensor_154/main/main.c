@@ -25,6 +25,20 @@ static void apply_tx_result(const iot154_sensor_tx_result_t *tx_result, iot154_s
     metrics->ack_received_us = tx_result->ack_received_us;
 }
 
+static bool discover_and_save_central(uint16_t seq, uint8_t *central_ext_addr)
+{
+    iot154_pairing_led_start_blink();
+    if (iot154_sensor_client_discover_central(seq, central_ext_addr)) {
+        iot154_storage_save_central_ext_addr(central_ext_addr);
+        iot154_storage_reset_send_failures();
+        iot154_pairing_led_stop();
+        return true;
+    }
+
+    iot154_pairing_led_stop();
+    return false;
+}
+
 void app_main(void)
 {
     iot154_sensor_metrics_t metrics = {
@@ -58,26 +72,22 @@ void app_main(void)
 
     uint16_t seq = (uint16_t)(s_rtc_seq + 1);
 
-    if (iot154_storage_load_central_ext_addr(central_ext_addr)) {
+    const bool was_paired = iot154_storage_load_central_ext_addr(central_ext_addr);
+    if (was_paired) {
         iot154_sensor_client_set_central_ext_addr(central_ext_addr);
-    } else {
-        iot154_pairing_led_start_blink();
-        if (iot154_sensor_client_discover_central(seq, central_ext_addr)) {
-            iot154_storage_save_central_ext_addr(central_ext_addr);
-            iot154_pairing_led_stop();
-        } else {
-            iot154_pairing_led_stop();
-            s_rtc_seq = seq;
-            metrics.sleep_enter_us = esp_timer_get_time();
-            iot154_power_enter_deep_sleep(seq, gpio_level, IOT154_MAX_TX_ATTEMPTS, false, &metrics);
-        }
+    } else if (!discover_and_save_central(seq, central_ext_addr)) {
+        s_rtc_seq = seq;
+        metrics.sleep_enter_us = esp_timer_get_time();
+        iot154_power_enter_deep_sleep(seq, gpio_level, IOT154_MAX_TX_ATTEMPTS, false, &metrics);
     }
 
     bool delivered = false;
+    bool paired_send_delivered = false;
     iot154_sensor_tx_result_t tx_result = {0};
     for (uint8_t update = 0; update < IOT154_MAX_STATE_UPDATES; ++update) {
         const uint8_t value = iot154_sensor_input_data_value(gpio_level);
         delivered = iot154_sensor_client_transmit_data_with_ack(seq, IOT154_EVENT_DOOR, value, &tx_result);
+        paired_send_delivered = paired_send_delivered || delivered;
         apply_tx_result(&tx_result, &metrics);
 
         const uint8_t current_gpio_level = iot154_sensor_input_sample_level();
@@ -94,7 +104,25 @@ void app_main(void)
 
     seq = (uint16_t)(seq + 1);
     delivered = iot154_sensor_client_transmit_data_with_ack(seq, IOT154_EVENT_BATTERY, battery_percent, &tx_result);
+    paired_send_delivered = paired_send_delivered || delivered;
     apply_tx_result(&tx_result, &metrics);
+
+    if (was_paired) {
+        if (paired_send_delivered) {
+            iot154_storage_reset_send_failures();
+        } else {
+            const uint8_t failures = iot154_storage_record_send_failure();
+            ESP_LOGW(TAG,
+                     "Paired coordinator send failed on wake cycle; failures=%u limit=%u",
+                     failures,
+                     IOT154_COORDINATOR_SEND_FAILURE_LIMIT);
+            if (failures >= IOT154_COORDINATOR_SEND_FAILURE_LIMIT) {
+                ESP_LOGW(TAG, "Send failure limit reached; resetting pairing NVS and searching for coordinator");
+                iot154_storage_reset_pairing();
+                (void)discover_and_save_central(seq, central_ext_addr);
+            }
+        }
+    }
 
     s_rtc_seq = seq;
 

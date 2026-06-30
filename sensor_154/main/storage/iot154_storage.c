@@ -41,6 +41,44 @@ void iot154_storage_save_central_ext_addr(const uint8_t *addr)
     nvs_close(nvs);
 }
 
+uint8_t iot154_storage_load_send_failures(void)
+{
+    nvs_handle_t nvs = 0;
+    uint8_t failures = 0;
+    esp_err_t err = nvs_open(IOT154_NVS_NAMESPACE, NVS_READONLY, &nvs);
+    if (err != ESP_OK) {
+        return 0;
+    }
+
+    err = nvs_get_u8(nvs, IOT154_NVS_SEND_FAILURES_KEY, &failures);
+    nvs_close(nvs);
+    return err == ESP_OK ? failures : 0;
+}
+
+void iot154_storage_save_send_failures(uint8_t failures)
+{
+    nvs_handle_t nvs = 0;
+    ESP_ERROR_CHECK(nvs_open(IOT154_NVS_NAMESPACE, NVS_READWRITE, &nvs));
+    ESP_ERROR_CHECK(nvs_set_u8(nvs, IOT154_NVS_SEND_FAILURES_KEY, failures));
+    ESP_ERROR_CHECK(nvs_commit(nvs));
+    nvs_close(nvs);
+}
+
+uint8_t iot154_storage_record_send_failure(void)
+{
+    uint8_t failures = iot154_storage_load_send_failures();
+    if (failures < UINT8_MAX) {
+        ++failures;
+    }
+    iot154_storage_save_send_failures(failures);
+    return failures;
+}
+
+void iot154_storage_reset_send_failures(void)
+{
+    iot154_storage_save_send_failures(0);
+}
+
 void iot154_storage_reset_pairing(void)
 {
     nvs_handle_t nvs = 0;
