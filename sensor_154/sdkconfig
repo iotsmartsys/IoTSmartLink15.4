@@ -683,7 +683,7 @@ CONFIG_IDF_TARGET_ARCH="riscv"
 # default:
 CONFIG_IDF_TARGET="esp32h2"
 # default:
-CONFIG_IDF_INIT_VERSION="6.0.1"
+CONFIG_IDF_INIT_VERSION="$IDF_INIT_VERSION"
 # default:
 CONFIG_IDF_TARGET_ESP32H2=y
 # default:
@@ -945,8 +945,7 @@ CONFIG_PARTITION_TABLE_MD5=y
 #
 # IoT154 Sensor
 #
-# default:
-CONFIG_IOT154_COORDINATOR_SEND_FAILURE_LIMIT=3
+CONFIG_IOT154_COORDINATOR_SEND_FAILURE_LIMIT=5
 # end of IoT154 Sensor
 
 #
@@ -994,18 +993,6 @@ CONFIG_COMPILER_CXX_GLIBCXX_CONSTEXPR_NO_CHANGE=y
 
 #
 # Component config
-#
-
-#
-# !!! MINIMAL_BUILD is enabled !!!
-#
-
-#
-# Only common components and those transitively required by the main component are listed
-#
-
-#
-# If a component configuration is missing, please add it to the main component's requirements
 #
 
 #
