@@ -40,3 +40,20 @@ void iot154_storage_save_central_ext_addr(const uint8_t *addr)
     ESP_ERROR_CHECK(nvs_commit(nvs));
     nvs_close(nvs);
 }
+
+void iot154_storage_reset_pairing(void)
+{
+    nvs_handle_t nvs = 0;
+    esp_err_t err = nvs_open(IOT154_NVS_NAMESPACE, NVS_READWRITE, &nvs);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return;
+    }
+    ESP_ERROR_CHECK(err);
+
+    err = nvs_erase_all(nvs);
+    if (err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_ERROR_CHECK(err);
+    }
+    ESP_ERROR_CHECK(nvs_commit(nvs));
+    nvs_close(nvs);
+}

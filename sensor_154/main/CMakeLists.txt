@@ -1,5 +1,7 @@
 idf_component_register(SRCS "main.c"
                             "hardware/iot154_battery.c"
+                            "hardware/iot154_boot_button.c"
+                            "hardware/iot154_pairing_led.c"
                             "hardware/iot154_sensor_input.c"
                             "metrics/iot154_metrics.c"
                             "power/iot154_power.c"

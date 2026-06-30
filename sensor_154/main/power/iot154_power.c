@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "iot154_boot_button.h"
 #include "iot154_sensor_config.h"
 #include "iot154_sensor_input.h"
 
@@ -43,7 +44,7 @@ void iot154_power_enter_deep_sleep(uint16_t seq,
              "boot_to_gpio=%" PRIu32 "ms gpio_to_radio=%" PRIu32 "ms "
              "radio_to_tx=%" PRIu32 "ms tx_to_ack=%" PRIu32 "ms total_awake=%" PRIu32 "ms "
              "min_total=%" PRIu32 "ms max_total=%" PRIu32 "ms avg20_total=%" PRIu32 "ms "
-             "ISSP154_baseline=%ums gain=%" PRId32 "%% next_wake=%s skip_deep_sleep=%s",
+             "ISSP154_baseline=%ums gain=%" PRId32 "%% next_wake_sensor=%s next_wake_boot=LOW skip_deep_sleep=%s",
              seq,
              gpio_level,
              attempts,
@@ -68,6 +69,8 @@ void iot154_power_enter_deep_sleep(uint16_t seq,
     }
 #else
     ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup_io(BIT64(IOT154_SENSOR_GPIO), wake_mode));
+    iot154_boot_button_configure();
+    ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup_io(BIT64(IOT154_BOOT_BUTTON_GPIO), ESP_EXT1_WAKEUP_ANY_LOW));
     esp_deep_sleep_start();
 #endif
 }

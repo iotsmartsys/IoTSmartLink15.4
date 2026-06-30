@@ -1,11 +1,15 @@
 #include "esp_attr.h"
 #include "esp_check.h"
+#include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_sleep.h"
 #include "esp_timer.h"
 
 #include "iot154_battery.h"
+#include "iot154_boot_button.h"
 #include "iot154_metrics.h"
 #include "iot154_packet.h"
+#include "iot154_pairing_led.h"
 #include "iot154_power.h"
 #include "iot154_sensor_client.h"
 #include "iot154_sensor_config.h"
@@ -13,6 +17,7 @@
 #include "iot154_storage.h"
 
 RTC_DATA_ATTR static uint16_t s_rtc_seq;
+static const char *TAG = "iot154_main";
 
 static void apply_tx_result(const iot154_sensor_tx_result_t *tx_result, iot154_sensor_metrics_t *metrics)
 {
@@ -30,12 +35,20 @@ void app_main(void)
     iot154_sensor_input_configure();
     uint8_t gpio_level = iot154_sensor_input_sample_level();
     metrics.gpio_sampled_us = esp_timer_get_time();
+    const bool boot_button_wakeup = (esp_sleep_get_wakeup_causes() & BIT(ESP_SLEEP_WAKEUP_EXT1)) != 0 &&
+                                    (esp_sleep_get_ext1_wakeup_status() & BIT64(IOT154_BOOT_BUTTON_GPIO)) != 0;
 
     iot154_battery_init();
     const uint16_t battery_mv = iot154_battery_read_mv();
     const uint8_t battery_percent = iot154_battery_percent_from_mv(battery_mv);
 
     iot154_storage_init();
+    iot154_boot_button_configure();
+    iot154_pairing_led_configure();
+    if (boot_button_wakeup || iot154_boot_button_is_pressed()) {
+        ESP_LOGW(TAG, "BOOT button pressed on startup; resetting pairing NVS");
+        iot154_storage_reset_pairing();
+    }
 
     uint8_t sensor_ext_addr[IOT154_EXT_ADDR_LEN];
     uint8_t central_ext_addr[IOT154_EXT_ADDR_LEN];
@@ -47,12 +60,17 @@ void app_main(void)
 
     if (iot154_storage_load_central_ext_addr(central_ext_addr)) {
         iot154_sensor_client_set_central_ext_addr(central_ext_addr);
-    } else if (iot154_sensor_client_discover_central(seq, central_ext_addr)) {
-        iot154_storage_save_central_ext_addr(central_ext_addr);
     } else {
-        s_rtc_seq = seq;
-        metrics.sleep_enter_us = esp_timer_get_time();
-        iot154_power_enter_deep_sleep(seq, gpio_level, IOT154_MAX_TX_ATTEMPTS, false, &metrics);
+        iot154_pairing_led_start_blink();
+        if (iot154_sensor_client_discover_central(seq, central_ext_addr)) {
+            iot154_storage_save_central_ext_addr(central_ext_addr);
+            iot154_pairing_led_stop();
+        } else {
+            iot154_pairing_led_stop();
+            s_rtc_seq = seq;
+            metrics.sleep_enter_us = esp_timer_get_time();
+            iot154_power_enter_deep_sleep(seq, gpio_level, IOT154_MAX_TX_ATTEMPTS, false, &metrics);
+        }
     }
 
     bool delivered = false;
