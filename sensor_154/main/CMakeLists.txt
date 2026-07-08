@@ -5,7 +5,6 @@ idf_component_register(SRCS "main.c"
                             "hardware/iot154_sensor_input.c"
                             "metrics/iot154_metrics.c"
                             "power/iot154_power.c"
-                            "radio/iot154_radio.c"
                             "radio/iot154_sensor_client.c"
                             "storage/iot154_storage.c"
                        INCLUDE_DIRS "."
@@ -15,4 +14,5 @@ idf_component_register(SRCS "main.c"
                                     "power"
                                     "radio"
                                     "storage"
-                       PRIV_REQUIRES ieee802154 esp_timer esp_driver_gpio esp_hw_support nvs_flash esp_adc)
+                       REQUIRES iot154 nvs_flash esp_driver_gpio
+                       PRIV_REQUIRES ieee802154 esp_timer esp_hw_support esp_adc)
