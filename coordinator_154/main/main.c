@@ -248,26 +248,60 @@ static const char *value_from_event(uint8_t event_type, uint8_t value, char *fal
     return fallback;
 }
 
-static bool command_to_event(const char *capability, const char *value, uint8_t *event_type, uint8_t *event_value)
+static bool extract_host_device_id_from_capability(const char *capability, char *out, size_t out_len)
+{
+    if (capability == NULL || out == NULL || out_len == 0) {
+        return false;
+    }
+
+    const char *endpoint = strstr(capability, "_ep_");
+    if (endpoint == NULL) {
+        return false;
+    }
+
+    size_t len = (size_t)(endpoint - capability);
+    if (len == 0 || len >= out_len) {
+        return false;
+    }
+
+    memcpy(out, capability, len);
+    out[len] = '\0';
+    return true;
+}
+
+static bool capability_is_switch_plug(const char *capability, const char *type)
+{
+    return (type != NULL && strcmp(type, "Switch Plug") == 0) ||
+           (capability != NULL && strstr(capability, "Switch Plug") != NULL) ||
+           (capability != NULL && strcmp(capability, "power") == 0);
+}
+
+static bool command_to_event(const char *capability,
+                             const char *type,
+                             const char *value,
+                             uint8_t *event_type,
+                             uint8_t *event_value)
 {
     if (capability == NULL || value == NULL || event_type == NULL || event_value == NULL) {
         return false;
     }
 
-    if (strcmp(capability, "power") == 0 || strstr(capability, "Switch Plug") != NULL) {
-        *event_type = IOT154_EVENT_POWER;
-        if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0 || strcmp(value, "true") == 0) {
-            *event_value = IOT154_VALUE_ON;
-            return true;
-        }
-        if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0 || strcmp(value, "false") == 0) {
-            *event_value = IOT154_VALUE_OFF;
-            return true;
-        }
-        if (strcmp(value, "toggle") == 0) {
-            *event_value = IOT154_VALUE_TOGGLE;
-            return true;
-        }
+    if (!capability_is_switch_plug(capability, type)) {
+        return false;
+    }
+
+    *event_type = IOT154_EVENT_POWER;
+    if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0 || strcmp(value, "true") == 0) {
+        *event_value = IOT154_VALUE_ON;
+        return true;
+    }
+    if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0 || strcmp(value, "false") == 0) {
+        *event_value = IOT154_VALUE_OFF;
+        return true;
+    }
+    if (strcmp(value, "toggle") == 0) {
+        *event_value = IOT154_VALUE_TOGGLE;
+        return true;
     }
 
     return false;
@@ -488,6 +522,28 @@ static void host_send_ack(const char *device_id, const char *capability_name, co
     host_send_line(line);
 }
 
+static void host_send_error(const char *device_id, const char *capability_name, const char *value, const char *reason)
+{
+    char escaped_device[96] = {0};
+    char escaped_capability[512] = {0};
+    char escaped_value[256] = {0};
+    char escaped_reason[256] = {0};
+    char line[HOST_UART_LINE_MAX] = {0};
+
+    json_escape_string(device_id, escaped_device, sizeof(escaped_device));
+    json_escape_string(capability_name, escaped_capability, sizeof(escaped_capability));
+    json_escape_string(value, escaped_value, sizeof(escaped_value));
+    json_escape_string(reason, escaped_reason, sizeof(escaped_reason));
+    snprintf(line,
+             sizeof(line),
+             "{\"device_id\":\"%s\",\"capability_name\":\"%s\",\"value\":\"%s\",\"direction\":\"err\",\"error\":\"%s\"}",
+             escaped_device,
+             escaped_capability,
+             escaped_value,
+             escaped_reason);
+    host_send_line(line);
+}
+
 static void host_send_event(const uint8_t *src_ext_addr, uint8_t event_type, uint8_t value)
 {
     char device_text[24] = {0};
@@ -642,7 +698,7 @@ static bool send_radio_command(uint32_t device_id, const uint8_t *dst_ext_addr, 
 
     iot154_packet_t command = {
         .version = IOT154_VERSION,
-        .msg_type = IOT154_MSG_DATA,
+        .msg_type = IOT154_MSG_CMD,
         .device_id = device_id,
         .seq = s_radio_tx_seq + 1,
         .event_type = event_type,
@@ -705,7 +761,9 @@ static void handle_host_line(char *line)
 {
     char direction[16] = {0};
     char device_id_text[96] = {0};
+    char host_device_id[96] = {0};
     char capability_name[256] = {0};
+    char type[64] = {0};
     char value[128] = {0};
 
     if (skip_json_ws(line)[0] != '{') {
@@ -713,7 +771,7 @@ static void handle_host_line(char *line)
         return;
     }
 
-    if (!json_get_string(line, "direction", direction, sizeof(direction)) || strcmp(direction, "cmd") != 0) {
+    if (json_get_string(line, "direction", direction, sizeof(direction)) && strcmp(direction, "cmd") != 0) {
         return;
     }
 
@@ -723,16 +781,33 @@ static void handle_host_line(char *line)
         ESP_LOGW(TAG, "ignored host cmd: missing string field");
         return;
     }
+    (void)json_get_string(line, "type", type, sizeof(type));
+
+    if (!extract_host_device_id_from_capability(capability_name, host_device_id, sizeof(host_device_id))) {
+        ESP_LOGW(TAG, "ignored host cmd: invalid capability target capability=%s", capability_name);
+        host_send_error(device_id_text, capability_name, value, "invalid capability target");
+        return;
+    }
+
+    uint8_t ext_addr[IOT154_EXT_ADDR_LEN] = {0};
+    if (!parse_host_ext_addr(host_device_id, ext_addr)) {
+        ESP_LOGW(TAG, "ignored host cmd: invalid ISSP154 device id %s", host_device_id);
+        host_send_error(device_id_text, capability_name, value, "invalid issp154 device id");
+        return;
+    }
 
     uint8_t event_type = 0;
     uint8_t event_value = 0;
-    if (!command_to_event(capability_name, value, &event_type, &event_value) ||
-        !send_radio_command_to_host_device(device_id_text, event_type, event_value)) {
-        ESP_LOGW(TAG,
-                 "host cmd accepted but not translatable dev=%s capability=%s value=%s",
-                 device_id_text,
-                 capability_name,
-                 value);
+    if (!command_to_event(capability_name, type, value, &event_type, &event_value)) {
+        ESP_LOGW(TAG, "ignored host cmd: unsupported capability/value capability=%s type=%s value=%s", capability_name, type, value);
+        host_send_error(device_id_text, capability_name, value, "unsupported capability or value");
+        return;
+    }
+
+    if (!send_radio_command_to_host_device(host_device_id, event_type, event_value)) {
+        ESP_LOGW(TAG, "ignored host cmd: target not known host_id=%s capability=%s value=%s", host_device_id, capability_name, value);
+        host_send_error(device_id_text, capability_name, value, "target not known");
+        return;
     }
 
     host_send_ack(device_id_text, capability_name, value);
@@ -832,6 +907,15 @@ void app_main(void)
                     host_send_event(mac.src_ext, packet.event_type, packet.value);
                 }
                 send_radio_ack(packet.device_id, packet.seq, mac.src_ext);
+            } else if (packet.msg_type == IOT154_MSG_ACK &&
+                       mac.dst_mode == IOT154_ADDR_MODE_EXT &&
+                       iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
+                       mac.src_mode == IOT154_ADDR_MODE_EXT) {
+                ESP_LOGI(TAG,
+                         "CMD ACK dev=0x%08" PRIx32 " seq=%u status=%u",
+                         packet.device_id,
+                         packet.seq,
+                         packet.value);
             } else {
                 ESP_LOGW(TAG, "ignored frame: msg=%u not for this central", packet.msg_type);
             }

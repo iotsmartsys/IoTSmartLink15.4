@@ -16,6 +16,7 @@
 #define IOT154_RELAY_BLINK_MS 15000
 
 static const char *TAG = "iot154_switch";
+static bool s_relay_on;
 
 static bool discover_and_save_central(uint16_t seq, uint8_t *central_ext_addr)
 {
@@ -40,7 +41,37 @@ static void relay_configure(void)
         .intr_type = GPIO_INTR_DISABLE,
     };
     ESP_ERROR_CHECK(gpio_config(&config));
+    s_relay_on = false;
     gpio_set_level(IOT154_RELAY_GPIO, 0);
+}
+
+static void relay_set(bool relay_on)
+{
+    s_relay_on = relay_on;
+    ESP_ERROR_CHECK(gpio_set_level(IOT154_RELAY_GPIO, s_relay_on ? 1 : 0));
+    ESP_LOGI(TAG, "Relay GPIO%d changed to %s", IOT154_RELAY_GPIO, s_relay_on ? "ON" : "OFF");
+}
+
+static bool relay_command_callback(uint8_t event_type, uint8_t value)
+{
+    if (event_type != IOT154_EVENT_POWER) {
+        return false;
+    }
+
+    if (value == IOT154_VALUE_OFF) {
+        relay_set(false);
+        return true;
+    }
+    if (value == IOT154_VALUE_ON) {
+        relay_set(true);
+        return true;
+    }
+    if (value == IOT154_VALUE_TOGGLE) {
+        relay_set(!s_relay_on);
+        return true;
+    }
+
+    return false;
 }
 
 static bool report_relay_state(uint16_t *seq, bool *paired, uint8_t *central_ext_addr, bool relay_on)
@@ -79,6 +110,7 @@ void app_main(void)
     uint8_t central_ext_addr[IOT154_EXT_ADDR_LEN];
     ESP_ERROR_CHECK(esp_read_mac(switch_ext_addr, ESP_MAC_IEEE802154));
     ESP_ERROR_CHECK(iot154_sensor_client_init(switch_ext_addr));
+    iot154_sensor_client_set_command_callback(relay_command_callback);
 
     uint16_t seq = 1;
     bool paired = iot154_storage_load_central_ext_addr(central_ext_addr);
@@ -86,12 +118,11 @@ void app_main(void)
         iot154_sensor_client_set_central_ext_addr(central_ext_addr);
     }
 
-    bool relay_on = false;
     while (true) {
-        relay_on = !relay_on;
-        ESP_ERROR_CHECK(gpio_set_level(IOT154_RELAY_GPIO, relay_on ? 1 : 0));
-        ESP_LOGI(TAG, "Relay GPIO%d changed to %s", IOT154_RELAY_GPIO, relay_on ? "ON" : "OFF");
-        (void)report_relay_state(&seq, &paired, central_ext_addr, relay_on);
-        vTaskDelay(pdMS_TO_TICKS(IOT154_RELAY_BLINK_MS));
+        relay_set(!s_relay_on);
+        (void)report_relay_state(&seq, &paired, central_ext_addr, s_relay_on);
+        for (uint32_t elapsed_ms = 0; elapsed_ms < IOT154_RELAY_BLINK_MS; elapsed_ms += 100) {
+            (void)iot154_sensor_client_process_pending_command(100);
+        }
     }
 }
