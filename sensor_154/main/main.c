@@ -1,131 +1,97 @@
-#include "esp_attr.h"
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "driver/gpio.h"
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_mac.h"
-#include "esp_sleep.h"
-#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-#include "iot154_battery.h"
-#include "iot154_boot_button.h"
-#include "iot154_metrics.h"
 #include "iot154_packet.h"
-#include "iot154_pairing_led.h"
-#include "iot154_power.h"
 #include "iot154_sensor_client.h"
-#include "iot154_sensor_config.h"
-#include "iot154_sensor_input.h"
 #include "iot154_storage.h"
 
-RTC_DATA_ATTR static uint16_t s_rtc_seq;
-static const char *TAG = "iot154_main";
+#define IOT154_RELAY_GPIO GPIO_NUM_13
+#define IOT154_RELAY_BLINK_MS 15000
 
-static void apply_tx_result(const iot154_sensor_tx_result_t *tx_result, iot154_sensor_metrics_t *metrics)
-{
-    metrics->tx_start_us = tx_result->tx_start_us;
-    metrics->ack_received_us = tx_result->ack_received_us;
-}
+static const char *TAG = "iot154_switch";
 
 static bool discover_and_save_central(uint16_t seq, uint8_t *central_ext_addr)
 {
-    iot154_pairing_led_start_blink();
-    if (iot154_sensor_client_discover_central(seq, central_ext_addr)) {
-        iot154_storage_save_central_ext_addr(central_ext_addr);
+    ESP_LOGI(TAG, "Searching for coordinator");
+    if (!iot154_sensor_client_discover_central(seq, central_ext_addr)) {
+        ESP_LOGW(TAG, "Coordinator discovery failed");
+        return false;
+    }
+
+    iot154_storage_save_central_ext_addr(central_ext_addr);
+    iot154_storage_reset_send_failures();
+    return true;
+}
+
+static void relay_configure(void)
+{
+    const gpio_config_t config = {
+        .pin_bit_mask = BIT64(IOT154_RELAY_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    ESP_ERROR_CHECK(gpio_config(&config));
+    gpio_set_level(IOT154_RELAY_GPIO, 0);
+}
+
+static bool report_relay_state(uint16_t *seq, bool *paired, uint8_t *central_ext_addr, bool relay_on)
+{
+    const uint8_t value = relay_on ? IOT154_VALUE_ON : IOT154_VALUE_OFF;
+
+    if (!*paired) {
+        *paired = discover_and_save_central(*seq, central_ext_addr);
+        ++(*seq);
+    }
+
+    if (!*paired) {
+        return false;
+    }
+
+    iot154_sensor_tx_result_t tx_result = {0};
+    if (iot154_sensor_client_transmit_data_with_ack(*seq, IOT154_EVENT_POWER, value, &tx_result)) {
         iot154_storage_reset_send_failures();
-        iot154_pairing_led_stop();
+        ESP_LOGI(TAG, "Reported relay GPIO%d %s", IOT154_RELAY_GPIO, relay_on ? "ON" : "OFF");
+        ++(*seq);
         return true;
     }
 
-    iot154_pairing_led_stop();
+    const uint8_t failures = iot154_storage_record_send_failure();
+    ESP_LOGW(TAG, "Relay state report failed; failures=%u", failures);
+    ++(*seq);
     return false;
 }
 
 void app_main(void)
 {
-    iot154_sensor_metrics_t metrics = {
-        .boot_us = esp_timer_get_time(),
-        .ack_received_us = -1,
-    };
-
-    iot154_sensor_input_configure();
-    uint8_t gpio_level = iot154_sensor_input_sample_level();
-    metrics.gpio_sampled_us = esp_timer_get_time();
-    const bool boot_button_wakeup = (esp_sleep_get_wakeup_causes() & BIT(ESP_SLEEP_WAKEUP_EXT1)) != 0 &&
-                                    (esp_sleep_get_ext1_wakeup_status() & BIT64(IOT154_BOOT_BUTTON_GPIO)) != 0;
-
-    iot154_battery_init();
-    const uint16_t battery_mv = iot154_battery_read_mv();
-    const uint8_t battery_percent = iot154_battery_percent_from_mv(battery_mv);
-
+    relay_configure();
     iot154_storage_init();
-    iot154_boot_button_configure();
-    iot154_pairing_led_configure();
-    if (boot_button_wakeup || iot154_boot_button_is_pressed()) {
-        ESP_LOGW(TAG, "BOOT button pressed on startup; resetting pairing NVS");
-        iot154_storage_reset_pairing();
-    }
 
-    uint8_t sensor_ext_addr[IOT154_EXT_ADDR_LEN];
+    uint8_t switch_ext_addr[IOT154_EXT_ADDR_LEN];
     uint8_t central_ext_addr[IOT154_EXT_ADDR_LEN];
-    ESP_ERROR_CHECK(esp_read_mac(sensor_ext_addr, ESP_MAC_IEEE802154));
-    ESP_ERROR_CHECK(iot154_sensor_client_init(sensor_ext_addr));
-    metrics.radio_init_done_us = esp_timer_get_time();
+    ESP_ERROR_CHECK(esp_read_mac(switch_ext_addr, ESP_MAC_IEEE802154));
+    ESP_ERROR_CHECK(iot154_sensor_client_init(switch_ext_addr));
 
-    uint16_t seq = (uint16_t)(s_rtc_seq + 1);
-
-    const bool was_paired = iot154_storage_load_central_ext_addr(central_ext_addr);
-    if (was_paired) {
+    uint16_t seq = 1;
+    bool paired = iot154_storage_load_central_ext_addr(central_ext_addr);
+    if (paired) {
         iot154_sensor_client_set_central_ext_addr(central_ext_addr);
-    } else if (!discover_and_save_central(seq, central_ext_addr)) {
-        s_rtc_seq = seq;
-        metrics.sleep_enter_us = esp_timer_get_time();
-        iot154_power_enter_deep_sleep(seq, gpio_level, IOT154_MAX_TX_ATTEMPTS, false, &metrics);
     }
 
-    bool delivered = false;
-    bool paired_send_delivered = false;
-    iot154_sensor_tx_result_t tx_result = {0};
-    for (uint8_t update = 0; update < IOT154_MAX_STATE_UPDATES; ++update) {
-        const uint8_t value = iot154_sensor_input_data_value(gpio_level);
-        delivered = iot154_sensor_client_transmit_data_with_ack(seq, IOT154_EVENT_DOOR, value, &tx_result);
-        paired_send_delivered = paired_send_delivered || delivered;
-        apply_tx_result(&tx_result, &metrics);
-
-        const uint8_t current_gpio_level = iot154_sensor_input_sample_level();
-        if (current_gpio_level == gpio_level) {
-            break;
-        }
-        if (update + 1 >= IOT154_MAX_STATE_UPDATES) {
-            break;
-        }
-
-        gpio_level = current_gpio_level;
-        seq = (uint16_t)(seq + 1);
+    bool relay_on = false;
+    while (true) {
+        relay_on = !relay_on;
+        ESP_ERROR_CHECK(gpio_set_level(IOT154_RELAY_GPIO, relay_on ? 1 : 0));
+        ESP_LOGI(TAG, "Relay GPIO%d changed to %s", IOT154_RELAY_GPIO, relay_on ? "ON" : "OFF");
+        (void)report_relay_state(&seq, &paired, central_ext_addr, relay_on);
+        vTaskDelay(pdMS_TO_TICKS(IOT154_RELAY_BLINK_MS));
     }
-
-    seq = (uint16_t)(seq + 1);
-    delivered = iot154_sensor_client_transmit_data_with_ack(seq, IOT154_EVENT_BATTERY, battery_percent, &tx_result);
-    paired_send_delivered = paired_send_delivered || delivered;
-    apply_tx_result(&tx_result, &metrics);
-
-    if (was_paired) {
-        if (paired_send_delivered) {
-            iot154_storage_reset_send_failures();
-        } else {
-            const uint8_t failures = iot154_storage_record_send_failure();
-            ESP_LOGW(TAG,
-                     "Paired coordinator send failed on wake cycle; failures=%u limit=%u",
-                     failures,
-                     IOT154_COORDINATOR_SEND_FAILURE_LIMIT);
-            if (failures >= IOT154_COORDINATOR_SEND_FAILURE_LIMIT) {
-                ESP_LOGW(TAG, "Send failure limit reached; resetting pairing NVS and searching for coordinator");
-                iot154_storage_reset_pairing();
-                (void)discover_and_save_central(seq, central_ext_addr);
-            }
-        }
-    }
-
-    s_rtc_seq = seq;
-
-    metrics.sleep_enter_us = esp_timer_get_time();
-    iot154_power_enter_deep_sleep(seq, gpio_level, tx_result.attempts, delivered, &metrics);
 }

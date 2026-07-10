@@ -1,7 +1,6 @@
 #pragma once
 
 #include "driver/gpio.h"
-#include "esp_adc/adc_oneshot.h"
 
 #if CONFIG_IDF_TARGET_ESP32C6
 #define IOT154_SENSOR_GPIO GPIO_NUM_4

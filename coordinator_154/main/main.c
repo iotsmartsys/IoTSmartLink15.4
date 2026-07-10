@@ -22,6 +22,7 @@ static const char *TAG = "central_154";
 static const EventBits_t RX_DONE_BIT = BIT0;
 static const EventBits_t TX_DONE_BIT = BIT1;
 static const EventBits_t TX_FAILED_BIT = BIT2;
+static const EventBits_t TEST_TOGGLE_BIT = BIT3;
 
 #ifndef HOST_UART_TX_GPIO
 #define HOST_UART_TX_GPIO 16
@@ -48,6 +49,8 @@ static esp_ieee802154_tx_error_t s_radio_tx_error;
 static uint8_t s_central_ext_addr[IOT154_EXT_ADDR_LEN];
 static const char *s_tx_type = "ACK";
 static bool s_radio_tx_busy;
+static uint32_t s_last_device_id;
+static bool s_has_last_device;
 
 typedef struct {
     uint32_t device_id;
@@ -204,7 +207,7 @@ static const char *type_from_event(uint8_t event_type)
     case IOT154_EVENT_DOOR:
         return "Door Sensor";
     case IOT154_EVENT_POWER:
-        return "Light Actuator";
+        return "Switch Plug";
     case IOT154_EVENT_BATTERY_LEVEL_PERCENT:
         return "Battery Level (%)";
     default:
@@ -234,7 +237,7 @@ static bool command_to_event(const char *capability, const char *value, uint8_t 
         return false;
     }
 
-    if (strcmp(capability, "power") == 0 || strstr(capability, "Light Actuator") != NULL) {
+    if (strcmp(capability, "power") == 0 || strstr(capability, "Switch Plug") != NULL) {
         *event_type = IOT154_EVENT_POWER;
         if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0 || strcmp(value, "true") == 0) {
             *event_value = IOT154_VALUE_ON;
@@ -550,6 +553,8 @@ static bool is_duplicate(uint32_t device_id, uint16_t seq, const uint8_t *src_ex
     for (size_t i = 0; i < sizeof(s_devices) / sizeof(s_devices[0]); ++i) {
         if (s_devices[i].valid && s_devices[i].device_id == device_id) {
             memcpy(s_devices[i].ext_addr, src_ext_addr, IOT154_EXT_ADDR_LEN);
+            s_last_device_id = device_id;
+            s_has_last_device = true;
             if (s_devices[i].last_seq == seq) {
                 return true;
             }
@@ -569,6 +574,8 @@ static bool is_duplicate(uint32_t device_id, uint16_t seq, const uint8_t *src_ex
     free_slot->last_seq = seq;
     memcpy(free_slot->ext_addr, src_ext_addr, IOT154_EXT_ADDR_LEN);
     free_slot->valid = true;
+    s_last_device_id = device_id;
+    s_has_last_device = true;
     return false;
 }
 
@@ -580,6 +587,16 @@ static const uint8_t *find_device_ext_addr(uint32_t device_id)
         }
     }
     return NULL;
+}
+
+static bool find_last_device_id(uint32_t *device_id)
+{
+    if (!s_has_last_device || find_device_ext_addr(s_last_device_id) == NULL) {
+        return false;
+    }
+
+    *device_id = s_last_device_id;
+    return true;
 }
 
 static bool send_radio_command(uint32_t device_id, uint8_t event_type, uint8_t value)
@@ -618,6 +635,16 @@ static bool send_radio_command(uint32_t device_id, uint8_t event_type, uint8_t v
     }
     s_radio_tx_busy = true;
     return true;
+}
+
+static void test_toggle_task(void *arg)
+{
+    (void)arg;
+
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        xEventGroupSetBits(s_events, TEST_TOGGLE_BIT);
+    }
 }
 
 static void handle_host_line(char *line)
@@ -701,6 +728,7 @@ void app_main(void)
     ESP_ERROR_CHECK(iot154_radio_init(IOT154_CENTRAL_ADDR, true, on_rx_done, on_tx_done, on_tx_failed));
     ESP_ERROR_CHECK(esp_ieee802154_set_extended_address(s_central_ext_addr));
     ESP_ERROR_CHECK(iot154_radio_start_rx());
+    xTaskCreate(test_toggle_task, "test_toggle", 3072, NULL, 4, NULL);
 
     format_ext_addr(s_central_ext_addr, central_mac_text, sizeof(central_mac_text));
     ESP_LOGI(TAG,
@@ -714,7 +742,7 @@ void app_main(void)
 
     while (true) {
         EventBits_t bits = xEventGroupWaitBits(s_events,
-                                               RX_DONE_BIT | TX_DONE_BIT | TX_FAILED_BIT,
+                                               RX_DONE_BIT | TX_DONE_BIT | TX_FAILED_BIT | TEST_TOGGLE_BIT,
                                                pdTRUE,
                                                pdFALSE,
                                                pdMS_TO_TICKS(50));
@@ -769,6 +797,16 @@ void app_main(void)
             s_radio_tx_busy = false;
             ESP_ERROR_CHECK(iot154_radio_start_rx());
         }
+
+        // if ((bits & TEST_TOGGLE_BIT) != 0) {
+        //     uint32_t device_id = 0;
+        //     if (find_last_device_id(&device_id)) {
+        //         ESP_LOGI(TAG, "test toggle dev=0x%08" PRIx32, device_id);
+        //         (void)send_radio_command(device_id, IOT154_EVENT_POWER, IOT154_VALUE_TOGGLE);
+        //     } else {
+        //         ESP_LOGW(TAG, "test toggle skipped: no known client");
+        //     }
+        // }
 
         poll_host_uart();
     }
