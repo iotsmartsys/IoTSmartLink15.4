@@ -1,0 +1,86 @@
+name: Create ISSP Kanban Project
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_title:
+        description: "GitHub Project title"
+        required: false
+        default: "Refatoração ISSP Firmware Client"
+      dry_run:
+        description: "Dry run (only validate, do not create)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  issues: write
+  contents: read
+  repository-projects: write
+
+jobs:
+  create-project:
+    name: Create Kanban Project, Labels and Issues
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Validate script syntax
+        run: python3 -c "import ast, pathlib; ast.parse(pathlib.Path('.github/scripts/create_project.py').read_text())" && echo "Syntax OK"
+
+      - name: Create labels, issues and project
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 .github/scripts/create_project.py \
+            --owner "${{ github.repository_owner }}" \
+            --repo  "${{ github.event.repository.name }}" \
+            --project-title "${{ inputs.project_title }}"
+
+      - name: Dry run — list what would be created
+        if: ${{ inputs.dry_run }}
+        run: |
+          python3 - <<'EOF'
+          import sys
+          sys.path.insert(0, ".github/scripts")
+
+          # Import constants without executing main()
+          import importlib.util, pathlib
+          spec = importlib.util.spec_from_file_location(
+              "create_project",
+              ".github/scripts/create_project.py"
+          )
+          mod = importlib.util.module_from_spec(spec)
+          # Patch requests so imports don't fail
+          import types
+          mod_requests = types.ModuleType("requests")
+          sys.modules["requests"] = mod_requests
+          spec.loader.exec_module(mod)
+
+          print(f"\n=== Labels to create ({len(mod.LABELS)}) ===")
+          for lb in mod.LABELS:
+              print(f"  #{lb['color']}  {lb['name']}")
+
+          print(f"\n=== Issues to create ({len(mod.ISSUES)}) ===")
+          for i, issue in enumerate(mod.ISSUES, 1):
+              print(f"  {i:02d}. {issue['title']}")
+              print(f"       Labels: {', '.join(issue['labels'])}")
+
+          print(f"\n=== Kanban columns ===")
+          for col in mod.DESIRED_COLUMNS:
+              print(f"  - {col}")
+
+          print(f"\n=== Project title ===")
+          print(f"  {mod.PROJECT_TITLE}")
+          EOF
