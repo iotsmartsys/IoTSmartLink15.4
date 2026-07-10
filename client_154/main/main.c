@@ -13,10 +13,13 @@
 #include "iot154_storage.h"
 
 #define IOT154_RELAY_GPIO GPIO_NUM_13
-#define IOT154_RELAY_BLINK_MS 15000
+#define IOT154_RELAY_ENDPOINT_ID 1
 
 static const char *TAG = "iot154_switch";
 static bool s_relay_on;
+static bool s_relay_report_pending;
+static bool s_relay_report_state;
+static uint32_t s_relay_change_generation;
 
 static bool discover_and_save_central(uint16_t seq, uint8_t *central_ext_addr)
 {
@@ -45,29 +48,42 @@ static void relay_configure(void)
     gpio_set_level(IOT154_RELAY_GPIO, 0);
 }
 
-static void relay_set(bool relay_on)
+static void relay_mark_state_change(bool relay_on)
 {
     s_relay_on = relay_on;
-    ESP_ERROR_CHECK(gpio_set_level(IOT154_RELAY_GPIO, s_relay_on ? 1 : 0));
+    s_relay_report_state = s_relay_on;
+    s_relay_report_pending = true;
+    ++s_relay_change_generation;
     ESP_LOGI(TAG, "Relay GPIO%d changed to %s", IOT154_RELAY_GPIO, s_relay_on ? "ON" : "OFF");
 }
 
-static bool relay_command_callback(uint8_t event_type, uint8_t value)
+static bool relay_set(bool relay_on)
 {
-    if (event_type != IOT154_EVENT_POWER) {
+    if (s_relay_on == relay_on) {
+        return false;
+    }
+
+    ESP_ERROR_CHECK(gpio_set_level(IOT154_RELAY_GPIO, relay_on ? 1 : 0));
+    relay_mark_state_change(relay_on);
+    return true;
+}
+
+static bool relay_command_callback(uint8_t endpoint_id, uint8_t event_type, uint8_t value)
+{
+    if (endpoint_id != IOT154_RELAY_ENDPOINT_ID || event_type != IOT154_EVENT_POWER) {
         return false;
     }
 
     if (value == IOT154_VALUE_OFF) {
-        relay_set(false);
+        (void)relay_set(false);
         return true;
     }
     if (value == IOT154_VALUE_ON) {
-        relay_set(true);
+        (void)relay_set(true);
         return true;
     }
     if (value == IOT154_VALUE_TOGGLE) {
-        relay_set(!s_relay_on);
+        (void)relay_set(!s_relay_on);
         return true;
     }
 
@@ -88,7 +104,7 @@ static bool report_relay_state(uint16_t *seq, bool *paired, uint8_t *central_ext
     }
 
     iot154_sensor_tx_result_t tx_result = {0};
-    if (iot154_sensor_client_transmit_data_with_ack(*seq, IOT154_EVENT_POWER, value, &tx_result)) {
+    if (iot154_sensor_client_transmit_data_with_ack(*seq, IOT154_RELAY_ENDPOINT_ID, IOT154_EVENT_POWER, value, &tx_result)) {
         iot154_storage_reset_send_failures();
         ESP_LOGI(TAG, "Reported relay GPIO%d %s", IOT154_RELAY_GPIO, relay_on ? "ON" : "OFF");
         ++(*seq);
@@ -99,6 +115,20 @@ static bool report_relay_state(uint16_t *seq, bool *paired, uint8_t *central_ext
     ESP_LOGW(TAG, "Relay state report failed; failures=%u", failures);
     ++(*seq);
     return false;
+}
+
+static void report_pending_relay_state(uint16_t *seq, bool *paired, uint8_t *central_ext_addr)
+{
+    if (!s_relay_report_pending) {
+        return;
+    }
+
+    const bool report_state = s_relay_report_state;
+    const uint32_t report_generation = s_relay_change_generation;
+    if (report_relay_state(seq, paired, central_ext_addr, report_state) &&
+        s_relay_change_generation == report_generation) {
+        s_relay_report_pending = false;
+    }
 }
 
 void app_main(void)
@@ -119,10 +149,7 @@ void app_main(void)
     }
 
     while (true) {
-        relay_set(!s_relay_on);
-        (void)report_relay_state(&seq, &paired, central_ext_addr, s_relay_on);
-        for (uint32_t elapsed_ms = 0; elapsed_ms < IOT154_RELAY_BLINK_MS; elapsed_ms += 100) {
-            (void)iot154_sensor_client_process_pending_command(100);
-        }
+        (void)iot154_sensor_client_process_pending_command(100);
+        report_pending_relay_state(&seq, &paired, central_ext_addr);
     }
 }

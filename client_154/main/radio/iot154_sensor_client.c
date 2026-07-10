@@ -25,6 +25,7 @@ static EventGroupHandle_t s_events;
 static uint8_t s_rx_frame[IOT154_MAX_FRAME_LEN + 1];
 static uint8_t s_tx_frame[IOT154_MAX_FRAME_LEN + 1];
 static uint16_t s_waiting_seq;
+static uint8_t s_waiting_endpoint_id;
 static int64_t s_tx_start_us;
 static uint8_t s_mac_seq;
 static uint8_t s_sensor_ext_addr[IOT154_EXT_ADDR_LEN];
@@ -86,7 +87,7 @@ void iot154_sensor_client_set_command_callback(iot154_sensor_command_cb_t callba
     s_command_cb = callback;
 }
 
-static esp_err_t send_data(uint16_t seq, uint8_t event_type, uint8_t value)
+static esp_err_t send_data(uint16_t seq, uint8_t endpoint_id, uint8_t event_type, uint8_t value)
 {
     if (s_radio_tx_busy) {
         return ESP_ERR_INVALID_STATE;
@@ -97,6 +98,7 @@ static esp_err_t send_data(uint16_t seq, uint8_t event_type, uint8_t value)
         .msg_type = IOT154_MSG_DATA,
         .device_id = IOT154_SENSOR_DEVICE_ID,
         .seq = seq,
+        .endpoint_id = endpoint_id,
         .event_type = event_type,
         .value = value,
     };
@@ -104,6 +106,7 @@ static esp_err_t send_data(uint16_t seq, uint8_t event_type, uint8_t value)
     iot154_build_ext_frame(s_tx_frame, s_sensor_ext_addr, s_central_ext_addr, s_mac_seq++, &packet);
 
     s_waiting_seq = seq;
+    s_waiting_endpoint_id = endpoint_id;
     s_tx_start_us = esp_timer_get_time();
 
     esp_ieee802154_sleep();
@@ -123,6 +126,7 @@ static esp_err_t send_discovery_request(uint16_t seq)
         .msg_type = IOT154_MSG_DISCOVERY_REQ,
         .device_id = IOT154_SENSOR_DEVICE_ID,
         .seq = seq,
+        .endpoint_id = 0,
         .event_type = 0,
         .value = 0,
     };
@@ -138,7 +142,7 @@ static esp_err_t send_discovery_request(uint16_t seq)
     return err;
 }
 
-static esp_err_t send_command_ack(uint32_t device_id, uint16_t seq, uint8_t status)
+static esp_err_t send_command_ack(uint32_t device_id, uint16_t seq, uint8_t endpoint_id, uint8_t status)
 {
     if (s_radio_tx_busy) {
         return ESP_ERR_INVALID_STATE;
@@ -149,6 +153,7 @@ static esp_err_t send_command_ack(uint32_t device_id, uint16_t seq, uint8_t stat
         .msg_type = IOT154_MSG_ACK,
         .device_id = device_id,
         .seq = seq,
+        .endpoint_id = endpoint_id,
         .event_type = 0,
         .value = status,
     };
@@ -205,18 +210,19 @@ static bool process_received_command(void)
                packet.value != IOT154_VALUE_ON &&
                packet.value != IOT154_VALUE_TOGGLE) {
         status = IOT154_ACK_STATUS_INVALID;
-    } else if (s_command_cb == NULL || !s_command_cb(packet.event_type, packet.value)) {
+    } else if (s_command_cb == NULL || !s_command_cb(packet.endpoint_id, packet.event_type, packet.value)) {
         status = IOT154_ACK_STATUS_UNSUPPORTED;
     }
 
     ESP_LOGI(TAG,
-             "CMD dev=0x%08" PRIx32 " seq=%u event=%u value=%u status=%u",
+             "CMD dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u status=%u",
              packet.device_id,
              packet.seq,
+             packet.endpoint_id,
              packet.event_type,
              packet.value,
              status);
-    (void)send_command_ack(packet.device_id, packet.seq, status);
+    (void)send_command_ack(packet.device_id, packet.seq, packet.endpoint_id, status);
     return true;
 }
 
@@ -236,6 +242,7 @@ static bool received_matching_ack(void)
            packet.device_id == IOT154_SENSOR_DEVICE_ID &&
            packet.msg_type == IOT154_MSG_ACK &&
            packet.seq == s_waiting_seq &&
+           packet.endpoint_id == s_waiting_endpoint_id &&
            packet.value == IOT154_ACK_STATUS_OK;
 }
 
@@ -268,6 +275,7 @@ static bool received_discovery_response(uint8_t *central_ext_addr)
         packet.device_id == IOT154_SENSOR_DEVICE_ID &&
         packet.msg_type == IOT154_MSG_DISCOVERY_RESP &&
         packet.seq == s_waiting_seq &&
+        packet.endpoint_id == 0 &&
         packet.value == IOT154_ACK_STATUS_OK) {
         memcpy(central_ext_addr, mac.src_ext, IOT154_EXT_ADDR_LEN);
         return true;
@@ -316,6 +324,7 @@ bool iot154_sensor_client_discover_central(uint16_t seq, uint8_t *central_ext_ad
 }
 
 bool iot154_sensor_client_transmit_data_with_ack(uint16_t seq,
+                                                 uint8_t endpoint_id,
                                                  uint8_t event_type,
                                                  uint8_t value,
                                                  iot154_sensor_tx_result_t *result)
@@ -334,7 +343,7 @@ bool iot154_sensor_client_transmit_data_with_ack(uint16_t seq,
         xEventGroupClearBits(s_events, RX_DONE_BIT | TX_DONE_BIT | TX_FAILED_BIT);
         result->attempts = attempt;
 
-        esp_err_t err = send_data(seq, event_type, value);
+        esp_err_t err = send_data(seq, endpoint_id, event_type, value);
         result->tx_start_us = s_tx_start_us;
         if (err != ESP_OK) {
             continue;

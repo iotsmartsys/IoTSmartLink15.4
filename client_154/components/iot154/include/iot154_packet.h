@@ -49,6 +49,7 @@ typedef struct __attribute__((packed)) {
     uint8_t msg_type;
     uint32_t device_id;
     uint16_t seq;
+    uint8_t endpoint_id;
     uint8_t event_type;
     uint8_t value;
     uint8_t checksum;

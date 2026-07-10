@@ -15,7 +15,7 @@ typedef struct {
     int64_t ack_received_us;
 } iot154_sensor_tx_result_t;
 
-typedef bool (*iot154_sensor_command_cb_t)(uint8_t event_type, uint8_t value);
+typedef bool (*iot154_sensor_command_cb_t)(uint8_t endpoint_id, uint8_t event_type, uint8_t value);
 
 esp_err_t iot154_sensor_client_init(const uint8_t *sensor_ext_addr);
 void iot154_sensor_client_set_central_ext_addr(const uint8_t *central_ext_addr);
@@ -23,6 +23,7 @@ void iot154_sensor_client_set_command_callback(iot154_sensor_command_cb_t callba
 bool iot154_sensor_client_process_pending_command(uint32_t wait_ms);
 bool iot154_sensor_client_discover_central(uint16_t seq, uint8_t *central_ext_addr);
 bool iot154_sensor_client_transmit_data_with_ack(uint16_t seq,
+                                                 uint8_t endpoint_id,
                                                  uint8_t event_type,
                                                  uint8_t value,
                                                  iot154_sensor_tx_result_t *result);

@@ -37,7 +37,6 @@ extern "C" {
 #define IOT154_FCS_LEN 2
 #define IOT154_MAX_FRAME_LEN 127
 #define IOT154_EXT_ADDR_LEN 8
-#define IOT154_SENSOR_DEVICE_ID 0x15400001
 
 #define IOT154_ADDR_MODE_NONE 0
 #define IOT154_ADDR_MODE_SHORT 2
@@ -48,6 +47,7 @@ typedef struct __attribute__((packed)) {
     uint8_t msg_type;
     uint32_t device_id;
     uint16_t seq;
+    uint8_t endpoint_id;
     uint8_t event_type;
     uint8_t value;
     uint8_t checksum;
