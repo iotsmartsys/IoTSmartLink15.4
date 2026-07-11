@@ -1,9 +1,9 @@
-idf_component_register(SRCS "main.c"
+idf_component_register(SRCS "main.cpp"
                             "radio/iot154_sensor_client.c"
                             "storage/iot154_storage.c"
                        INCLUDE_DIRS "."
                                     "config"
                                     "radio"
                                     "storage"
-                       REQUIRES iot154 nvs_flash esp_driver_gpio
+                       REQUIRES iot154 issp_transport_154 nvs_flash esp_driver_gpio
                        PRIV_REQUIRES ieee802154 esp_timer esp_hw_support)

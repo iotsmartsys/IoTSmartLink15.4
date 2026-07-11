@@ -16,6 +16,7 @@
 #define IOT154_RELAY_BUTTON_GPIO GPIO_NUM_9
 #define IOT154_RELAY_ENDPOINT_ID 1
 #define IOT154_RELAY_BUTTON_DEBOUNCE_MS 50
+#define IOT154_SENSOR_DEVICE_ID 0x15400001
 
 static const char *TAG = "iot154_switch";
 static bool s_relay_on;
@@ -117,26 +118,26 @@ static void relay_button_poll(void)
     }
 }
 
-static bool relay_command_callback(uint8_t endpoint_id, uint8_t event_type, uint8_t value)
+static uint8_t relay_command_callback(uint8_t endpoint_id, uint8_t event_type, uint8_t value)
 {
     if (endpoint_id != IOT154_RELAY_ENDPOINT_ID || event_type != IOT154_EVENT_POWER) {
-        return false;
+        return IOT154_ACK_STATUS_UNSUPPORTED;
     }
 
     if (value == IOT154_VALUE_OFF) {
         (void)relay_set(false);
-        return true;
+        return IOT154_ACK_STATUS_OK;
     }
     if (value == IOT154_VALUE_ON) {
         (void)relay_set(true);
-        return true;
+        return IOT154_ACK_STATUS_OK;
     }
     if (value == IOT154_VALUE_TOGGLE) {
         (void)relay_set(!s_relay_on);
-        return true;
+        return IOT154_ACK_STATUS_OK;
     }
 
-    return false;
+    return IOT154_ACK_STATUS_INVALID;
 }
 
 static bool report_relay_state(uint16_t *seq, bool *paired, uint8_t *central_ext_addr, bool relay_on)
@@ -180,7 +181,7 @@ static void report_pending_relay_state(uint16_t *seq, bool *paired, uint8_t *cen
     }
 }
 
-void app_main(void)
+extern "C" void app_main()
 {
     relay_configure();
     relay_button_configure();
@@ -189,7 +190,7 @@ void app_main(void)
     uint8_t switch_ext_addr[IOT154_EXT_ADDR_LEN];
     uint8_t central_ext_addr[IOT154_EXT_ADDR_LEN];
     ESP_ERROR_CHECK(esp_read_mac(switch_ext_addr, ESP_MAC_IEEE802154));
-    ESP_ERROR_CHECK(iot154_sensor_client_init(switch_ext_addr));
+    ESP_ERROR_CHECK(iot154_sensor_client_init(switch_ext_addr, IOT154_SENSOR_DEVICE_ID));
     iot154_sensor_client_set_command_callback(relay_command_callback);
 
     uint16_t seq = 1;
