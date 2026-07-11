@@ -2,7 +2,6 @@
 
 #include "esp_check.h"
 #include "esp_ieee802154.h"
-#include "iot154_packet.h"
 
 static iot154_rx_done_cb_t s_rx_cb;
 static iot154_tx_done_cb_t s_tx_done_cb;
@@ -29,7 +28,9 @@ static void IRAM_ATTR radio_tx_failed(const uint8_t *frame, esp_ieee802154_tx_er
     }
 }
 
-esp_err_t iot154_radio_init(uint16_t short_addr,
+esp_err_t iot154_radio_init(uint8_t channel,
+                            uint16_t pan_id,
+                            uint16_t short_addr,
                             bool coordinator,
                             iot154_rx_done_cb_t rx_cb,
                             iot154_tx_done_cb_t tx_done_cb,
@@ -47,8 +48,8 @@ esp_err_t iot154_radio_init(uint16_t short_addr,
 
     ESP_RETURN_ON_ERROR(esp_ieee802154_event_callback_list_register(callbacks), "iot154", "register callbacks");
     ESP_RETURN_ON_ERROR(esp_ieee802154_enable(), "iot154", "enable radio");
-    ESP_RETURN_ON_ERROR(esp_ieee802154_set_channel(IOT154_CHANNEL), "iot154", "set channel");
-    ESP_RETURN_ON_ERROR(esp_ieee802154_set_panid(IOT154_PAN_ID), "iot154", "set pan");
+    ESP_RETURN_ON_ERROR(esp_ieee802154_set_channel(channel), "iot154", "set channel");
+    ESP_RETURN_ON_ERROR(esp_ieee802154_set_panid(pan_id), "iot154", "set pan");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_short_address(short_addr), "iot154", "set short address");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_coordinator(coordinator), "iot154", "set coordinator");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_promiscuous(false), "iot154", "set promiscuous");

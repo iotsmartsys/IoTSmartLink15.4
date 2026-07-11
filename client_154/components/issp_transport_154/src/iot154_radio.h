@@ -15,7 +15,9 @@ typedef void (*iot154_tx_done_cb_t)(const uint8_t *frame, const uint8_t *ack, es
 typedef void (*iot154_tx_failed_cb_t)(const uint8_t *frame, esp_ieee802154_tx_error_t error);
 
 /// @brief Initialize IEEE 802.15.4 radio with fixed PAN, short address and channel.
-esp_err_t iot154_radio_init(uint16_t short_addr,
+esp_err_t iot154_radio_init(uint8_t channel,
+                            uint16_t pan_id,
+                            uint16_t short_addr,
                             bool coordinator,
                             iot154_rx_done_cb_t rx_cb,
                             iot154_tx_done_cb_t tx_done_cb,
