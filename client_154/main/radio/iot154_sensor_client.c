@@ -33,8 +33,9 @@ static uint32_t s_device_id;
 static iot154_sensor_command_cb_t s_command_cb;
 static bool s_radio_tx_busy;
 
-static void IRAM_ATTR on_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *frame_info)
+static void IRAM_ATTR on_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *frame_info, void *context)
 {
+    (void)context;
     BaseType_t task_woken = pdFALSE;
     uint8_t len = frame[0];
     if (len <= IOT154_MAX_FRAME_LEN) {
@@ -47,8 +48,10 @@ static void IRAM_ATTR on_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *fr
 
 static void IRAM_ATTR on_tx_done(const uint8_t *frame,
                                  const uint8_t *ack,
-                                 esp_ieee802154_frame_info_t *ack_info)
+                                 esp_ieee802154_frame_info_t *ack_info,
+                                 void *context)
 {
+    (void)context;
     BaseType_t task_woken = pdFALSE;
     s_radio_tx_busy = false;
     xEventGroupSetBitsFromISR(s_events, TX_DONE_BIT, &task_woken);
@@ -58,8 +61,9 @@ static void IRAM_ATTR on_tx_done(const uint8_t *frame,
     portYIELD_FROM_ISR(task_woken);
 }
 
-static void IRAM_ATTR on_tx_failed(const uint8_t *frame, esp_ieee802154_tx_error_t error)
+static void IRAM_ATTR on_tx_failed(const uint8_t *frame, esp_ieee802154_tx_error_t error, void *context)
 {
+    (void)context;
     BaseType_t task_woken = pdFALSE;
     s_radio_tx_busy = false;
     xEventGroupSetBitsFromISR(s_events, TX_FAILED_BIT, &task_woken);
@@ -80,6 +84,7 @@ esp_err_t iot154_sensor_client_init(const uint8_t *sensor_ext_addr, uint32_t dev
         .rx_done_cb = on_rx_done,
         .tx_done_cb = on_tx_done,
         .tx_failed_cb = on_tx_failed,
+        .context = NULL,
     };
     ESP_RETURN_ON_ERROR(issp154_transport_init(&transport_config), TAG, "init radio");
     return issp154_transport_set_extended_address(s_sensor_ext_addr);

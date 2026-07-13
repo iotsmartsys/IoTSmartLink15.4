@@ -10,11 +10,16 @@
 extern "C" {
 #endif
 
-typedef void (*issp154_transport_rx_done_cb_t)(uint8_t *frame, esp_ieee802154_frame_info_t *frame_info);
+typedef void (*issp154_transport_rx_done_cb_t)(uint8_t *frame,
+                                               esp_ieee802154_frame_info_t *frame_info,
+                                               void *context);
 typedef void (*issp154_transport_tx_done_cb_t)(const uint8_t *frame,
                                                const uint8_t *ack,
-                                               esp_ieee802154_frame_info_t *ack_info);
-typedef void (*issp154_transport_tx_failed_cb_t)(const uint8_t *frame, esp_ieee802154_tx_error_t error);
+                                               esp_ieee802154_frame_info_t *ack_info,
+                                               void *context);
+typedef void (*issp154_transport_tx_failed_cb_t)(const uint8_t *frame,
+                                                 esp_ieee802154_tx_error_t error,
+                                                 void *context);
 
 typedef struct {
     uint8_t channel;
@@ -24,9 +29,16 @@ typedef struct {
     issp154_transport_rx_done_cb_t rx_done_cb;
     issp154_transport_tx_done_cb_t tx_done_cb;
     issp154_transport_tx_failed_cb_t tx_failed_cb;
+    void *context;
 } issp154_transport_config_t;
 
-/// @brief Initialize and configure the IEEE 802.15.4 radio.
+/**
+ * @brief Initialize and configure the IEEE 802.15.4 radio.
+ *
+ * The underlying driver and this API support one active radio instance. The
+ * opaque context is forwarded to callbacks for that active instance; multiple
+ * simultaneous contexts are not supported.
+ */
 esp_err_t issp154_transport_init(const issp154_transport_config_t *config);
 
 /// @brief Configure the local IEEE 802.15.4 extended address.

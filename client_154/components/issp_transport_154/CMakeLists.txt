@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS
         "src/issp154_transport.c"
+        "src/issp154_transport.cpp"
         "src/iot154_radio.c"
     INCLUDE_DIRS
         "include"
@@ -8,4 +9,5 @@ idf_component_register(
         "src"
     REQUIRES
         ieee802154
+        issp_core
 )
