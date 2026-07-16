@@ -1,6 +1,7 @@
 #include "issp154_transport.hpp"
 
 #include "esp_attr.h"
+#include "issp154_mac_frame.h"
 #include "issp154_transport.h"
 
 namespace issp
@@ -162,15 +163,22 @@ void IRAM_ATTR Issp154Transport::handleTxFailed(const std::uint8_t *frame,
 
 void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
 {
-    constexpr std::uint8_t maxPhysicalFrameLength = 127;
-
     if (frame == nullptr) {
         return;
     }
 
-    const std::uint8_t physicalLength = frame[0];
-    if (physicalLength != 0 && physicalLength <= maxPhysicalFrameLength && receiveHandler_ != nullptr) {
-        receiveHandler_(frame, static_cast<std::size_t>(physicalLength) + 1U, receiveContext_);
+    const std::size_t frameBufferLength = static_cast<std::size_t>(frame[0]) + 1U;
+    const std::uint8_t *payload = nullptr;
+    std::size_t payloadLength = 0;
+    issp154_mac_source_t replyContext{};
+    if (issp154_mac_extract_payload_and_source(
+            frame,
+            frameBufferLength,
+            &payload,
+            &payloadLength,
+            &replyContext) &&
+        payload != nullptr && payloadLength > 0 && receiveHandler_ != nullptr) {
+        receiveHandler_(payload, payloadLength, &replyContext, receiveContext_);
     }
 
     issp154_transport_release_receive_buffer(frame);

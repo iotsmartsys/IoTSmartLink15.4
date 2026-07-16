@@ -30,7 +30,8 @@ static TickType_t s_button_last_change_tick;
 static bool discover_and_save_central(uint16_t seq, uint8_t *central_ext_addr)
 {
     ESP_LOGI(TAG, "Searching for coordinator");
-    if (!iot154_sensor_client_discover_central(seq, central_ext_addr)) {
+    if (!iot154_sensor_client_discover_central(seq, central_ext_addr))
+    {
         ESP_LOGW(TAG, "Coordinator discovery failed");
         return false;
     }
@@ -86,7 +87,8 @@ static void relay_mark_state_change(bool relay_on)
 
 static bool relay_set(bool relay_on)
 {
-    if (s_relay_on == relay_on) {
+    if (s_relay_on == relay_on)
+    {
         return false;
     }
 
@@ -100,19 +102,22 @@ static void relay_button_poll(void)
     const bool pressed = relay_button_is_pressed();
     const TickType_t now = xTaskGetTickCount();
 
-    if (pressed != s_button_last_sample_pressed) {
+    if (pressed != s_button_last_sample_pressed)
+    {
         s_button_last_sample_pressed = pressed;
         s_button_last_change_tick = now;
         return;
     }
 
     if (pressed == s_button_stable_pressed ||
-        now - s_button_last_change_tick < pdMS_TO_TICKS(IOT154_RELAY_BUTTON_DEBOUNCE_MS)) {
+        now - s_button_last_change_tick < pdMS_TO_TICKS(IOT154_RELAY_BUTTON_DEBOUNCE_MS))
+    {
         return;
     }
 
     s_button_stable_pressed = pressed;
-    if (s_button_stable_pressed) {
+    if (s_button_stable_pressed)
+    {
         ESP_LOGI(TAG, "Relay GPIO%d physical toggle from GPIO%d", IOT154_RELAY_GPIO, IOT154_RELAY_BUTTON_GPIO);
         (void)relay_set(!s_relay_on);
     }
@@ -120,19 +125,23 @@ static void relay_button_poll(void)
 
 static uint8_t relay_command_callback(uint8_t endpoint_id, uint8_t event_type, uint8_t value)
 {
-    if (endpoint_id != IOT154_RELAY_ENDPOINT_ID || event_type != IOT154_EVENT_POWER) {
+    if (endpoint_id != IOT154_RELAY_ENDPOINT_ID || event_type != IOT154_EVENT_POWER)
+    {
         return IOT154_ACK_STATUS_UNSUPPORTED;
     }
 
-    if (value == IOT154_VALUE_OFF) {
+    if (value == IOT154_VALUE_OFF)
+    {
         (void)relay_set(false);
         return IOT154_ACK_STATUS_OK;
     }
-    if (value == IOT154_VALUE_ON) {
+    if (value == IOT154_VALUE_ON)
+    {
         (void)relay_set(true);
         return IOT154_ACK_STATUS_OK;
     }
-    if (value == IOT154_VALUE_TOGGLE) {
+    if (value == IOT154_VALUE_TOGGLE)
+    {
         (void)relay_set(!s_relay_on);
         return IOT154_ACK_STATUS_OK;
     }
@@ -144,17 +153,20 @@ static bool report_relay_state(uint16_t *seq, bool *paired, uint8_t *central_ext
 {
     const uint8_t value = relay_on ? IOT154_VALUE_ON : IOT154_VALUE_OFF;
 
-    if (!*paired) {
+    if (!*paired)
+    {
         *paired = discover_and_save_central(*seq, central_ext_addr);
         ++(*seq);
     }
 
-    if (!*paired) {
+    if (!*paired)
+    {
         return false;
     }
 
     iot154_sensor_tx_result_t tx_result = {0};
-    if (iot154_sensor_client_transmit_data_with_ack(*seq, IOT154_RELAY_ENDPOINT_ID, IOT154_EVENT_POWER, value, &tx_result)) {
+    if (iot154_sensor_client_transmit_data_with_ack(*seq, IOT154_RELAY_ENDPOINT_ID, IOT154_EVENT_POWER, value, &tx_result))
+    {
         iot154_storage_reset_send_failures();
         ESP_LOGI(TAG, "Reported relay GPIO%d %s", IOT154_RELAY_GPIO, relay_on ? "ON" : "OFF");
         ++(*seq);
@@ -169,14 +181,16 @@ static bool report_relay_state(uint16_t *seq, bool *paired, uint8_t *central_ext
 
 static void report_pending_relay_state(uint16_t *seq, bool *paired, uint8_t *central_ext_addr)
 {
-    if (!s_relay_report_pending) {
+    if (!s_relay_report_pending)
+    {
         return;
     }
 
     const bool report_state = s_relay_report_state;
     const uint32_t report_generation = s_relay_change_generation;
     if (report_relay_state(seq, paired, central_ext_addr, report_state) &&
-        s_relay_change_generation == report_generation) {
+        s_relay_change_generation == report_generation)
+    {
         s_relay_report_pending = false;
     }
 }
@@ -195,11 +209,13 @@ extern "C" void app_main()
 
     uint16_t seq = 1;
     bool paired = iot154_storage_load_central_ext_addr(central_ext_addr);
-    if (paired) {
+    if (paired)
+    {
         iot154_sensor_client_set_central_ext_addr(central_ext_addr);
     }
 
-    while (true) {
+    while (true)
+    {
         (void)iot154_sensor_client_process_pending_command(100);
         relay_button_poll();
         report_pending_relay_state(&seq, &paired, central_ext_addr);

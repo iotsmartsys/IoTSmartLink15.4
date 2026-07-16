@@ -27,7 +27,7 @@ public:
     IsspResult begin() override;
     IsspResult send(const std::uint8_t *data, std::size_t length) override;
     IsspTransportState state() const override;
-    /// Data passed to the handler is valid only for the duration of the call.
+    /// Data and the opaque reply context are valid only during the handler call.
     void setReceiveHandler(ReceiveHandler handler, void *context) override;
 
 private:

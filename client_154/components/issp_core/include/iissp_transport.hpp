@@ -11,7 +11,11 @@ namespace issp
 class IIsspTransport
 {
 public:
-    using ReceiveHandler = void (*)(const std::uint8_t *data, std::size_t length, void *context);
+    /// replyContext is opaque and valid only for the duration of the handler call.
+    using ReceiveHandler = void (*)(const std::uint8_t *data,
+                                    std::size_t length,
+                                    const void *replyContext,
+                                    void *context);
 
     virtual IsspResult begin() = 0;
     virtual IsspResult send(const std::uint8_t *data, std::size_t length) = 0;
