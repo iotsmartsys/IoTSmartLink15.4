@@ -7,6 +7,7 @@ namespace
 
 // Mirrors the current packed ISSP wire format during the C-to-C++ transition.
 constexpr std::uint8_t kProtocolVersion = 1;
+constexpr std::uint8_t kDataMessageType = 1;
 constexpr std::uint8_t kAckMessageType = 2;
 constexpr std::uint8_t kCommandMessageType = 5;
 constexpr std::size_t kVersionOffset = 0;
@@ -146,6 +147,31 @@ IsspResult encodeCommandAck(
     output[kEndpointIdOffset] = endpointId;
     output[kEventTypeOffset] = 0;
     output[kValueOffset] = ackStatusToWireValue(commandResultToAckStatus(commandResult));
+    output[kChecksumOffset] = calculateChecksum(output, kChecksumOffset);
+    outputLength = IsspPayloadSize;
+    return IsspResult::Ok;
+}
+
+IsspResult encodeReport(
+    std::uint32_t deviceId,
+    std::uint16_t sequence,
+    const IsspReport &report,
+    std::uint8_t *output,
+    std::size_t outputCapacity,
+    std::size_t &outputLength)
+{
+    if (output == nullptr || outputCapacity < IsspPayloadSize)
+    {
+        return IsspResult::InvalidArgument;
+    }
+
+    output[kVersionOffset] = kProtocolVersion;
+    output[kMessageTypeOffset] = kDataMessageType;
+    writeUint32LittleEndian(&output[kDeviceIdOffset], deviceId);
+    writeUint16LittleEndian(&output[kSequenceOffset], sequence);
+    output[kEndpointIdOffset] = report.endpointId;
+    output[kEventTypeOffset] = report.eventType;
+    output[kValueOffset] = report.value;
     output[kChecksumOffset] = calculateChecksum(output, kChecksumOffset);
     outputLength = IsspPayloadSize;
     return IsspResult::Ok;

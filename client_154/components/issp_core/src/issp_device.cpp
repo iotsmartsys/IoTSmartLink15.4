@@ -8,7 +8,8 @@ namespace issp
         : config_(config),
           transport_(transport),
           commandHandler_(nullptr),
-          commandContext_(nullptr)
+          commandContext_(nullptr),
+          reportSequence_(0)
     {
     }
 
@@ -16,6 +17,36 @@ namespace issp
     {
         transport_.setReceiveHandler(&IsspDevice::handleReceive, this);
         return transport_.begin();
+    }
+
+    std::uint32_t IsspDevice::deviceId() const
+    {
+        return config_.deviceId;
+    }
+
+    IsspTransportState IsspDevice::transportState() const
+    {
+        return transport_.state();
+    }
+
+    IsspResult IsspDevice::publishReport(const IsspReport &report)
+    {
+        std::uint8_t payload[IsspPayloadSize]{};
+        std::size_t payloadLength = 0;
+        const IsspResult encodeResult = encodeReport(
+            config_.deviceId,
+            reportSequence_,
+            report,
+            payload,
+            sizeof(payload),
+            payloadLength);
+        if (encodeResult != IsspResult::Ok)
+        {
+            return encodeResult;
+        }
+
+        ++reportSequence_;
+        return transport_.send(payload, payloadLength);
     }
 
     void IsspDevice::setCommandHandler(CommandHandler handler, void *context)
@@ -63,9 +94,11 @@ namespace issp
             return;
         }
 
-        (void)replyContext;
-        (void)ackPayload;
-        (void)ackPayloadLength;
+        const IsspResult sendResult = transport_.sendReply(
+            ackPayload,
+            ackPayloadLength,
+            replyContext);
+        (void)sendResult;
     }
 
     IsspCommandResult IsspDevice::onCommand(const IsspCommand &command)

@@ -149,3 +149,82 @@ bool IRAM_ATTR issp154_mac_extract_payload_and_source(const uint8_t *frame,
     *payload_length = payload_end - position;
     return true;
 }
+
+bool IRAM_ATTR issp154_mac_build_reply(const issp154_mac_source_t *destination,
+                                       uint16_t local_pan_id,
+                                       uint16_t local_short_address,
+                                       const uint8_t *local_extended_address,
+                                       uint8_t sequence,
+                                       const uint8_t *payload,
+                                       size_t payload_length,
+                                       uint8_t *frame,
+                                       size_t frame_capacity,
+                                       size_t *frame_length)
+{
+    if (destination == NULL || payload == NULL || payload_length == 0 ||
+        frame == NULL || frame_length == NULL) {
+        return false;
+    }
+
+    size_t address_field_length = 0;
+    if (!address_length(destination->source_address_mode, &address_field_length) ||
+        destination->source_address_mode == ISSP154_ADDRESS_MODE_NONE) {
+        return false;
+    }
+
+    if (destination->source_address_mode == ISSP154_ADDRESS_MODE_SHORT) {
+        const uint16_t destination_short = read_uint16_little_endian(destination->source_address);
+        if (destination_short >= 0xfffeU || local_short_address >= 0xfffeU) {
+            return false;
+        }
+    } else if (local_extended_address == NULL) {
+        return false;
+    }
+
+    const bool pan_compression = destination->source_pan_id == local_pan_id;
+    const size_t mac_header_length = ISSP154_FCF_LENGTH + ISSP154_SEQUENCE_LENGTH +
+                                     ISSP154_PAN_ID_LENGTH + address_field_length +
+                                     (pan_compression ? 0 : ISSP154_PAN_ID_LENGTH) +
+                                     address_field_length;
+    const size_t physical_length = mac_header_length + payload_length + ISSP154_FCS_LENGTH;
+    const size_t total_length = physical_length + 1;
+    if (physical_length > ISSP154_PHY_MAX_LENGTH || total_length > frame_capacity) {
+        return false;
+    }
+
+    const uint16_t fcf = (uint16_t)(ISSP154_FRAME_TYPE_DATA |
+                                    (pan_compression ? (1U << 6) : 0U) |
+                                    ((uint16_t)destination->source_address_mode << 10) |
+                                    (1U << 12) |
+                                    ((uint16_t)destination->source_address_mode << 14));
+
+    size_t position = 0;
+    frame[position++] = (uint8_t)physical_length;
+    frame[position++] = (uint8_t)fcf;
+    frame[position++] = (uint8_t)(fcf >> 8);
+    frame[position++] = sequence;
+    frame[position++] = (uint8_t)destination->source_pan_id;
+    frame[position++] = (uint8_t)(destination->source_pan_id >> 8);
+    memcpy(&frame[position], destination->source_address, address_field_length);
+    position += address_field_length;
+
+    if (!pan_compression) {
+        frame[position++] = (uint8_t)local_pan_id;
+        frame[position++] = (uint8_t)(local_pan_id >> 8);
+    }
+
+    if (destination->source_address_mode == ISSP154_ADDRESS_MODE_SHORT) {
+        frame[position++] = (uint8_t)local_short_address;
+        frame[position++] = (uint8_t)(local_short_address >> 8);
+    } else {
+        memcpy(&frame[position], local_extended_address, ISSP154_EXTENDED_ADDRESS_LENGTH);
+        position += ISSP154_EXTENDED_ADDRESS_LENGTH;
+    }
+
+    memcpy(&frame[position], payload, payload_length);
+    position += payload_length;
+    frame[position++] = 0;
+    frame[position++] = 0;
+    *frame_length = position;
+    return true;
+}

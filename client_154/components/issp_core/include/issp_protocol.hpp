@@ -25,4 +25,12 @@ IsspResult encodeCommandAck(
     std::size_t outputCapacity,
     std::size_t &outputLength);
 
+IsspResult encodeReport(
+    std::uint32_t deviceId,
+    std::uint16_t sequence,
+    const IsspReport &report,
+    std::uint8_t *output,
+    std::size_t outputCapacity,
+    std::size_t &outputLength);
+
 } // namespace issp

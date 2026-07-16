@@ -30,7 +30,8 @@ Issp154Transport::Issp154Transport(const Issp154TransportConfig &config)
     : config_(config),
       receiveHandler_(nullptr),
       receiveContext_(nullptr),
-      state_(IsspTransportState::Stopped)
+      state_(IsspTransportState::Stopped),
+      macSequence_(0)
 {
 }
 
@@ -86,8 +87,39 @@ IsspResult Issp154Transport::send(const std::uint8_t *data, std::size_t length)
         return IsspResult::NotReady;
     }
 
-    if (data[0] == 0 || length != static_cast<std::size_t>(data[0]) + 1U) {
+    // A logical payload cannot be framed until discovery supplies a physical
+    // coordinator destination to this concrete transport.
+    return IsspResult::NotReady;
+}
+
+IsspResult Issp154Transport::sendReply(const std::uint8_t *data,
+                                       std::size_t length,
+                                       const void *replyContext)
+{
+    if (data == nullptr || length == 0 || replyContext == nullptr) {
         return IsspResult::InvalidArgument;
+    }
+
+    if (state_ != IsspTransportState::Ready) {
+        return IsspResult::NotReady;
+    }
+
+    const auto *destination = static_cast<const issp154_mac_source_t *>(replyContext);
+    std::uint8_t frame[128]{};
+    std::size_t frameLength = 0;
+    const std::uint8_t sequence = macSequence_++;
+    if (!issp154_mac_build_reply(
+            destination,
+            config_.panId,
+            config_.shortAddress,
+            config_.extendedAddress,
+            sequence,
+            data,
+            length,
+            frame,
+            sizeof(frame),
+            &frameLength)) {
+        return IsspResult::Failed;
     }
 
     const esp_err_t sleepError = issp154_transport_sleep();
@@ -95,7 +127,7 @@ IsspResult Issp154Transport::send(const std::uint8_t *data, std::size_t length)
         return mapEspError(sleepError);
     }
 
-    return mapEspError(issp154_transport_send(data, config_.cca));
+    return mapEspError(issp154_transport_send(frame, config_.cca));
 }
 
 IsspTransportState Issp154Transport::state() const

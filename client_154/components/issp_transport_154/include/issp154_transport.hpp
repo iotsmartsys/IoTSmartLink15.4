@@ -26,6 +26,9 @@ public:
 
     IsspResult begin() override;
     IsspResult send(const std::uint8_t *data, std::size_t length) override;
+    IsspResult sendReply(const std::uint8_t *data,
+                         std::size_t length,
+                         const void *replyContext) override;
     IsspTransportState state() const override;
     /// Data and the opaque reply context are valid only during the handler call.
     void setReceiveHandler(ReceiveHandler handler, void *context) override;
@@ -48,6 +51,7 @@ private:
     ReceiveHandler receiveHandler_;
     void *receiveContext_;
     IsspTransportState state_;
+    std::uint8_t macSequence_;
 };
 
 } // namespace issp

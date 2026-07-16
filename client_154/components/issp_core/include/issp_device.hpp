@@ -14,6 +14,9 @@ public:
     IsspDevice(const IsspDeviceConfig &config, IIsspTransport &transport);
 
     IsspResult start();
+    std::uint32_t deviceId() const;
+    IsspTransportState transportState() const;
+    IsspResult publishReport(const IsspReport &report);
 
     // Called in the same execution context used by the transport receive handler.
     // The handler must be non-blocking, allocation-free, and safe for that context.
@@ -33,6 +36,7 @@ private:
     IIsspTransport &transport_;
     CommandHandler commandHandler_;
     void *commandContext_;
+    std::uint16_t reportSequence_;
 };
 
 } // namespace issp
