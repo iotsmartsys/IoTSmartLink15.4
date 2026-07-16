@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -8,6 +9,8 @@
 
 namespace issp
 {
+
+inline constexpr std::size_t kIssp154ExtendedAddressSize = 8;
 
 struct Issp154TransportConfig
 {
@@ -23,6 +26,11 @@ class Issp154Transport final : public IIsspTransport
 {
 public:
     explicit Issp154Transport(const Issp154TransportConfig &config);
+
+    IsspResult setDestination(const std::uint8_t *extendedAddress,
+                              std::size_t length);
+    void clearDestination();
+    bool hasDestination() const;
 
     IsspResult begin() override;
     IsspResult send(const std::uint8_t *data, std::size_t length) override;
@@ -52,6 +60,8 @@ private:
     void *receiveContext_;
     IsspTransportState state_;
     std::uint8_t macSequence_;
+    std::array<std::uint8_t, kIssp154ExtendedAddressSize> destination_;
+    bool hasDestination_;
 };
 
 } // namespace issp

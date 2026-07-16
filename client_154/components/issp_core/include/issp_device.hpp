@@ -1,21 +1,30 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
+
+#include "ibehavior_state_publisher.hpp"
 #include "iissp_transport.hpp"
+#include "issp_limits.hpp"
 #include "issp_types.hpp"
 
 namespace issp
 {
 
-class IsspDevice
+class IDeviceBehavior;
+
+class IsspDevice : public IBehaviorStatePublisher
 {
 public:
     using CommandHandler = IsspCommandResult (*)(const IsspCommand &command, void *context);
 
     IsspDevice(const IsspDeviceConfig &config, IIsspTransport &transport);
 
+    IsspResult addBehavior(IDeviceBehavior &behavior);
     IsspResult start();
     std::uint32_t deviceId() const;
     IsspTransportState transportState() const;
+    IsspResult publishState(const IsspReport &report) override;
     IsspResult publishReport(const IsspReport &report);
 
     // Called in the same execution context used by the transport receive handler.
@@ -34,6 +43,8 @@ private:
 
     IsspDeviceConfig config_;
     IIsspTransport &transport_;
+    std::array<IDeviceBehavior *, kMaxDeviceBehaviors> behaviors_;
+    std::size_t behaviorCount_;
     CommandHandler commandHandler_;
     void *commandContext_;
     std::uint16_t reportSequence_;

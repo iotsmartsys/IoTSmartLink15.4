@@ -1,4 +1,5 @@
 #include "issp_device.hpp"
+#include "idevice_behavior.hpp"
 #include "issp_protocol.hpp"
 
 namespace issp
@@ -7,14 +8,43 @@ namespace issp
     IsspDevice::IsspDevice(const IsspDeviceConfig &config, IIsspTransport &transport)
         : config_(config),
           transport_(transport),
+          behaviors_{},
+          behaviorCount_(0),
           commandHandler_(nullptr),
           commandContext_(nullptr),
           reportSequence_(0)
     {
     }
 
+    IsspResult IsspDevice::addBehavior(IDeviceBehavior &behavior)
+    {
+        if (behaviorCount_ >= kMaxDeviceBehaviors)
+        {
+            return IsspResult::Failed;
+        }
+
+        behaviors_[behaviorCount_] = &behavior;
+        ++behaviorCount_;
+        return IsspResult::Ok;
+    }
+
     IsspResult IsspDevice::start()
     {
+        for (std::size_t index = 0; index < behaviorCount_; ++index)
+        {
+            IDeviceBehavior *behavior = behaviors_[index];
+            if (behavior == nullptr)
+            {
+                return IsspResult::Failed;
+            }
+
+            const IsspResult result = behavior->begin(*this);
+            if (result != IsspResult::Ok)
+            {
+                return result;
+            }
+        }
+
         transport_.setReceiveHandler(&IsspDevice::handleReceive, this);
         return transport_.begin();
     }
@@ -27,6 +57,11 @@ namespace issp
     IsspTransportState IsspDevice::transportState() const
     {
         return transport_.state();
+    }
+
+    IsspResult IsspDevice::publishState(const IsspReport &report)
+    {
+        return publishReport(report);
     }
 
     IsspResult IsspDevice::publishReport(const IsspReport &report)
@@ -103,12 +138,26 @@ namespace issp
 
     IsspCommandResult IsspDevice::onCommand(const IsspCommand &command)
     {
-        if (commandHandler_ == nullptr)
+        for (std::size_t index = 0; index < behaviorCount_; ++index)
         {
-            return IsspCommandResult::Unsupported;
+            IDeviceBehavior *behavior = behaviors_[index];
+            if (behavior == nullptr)
+            {
+                continue;
+            }
+
+            if (behavior->accepts(command))
+            {
+                return behavior->handle(command);
+            }
         }
 
-        return commandHandler_(command, commandContext_);
+        if (commandHandler_ != nullptr)
+        {
+            return commandHandler_(command, commandContext_);
+        }
+
+        return IsspCommandResult::Unsupported;
     }
 
 } // namespace issp

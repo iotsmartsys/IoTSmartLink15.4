@@ -1,5 +1,7 @@
 #include "issp154_transport.hpp"
 
+#include <algorithm>
+
 #include "esp_attr.h"
 #include "issp154_mac_frame.h"
 #include "issp154_transport.h"
@@ -31,8 +33,33 @@ Issp154Transport::Issp154Transport(const Issp154TransportConfig &config)
       receiveHandler_(nullptr),
       receiveContext_(nullptr),
       state_(IsspTransportState::Stopped),
-      macSequence_(0)
+      macSequence_(0),
+      destination_{},
+      hasDestination_(false)
 {
+}
+
+IsspResult Issp154Transport::setDestination(const std::uint8_t *extendedAddress,
+                                            std::size_t length)
+{
+    if (extendedAddress == nullptr || length != destination_.size()) {
+        return IsspResult::InvalidArgument;
+    }
+
+    std::copy_n(extendedAddress, destination_.size(), destination_.begin());
+    hasDestination_ = true;
+    return IsspResult::Ok;
+}
+
+void Issp154Transport::clearDestination()
+{
+    destination_.fill(0);
+    hasDestination_ = false;
+}
+
+bool Issp154Transport::hasDestination() const
+{
+    return hasDestination_;
 }
 
 IsspResult Issp154Transport::begin()
