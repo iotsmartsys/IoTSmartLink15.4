@@ -30,6 +30,8 @@ typedef struct {
     issp154_transport_tx_done_cb_t tx_done_cb;
     issp154_transport_tx_failed_cb_t tx_failed_cb;
     void *context;
+    /// Keep false for the legacy ISR callback; true delivers copied RX frames from a task.
+    bool defer_rx_to_task;
 } issp154_transport_config_t;
 
 /**

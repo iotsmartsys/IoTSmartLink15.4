@@ -51,6 +51,7 @@ Issp154Transport::Issp154Transport(const Issp154TransportConfig &config)
       state_(IsspTransportState::Stopped),
       macSequence_(0),
       txFrame_{},
+      replyFrame_{},
       destination_{},
       hasDestination_(false)
 {
@@ -97,6 +98,7 @@ IsspResult Issp154Transport::begin()
         .tx_done_cb = &Issp154Transport::handleTxDone,
         .tx_failed_cb = &Issp154Transport::handleTxFailed,
         .context = this,
+        .defer_rx_to_task = true,
     };
 
     esp_err_t error = issp154_transport_init(&transportConfig);
@@ -176,10 +178,15 @@ IsspResult Issp154Transport::sendReply(const std::uint8_t *data,
         return IsspResult::NotReady;
     }
 
+    // The transport contract is serial. This also protects a reply frame kept
+    // alive for a physical completion callback after a timeout.
+    if (issp154_transport_is_synchronous_transmit_busy()) {
+        return IsspResult::Busy;
+    }
+
     const auto *destination = static_cast<const issp154_mac_source_t *>(replyContext);
-    std::uint8_t frame[128]{};
     std::size_t frameLength = 0;
-    const std::uint8_t sequence = macSequence_++;
+    const std::uint8_t sequence = macSequence_;
     if (!issp154_mac_build_reply(
             destination,
             config_.panId,
@@ -188,18 +195,19 @@ IsspResult Issp154Transport::sendReply(const std::uint8_t *data,
             sequence,
             data,
             length,
-            frame,
-            sizeof(frame),
+            replyFrame_.data(),
+            replyFrame_.size(),
             &frameLength)) {
         return IsspResult::Failed;
     }
 
-    const esp_err_t sleepError = issp154_transport_sleep();
-    if (sleepError != ESP_OK) {
-        return mapEspError(sleepError);
+    if (frameLength != static_cast<std::size_t>(replyFrame_[0]) + 1U) {
+        return IsspResult::Failed;
     }
 
-    return mapEspError(issp154_transport_send(frame, config_.cca));
+    ++macSequence_;
+    return mapTransmitError(issp154_transport_transmit_and_wait(
+        replyFrame_.data(), config_.cca, kPhysicalTxTimeoutMs));
 }
 
 IsspTransportState Issp154Transport::state() const
@@ -220,9 +228,6 @@ void IRAM_ATTR Issp154Transport::handleRxDone(std::uint8_t *frame,
     (void)frameInfo;
 
     if (context == nullptr) {
-        if (frame != nullptr) {
-            issp154_transport_release_receive_buffer(frame);
-        }
         return;
     }
 
@@ -285,7 +290,6 @@ void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
         receiveHandler_(payload, payloadLength, &replyContext, receiveContext_);
     }
 
-    issp154_transport_release_receive_buffer(frame);
 }
 
 } // namespace issp

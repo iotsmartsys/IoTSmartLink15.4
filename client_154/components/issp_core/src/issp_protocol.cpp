@@ -182,7 +182,6 @@ IsspResult decodeAck(
 IsspResult decodeReport(
     const std::uint8_t *data,
     std::size_t length,
-    std::uint32_t expectedDeviceId,
     IsspDecodedReport &decodedReport)
 {
     decodedReport = {};
@@ -193,14 +192,13 @@ IsspResult decodeReport(
 
     if (data[kVersionOffset] != kProtocolVersion ||
         data[kChecksumOffset] != calculateChecksum(data, kChecksumOffset) ||
-        data[kMessageTypeOffset] != kDataMessageType ||
-        readUint32LittleEndian(&data[kDeviceIdOffset]) != expectedDeviceId)
+        data[kMessageTypeOffset] != kDataMessageType)
     {
         return IsspResult::Failed;
     }
 
     decodedReport = {
-        .deviceId = expectedDeviceId,
+        .deviceId = readUint32LittleEndian(&data[kDeviceIdOffset]),
         .sequence = readUint16LittleEndian(&data[kSequenceOffset]),
         .report = {
             .endpointId = data[kEndpointIdOffset],
@@ -208,6 +206,27 @@ IsspResult decodeReport(
             .value = data[kValueOffset],
         },
     };
+    return IsspResult::Ok;
+}
+
+IsspResult decodeReport(
+    const std::uint8_t *data,
+    std::size_t length,
+    std::uint32_t expectedDeviceId,
+    IsspDecodedReport &decodedReport)
+{
+    const IsspResult result = decodeReport(data, length, decodedReport);
+    if (result != IsspResult::Ok)
+    {
+        return result;
+    }
+
+    if (decodedReport.deviceId != expectedDeviceId)
+    {
+        decodedReport = {};
+        return IsspResult::Failed;
+    }
+
     return IsspResult::Ok;
 }
 

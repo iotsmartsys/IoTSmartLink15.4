@@ -25,6 +25,11 @@ IsspResult decodeAck(
 IsspResult decodeReport(
     const std::uint8_t *data,
     std::size_t length,
+    IsspDecodedReport &decodedReport);
+
+IsspResult decodeReport(
+    const std::uint8_t *data,
+    std::size_t length,
     std::uint32_t expectedDeviceId,
     IsspDecodedReport &decodedReport);
 

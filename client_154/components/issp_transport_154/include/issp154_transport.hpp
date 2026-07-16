@@ -62,6 +62,7 @@ private:
     IsspTransportState state_;
     std::uint8_t macSequence_;
     std::array<std::uint8_t, kIssp154FrameCapacity> txFrame_;
+    std::array<std::uint8_t, kIssp154FrameCapacity> replyFrame_;
     std::array<std::uint8_t, kIssp154ExtendedAddressSize> destination_;
     bool hasDestination_;
 };
