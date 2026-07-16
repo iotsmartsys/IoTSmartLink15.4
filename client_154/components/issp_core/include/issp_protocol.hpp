@@ -16,6 +16,18 @@ IsspResult decodeCommand(
     std::uint32_t expectedDeviceId,
     IsspDecodedCommand &decodedCommand);
 
+IsspResult decodeAck(
+    const std::uint8_t *data,
+    std::size_t length,
+    std::uint32_t expectedDeviceId,
+    IsspDecodedAck &decodedAck);
+
+IsspResult decodeReport(
+    const std::uint8_t *data,
+    std::size_t length,
+    std::uint32_t expectedDeviceId,
+    IsspDecodedReport &decodedReport);
+
 IsspResult encodeCommandAck(
     std::uint32_t deviceId,
     std::uint16_t sequence,

@@ -12,6 +12,8 @@ namespace issp
 namespace
 {
 
+constexpr std::uint32_t kPhysicalTxTimeoutMs = 100;
+
 IsspResult mapEspError(esp_err_t error)
 {
     switch (error) {
@@ -26,6 +28,20 @@ IsspResult mapEspError(esp_err_t error)
     }
 }
 
+IsspResult mapTransmitError(esp_err_t error)
+{
+    switch (error) {
+    case ESP_OK:
+        return IsspResult::Ok;
+    case ESP_ERR_INVALID_ARG:
+        return IsspResult::InvalidArgument;
+    case ESP_ERR_INVALID_STATE:
+        return IsspResult::Busy;
+    default:
+        return IsspResult::Failed;
+    }
+}
+
 } // namespace
 
 Issp154Transport::Issp154Transport(const Issp154TransportConfig &config)
@@ -34,6 +50,7 @@ Issp154Transport::Issp154Transport(const Issp154TransportConfig &config)
       receiveContext_(nullptr),
       state_(IsspTransportState::Stopped),
       macSequence_(0),
+      txFrame_{},
       destination_{},
       hasDestination_(false)
 {
@@ -114,9 +131,37 @@ IsspResult Issp154Transport::send(const std::uint8_t *data, std::size_t length)
         return IsspResult::NotReady;
     }
 
-    // A logical payload cannot be framed until discovery supplies a physical
-    // coordinator destination to this concrete transport.
-    return IsspResult::NotReady;
+    if (!hasDestination_) {
+        return IsspResult::NotReady;
+    }
+
+    // The current transport contract is serial. Checking before writing keeps
+    // a frame retained by the C layer after timeout from being overwritten.
+    if (issp154_transport_is_synchronous_transmit_busy()) {
+        return IsspResult::Busy;
+    }
+
+    std::size_t frameLength = 0;
+    const std::uint8_t sequence = macSequence_;
+    if (!issp154_mac_build_extended_unicast(config_.panId,
+                                             destination_.data(),
+                                             config_.extendedAddress,
+                                             sequence,
+                                             data,
+                                             length,
+                                             txFrame_.data(),
+                                             txFrame_.size(),
+                                             &frameLength)) {
+        return IsspResult::InvalidArgument;
+    }
+
+    if (frameLength != static_cast<std::size_t>(txFrame_[0]) + 1U) {
+        return IsspResult::Failed;
+    }
+
+    ++macSequence_;
+    return mapTransmitError(issp154_transport_transmit_and_wait(
+        txFrame_.data(), config_.cca, kPhysicalTxTimeoutMs));
 }
 
 IsspResult Issp154Transport::sendReply(const std::uint8_t *data,

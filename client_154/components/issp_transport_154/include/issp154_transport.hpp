@@ -11,6 +11,7 @@ namespace issp
 {
 
 inline constexpr std::size_t kIssp154ExtendedAddressSize = 8;
+inline constexpr std::size_t kIssp154FrameCapacity = 128;
 
 struct Issp154TransportConfig
 {
@@ -60,6 +61,7 @@ private:
     void *receiveContext_;
     IsspTransportState state_;
     std::uint8_t macSequence_;
+    std::array<std::uint8_t, kIssp154FrameCapacity> txFrame_;
     std::array<std::uint8_t, kIssp154ExtendedAddressSize> destination_;
     bool hasDestination_;
 };

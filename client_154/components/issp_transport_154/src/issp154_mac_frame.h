@@ -14,6 +14,16 @@ typedef struct {
     uint8_t source_address[8];
 } issp154_mac_source_t;
 
+bool issp154_mac_build_extended_unicast(uint16_t pan_id,
+                                        const uint8_t *destination_extended_address,
+                                        const uint8_t *source_extended_address,
+                                        uint8_t sequence,
+                                        const uint8_t *payload,
+                                        size_t payload_length,
+                                        uint8_t *frame,
+                                        size_t frame_capacity,
+                                        size_t *frame_length);
+
 bool issp154_mac_extract_payload_and_source(const uint8_t *frame,
                                             size_t frame_buffer_length,
                                             const uint8_t **payload,

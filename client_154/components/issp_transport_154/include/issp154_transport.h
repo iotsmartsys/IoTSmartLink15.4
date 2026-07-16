@@ -53,6 +53,21 @@ esp_err_t issp154_transport_sleep(void);
 /// @brief Transmit an already serialized IEEE 802.15.4 frame.
 esp_err_t issp154_transport_send(const uint8_t *frame, bool cca);
 
+/**
+ * @brief Transmit one frame and wait only for its physical TX completion.
+ *
+ * The caller must keep frame valid until this function returns. ESP_OK means
+ * TX_DONE only; it does not indicate a MAC or ISSP acknowledgement. After a
+ * timeout, new synchronous transmissions return ESP_ERR_INVALID_STATE until
+ * the pending physical completion callback is received.
+ */
+esp_err_t issp154_transport_transmit_and_wait(const uint8_t *frame,
+                                              bool cca,
+                                              uint32_t timeout_ms);
+
+/// @brief Return whether a synchronous physical transmission is still active.
+bool issp154_transport_is_synchronous_transmit_busy(void);
+
 /// @brief Return a received frame buffer to the IEEE 802.15.4 driver.
 void issp154_transport_release_receive_buffer(const uint8_t *frame);
 

@@ -22,6 +22,62 @@ enum {
     ISSP154_ADDRESS_MODE_EXTENDED = 3,
 };
 
+enum {
+    ISSP154_EXTENDED_UNICAST_FCF = 0xdc41,
+    ISSP154_EXTENDED_UNICAST_HEADER_LENGTH = ISSP154_FCF_LENGTH +
+                                             ISSP154_SEQUENCE_LENGTH +
+                                             ISSP154_PAN_ID_LENGTH +
+                                             (2 * ISSP154_EXTENDED_ADDRESS_LENGTH),
+    ISSP154_EXTENDED_UNICAST_MAX_PAYLOAD_LENGTH = ISSP154_PHY_MAX_LENGTH -
+                                                  ISSP154_EXTENDED_UNICAST_HEADER_LENGTH -
+                                                  ISSP154_FCS_LENGTH,
+};
+
+bool issp154_mac_build_extended_unicast(uint16_t pan_id,
+                                        const uint8_t *destination_extended_address,
+                                        const uint8_t *source_extended_address,
+                                        uint8_t sequence,
+                                        const uint8_t *payload,
+                                        size_t payload_length,
+                                        uint8_t *frame,
+                                        size_t frame_capacity,
+                                        size_t *frame_length)
+{
+    if (frame_length == NULL) {
+        return false;
+    }
+    *frame_length = 0;
+
+    if (destination_extended_address == NULL || source_extended_address == NULL ||
+        payload == NULL || payload_length == 0 || frame == NULL ||
+        payload_length > ISSP154_EXTENDED_UNICAST_MAX_PAYLOAD_LENGTH) {
+        return false;
+    }
+
+    const size_t physical_length = ISSP154_EXTENDED_UNICAST_HEADER_LENGTH +
+                                   payload_length + ISSP154_FCS_LENGTH;
+    const size_t total_length = physical_length + 1;
+    if (frame_capacity < total_length) {
+        return false;
+    }
+
+    size_t position = 0;
+    frame[position++] = (uint8_t)physical_length;
+    frame[position++] = (uint8_t)ISSP154_EXTENDED_UNICAST_FCF;
+    frame[position++] = (uint8_t)(ISSP154_EXTENDED_UNICAST_FCF >> 8);
+    frame[position++] = sequence;
+    frame[position++] = (uint8_t)pan_id;
+    frame[position++] = (uint8_t)(pan_id >> 8);
+    memcpy(&frame[position], destination_extended_address, ISSP154_EXTENDED_ADDRESS_LENGTH);
+    position += ISSP154_EXTENDED_ADDRESS_LENGTH;
+    memcpy(&frame[position], source_extended_address, ISSP154_EXTENDED_ADDRESS_LENGTH);
+    position += ISSP154_EXTENDED_ADDRESS_LENGTH;
+    memcpy(&frame[position], payload, payload_length);
+
+    *frame_length = total_length;
+    return true;
+}
+
 static bool IRAM_ATTR consume_field(size_t field_length, size_t payload_end, size_t *position)
 {
     if (*position > payload_end || field_length > payload_end - *position) {

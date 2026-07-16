@@ -25,6 +25,13 @@ struct IsspReport
     std::uint8_t value;
 };
 
+struct IsspDecodedReport
+{
+    std::uint32_t deviceId;
+    std::uint16_t sequence;
+    IsspReport report;
+};
+
 struct IsspDeviceConfig
 {
     std::uint32_t deviceId;
@@ -43,6 +50,14 @@ enum class IsspAckStatus : std::uint8_t
     Ok,
     Unsupported,
     Invalid,
+};
+
+struct IsspDecodedAck
+{
+    std::uint32_t deviceId;
+    std::uint16_t sequence;
+    std::uint8_t endpointId;
+    IsspAckStatus status;
 };
 
 enum class IsspTransportState : std::uint8_t
