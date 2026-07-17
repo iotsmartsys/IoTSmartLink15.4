@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "iissp_transport.hpp"
 #include "issp154_transport.h"
 
@@ -23,6 +25,39 @@ struct Issp154TransportConfig
     bool cca;
 };
 
+struct Issp154AckExpectation
+{
+    std::uint32_t deviceId;
+    std::uint16_t sequence;
+    std::uint8_t endpointId;
+};
+
+enum class Issp154AckAttemptResult : std::uint8_t
+{
+    None,
+    AckReceived,
+    Interrupted,
+};
+
+struct Issp154AckAttemptOutcome
+{
+    Issp154AckAttemptResult result;
+    IsspAckStatus ackStatus;
+};
+
+struct Issp154ConfirmedSendResult
+{
+    Issp154AckAttemptResult attemptResult;
+    IsspAckStatus ackStatus;
+};
+
+struct Issp154ConfirmedSendSummary
+{
+    Issp154AckAttemptResult attemptResult;
+    IsspAckStatus ackStatus;
+    std::uint8_t attempts;
+};
+
 class Issp154Transport final : public IIsspTransport
 {
 public:
@@ -32,6 +67,36 @@ public:
                               std::size_t length);
     void clearDestination();
     bool hasDestination() const;
+    /// Performs up to three legacy discovery attempts. The caller must not be
+    /// the RX task or an ISR.
+    IsspResult discoverDestination(
+        std::uint32_t deviceId,
+        std::uint16_t sequence,
+        std::array<std::uint8_t, kIssp154ExtendedAddressSize> &destination);
+
+    IsspResult armAckExpectation(const Issp154AckExpectation &expectation);
+    void clearAckExpectation();
+    bool takeAckAttemptOutcome(Issp154AckAttemptOutcome &outcome);
+    bool hasPendingAckExpectation() const;
+    /// Blocks the caller, which must not be the RX task or an ISR.
+    IsspResult waitAckAttemptOutcome(std::uint32_t timeoutMs,
+                                     Issp154AckAttemptOutcome &outcome);
+    /// Executes one confirmed attempt. The caller must not be the RX task or
+    /// an ISR. Concurrent callers have no fairness guarantee.
+    IsspResult sendConfirmedOnce(
+        const std::uint8_t *data,
+        std::size_t length,
+        const Issp154AckExpectation &expectation,
+        std::uint32_t ackTimeoutMs,
+        Issp154ConfirmedSendResult &result);
+    /// Executes up to three confirmed attempts. The caller must not be the RX
+    /// task or an ISR. Concurrent callers have no fairness guarantee.
+    IsspResult sendConfirmed(
+        const std::uint8_t *data,
+        std::size_t length,
+        const Issp154AckExpectation &expectation,
+        std::uint32_t ackTimeoutMs,
+        Issp154ConfirmedSendSummary &summary);
 
     IsspResult begin() override;
     IsspResult send(const std::uint8_t *data, std::size_t length) override;
@@ -54,6 +119,8 @@ private:
                                esp_ieee802154_tx_error_t error,
                                void *context);
 
+    IsspResult transmitPayloadOnce(const std::uint8_t *data,
+                                   std::size_t length);
     void notifyReceive(std::uint8_t *frame);
 
     Issp154TransportConfig config_;
@@ -65,6 +132,20 @@ private:
     std::array<std::uint8_t, kIssp154FrameCapacity> replyFrame_;
     std::array<std::uint8_t, kIssp154ExtendedAddressSize> destination_;
     bool hasDestination_;
+    Issp154AckExpectation ackExpectation_;
+    Issp154AckAttemptOutcome ackOutcome_;
+    bool ackExpectationActive_;
+    bool ackOutcomeAvailable_;
+    bool ackWaitActive_;
+    std::uint32_t discoveryDeviceId_;
+    std::uint16_t discoverySequence_;
+    std::array<std::uint8_t, kIssp154ExtendedAddressSize> discoveredAddress_;
+    bool discoveryActive_;
+    bool discoveryOutcomeAvailable_;
+    bool discoveryOutcomeValid_;
+    StaticEventGroup_t ackEventGroupStorage_;
+    EventGroupHandle_t ackEventGroup_;
+    mutable portMUX_TYPE ackLock_ = portMUX_INITIALIZER_UNLOCKED;
 };
 
 } // namespace issp

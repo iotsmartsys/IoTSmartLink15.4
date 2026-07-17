@@ -10,11 +10,28 @@ namespace issp
 
 constexpr std::size_t IsspPayloadSize = 12;
 
+IsspResult encodeDiscoveryRequest(
+    std::uint32_t deviceId,
+    std::uint16_t sequence,
+    std::uint8_t *output,
+    std::size_t outputCapacity,
+    std::size_t &outputLength);
+
+IsspResult decodeDiscoveryResponse(
+    const std::uint8_t *data,
+    std::size_t length,
+    IsspDecodedDiscoveryResponse &decodedResponse);
+
 IsspResult decodeCommand(
     const std::uint8_t *data,
     std::size_t length,
     std::uint32_t expectedDeviceId,
     IsspDecodedCommand &decodedCommand);
+
+IsspResult decodeAck(
+    const std::uint8_t *data,
+    std::size_t length,
+    IsspDecodedAck &decodedAck);
 
 IsspResult decodeAck(
     const std::uint8_t *data,

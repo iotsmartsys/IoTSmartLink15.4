@@ -9,6 +9,8 @@ namespace
 constexpr std::uint8_t kProtocolVersion = 1;
 constexpr std::uint8_t kDataMessageType = 1;
 constexpr std::uint8_t kAckMessageType = 2;
+constexpr std::uint8_t kDiscoveryRequestMessageType = 3;
+constexpr std::uint8_t kDiscoveryResponseMessageType = 4;
 constexpr std::uint8_t kCommandMessageType = 5;
 constexpr std::size_t kVersionOffset = 0;
 constexpr std::size_t kMessageTypeOffset = 1;
@@ -113,6 +115,64 @@ bool ackStatusFromWireValue(std::uint8_t value, IsspAckStatus &status)
 
 } // namespace
 
+IsspResult encodeDiscoveryRequest(
+    std::uint32_t deviceId,
+    std::uint16_t sequence,
+    std::uint8_t *output,
+    std::size_t outputCapacity,
+    std::size_t &outputLength)
+{
+    outputLength = 0;
+    if (output == nullptr || outputCapacity < IsspPayloadSize)
+    {
+        return IsspResult::InvalidArgument;
+    }
+
+    output[kVersionOffset] = kProtocolVersion;
+    output[kMessageTypeOffset] = kDiscoveryRequestMessageType;
+    writeUint32LittleEndian(&output[kDeviceIdOffset], deviceId);
+    writeUint16LittleEndian(&output[kSequenceOffset], sequence);
+    output[kEndpointIdOffset] = 0;
+    output[kEventTypeOffset] = 0;
+    output[kValueOffset] = 0;
+    output[kChecksumOffset] = calculateChecksum(output, kChecksumOffset);
+    outputLength = IsspPayloadSize;
+    return IsspResult::Ok;
+}
+
+IsspResult decodeDiscoveryResponse(
+    const std::uint8_t *data,
+    std::size_t length,
+    IsspDecodedDiscoveryResponse &decodedResponse)
+{
+    decodedResponse = {};
+    if (data == nullptr || length != IsspPayloadSize)
+    {
+        return IsspResult::InvalidArgument;
+    }
+
+    if (data[kVersionOffset] != kProtocolVersion ||
+        data[kChecksumOffset] != calculateChecksum(data, kChecksumOffset) ||
+        data[kMessageTypeOffset] != kDiscoveryResponseMessageType)
+    {
+        return IsspResult::Failed;
+    }
+
+    IsspAckStatus status{};
+    if (!ackStatusFromWireValue(data[kValueOffset], status))
+    {
+        return IsspResult::Failed;
+    }
+
+    decodedResponse = {
+        .deviceId = readUint32LittleEndian(&data[kDeviceIdOffset]),
+        .sequence = readUint16LittleEndian(&data[kSequenceOffset]),
+        .endpointId = data[kEndpointIdOffset],
+        .status = status,
+    };
+    return IsspResult::Ok;
+}
+
 IsspResult decodeCommand(
     const std::uint8_t *data,
     std::size_t length,
@@ -147,7 +207,6 @@ IsspResult decodeCommand(
 IsspResult decodeAck(
     const std::uint8_t *data,
     std::size_t length,
-    std::uint32_t expectedDeviceId,
     IsspDecodedAck &decodedAck)
 {
     decodedAck = {};
@@ -158,8 +217,7 @@ IsspResult decodeAck(
 
     if (data[kVersionOffset] != kProtocolVersion ||
         data[kChecksumOffset] != calculateChecksum(data, kChecksumOffset) ||
-        data[kMessageTypeOffset] != kAckMessageType ||
-        readUint32LittleEndian(&data[kDeviceIdOffset]) != expectedDeviceId)
+        data[kMessageTypeOffset] != kAckMessageType)
     {
         return IsspResult::Failed;
     }
@@ -171,11 +229,32 @@ IsspResult decodeAck(
     }
 
     decodedAck = {
-        .deviceId = expectedDeviceId,
+        .deviceId = readUint32LittleEndian(&data[kDeviceIdOffset]),
         .sequence = readUint16LittleEndian(&data[kSequenceOffset]),
         .endpointId = data[kEndpointIdOffset],
         .status = status,
     };
+    return IsspResult::Ok;
+}
+
+IsspResult decodeAck(
+    const std::uint8_t *data,
+    std::size_t length,
+    std::uint32_t expectedDeviceId,
+    IsspDecodedAck &decodedAck)
+{
+    const IsspResult result = decodeAck(data, length, decodedAck);
+    if (result != IsspResult::Ok)
+    {
+        return result;
+    }
+
+    if (decodedAck.deviceId != expectedDeviceId)
+    {
+        decodedAck = {};
+        return IsspResult::Failed;
+    }
+
     return IsspResult::Ok;
 }
 

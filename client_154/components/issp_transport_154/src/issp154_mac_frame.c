@@ -24,6 +24,7 @@ enum {
 
 enum {
     ISSP154_EXTENDED_UNICAST_FCF = 0xdc41,
+    ISSP154_SHORT_BROADCAST_EXTENDED_SOURCE_FCF = 0xd841,
     ISSP154_EXTENDED_UNICAST_HEADER_LENGTH = ISSP154_FCF_LENGTH +
                                              ISSP154_SEQUENCE_LENGTH +
                                              ISSP154_PAN_ID_LENGTH +
@@ -32,6 +33,51 @@ enum {
                                                   ISSP154_EXTENDED_UNICAST_HEADER_LENGTH -
                                                   ISSP154_FCS_LENGTH,
 };
+
+bool issp154_mac_build_broadcast_from_extended(uint16_t pan_id,
+                                               const uint8_t *source_extended_address,
+                                               uint8_t sequence,
+                                               const uint8_t *payload,
+                                               size_t payload_length,
+                                               uint8_t *frame,
+                                               size_t frame_capacity,
+                                               size_t *frame_length)
+{
+    const size_t header_length = ISSP154_FCF_LENGTH + ISSP154_SEQUENCE_LENGTH +
+                                 ISSP154_PAN_ID_LENGTH + ISSP154_SHORT_ADDRESS_LENGTH +
+                                 ISSP154_EXTENDED_ADDRESS_LENGTH;
+    if (frame_length == NULL) {
+        return false;
+    }
+    *frame_length = 0;
+    if (source_extended_address == NULL || payload == NULL || payload_length == 0 ||
+        frame == NULL) {
+        return false;
+    }
+
+    const size_t physical_length = header_length + payload_length + ISSP154_FCS_LENGTH;
+    if (physical_length > ISSP154_PHY_MAX_LENGTH || frame_capacity < physical_length + 1U) {
+        return false;
+    }
+
+    size_t position = 0;
+    frame[position++] = (uint8_t)physical_length;
+    frame[position++] = (uint8_t)ISSP154_SHORT_BROADCAST_EXTENDED_SOURCE_FCF;
+    frame[position++] = (uint8_t)(ISSP154_SHORT_BROADCAST_EXTENDED_SOURCE_FCF >> 8);
+    frame[position++] = sequence;
+    frame[position++] = (uint8_t)pan_id;
+    frame[position++] = (uint8_t)(pan_id >> 8);
+    frame[position++] = 0xff;
+    frame[position++] = 0xff;
+    memcpy(&frame[position], source_extended_address, ISSP154_EXTENDED_ADDRESS_LENGTH);
+    position += ISSP154_EXTENDED_ADDRESS_LENGTH;
+    memcpy(&frame[position], payload, payload_length);
+    position += payload_length;
+    frame[position++] = 0;
+    frame[position++] = 0;
+    *frame_length = position;
+    return true;
+}
 
 bool issp154_mac_build_extended_unicast(uint16_t pan_id,
                                         const uint8_t *destination_extended_address,
@@ -172,14 +218,19 @@ bool IRAM_ATTR issp154_mac_extract_payload_and_source(const uint8_t *frame,
 
     size_t position = 1 + ISSP154_FCF_LENGTH + ISSP154_SEQUENCE_LENGTH;
     uint16_t destination_pan_id = 0;
+    source->destination_address_mode = destination_mode;
     if (destination_mode != ISSP154_ADDRESS_MODE_NONE) {
         if (!consume_field(ISSP154_PAN_ID_LENGTH, payload_end, &position)) {
             return false;
         }
         destination_pan_id = read_uint16_little_endian(&frame[position - ISSP154_PAN_ID_LENGTH]);
+        source->destination_pan_id = destination_pan_id;
         if (!consume_field(destination_address_length, payload_end, &position)) {
             return false;
         }
+        memcpy(source->destination_address,
+               &frame[position - destination_address_length],
+               destination_address_length);
     }
 
     if (pan_compression) {

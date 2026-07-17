@@ -12,7 +12,19 @@ typedef struct {
     uint8_t source_address_mode;
     uint16_t source_pan_id;
     uint8_t source_address[8];
+    uint8_t destination_address_mode;
+    uint16_t destination_pan_id;
+    uint8_t destination_address[8];
 } issp154_mac_source_t;
+
+bool issp154_mac_build_broadcast_from_extended(uint16_t pan_id,
+                                               const uint8_t *source_extended_address,
+                                               uint8_t sequence,
+                                               const uint8_t *payload,
+                                               size_t payload_length,
+                                               uint8_t *frame,
+                                               size_t frame_capacity,
+                                               size_t *frame_length);
 
 bool issp154_mac_build_extended_unicast(uint16_t pan_id,
                                         const uint8_t *destination_extended_address,

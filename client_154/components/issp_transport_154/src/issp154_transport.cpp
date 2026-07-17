@@ -3,8 +3,10 @@
 #include <algorithm>
 
 #include "esp_attr.h"
+#include "freertos/task.h"
 #include "issp154_mac_frame.h"
 #include "issp154_transport.h"
+#include "issp_protocol.hpp"
 
 namespace issp
 {
@@ -13,6 +15,13 @@ namespace
 {
 
 constexpr std::uint32_t kPhysicalTxTimeoutMs = 100;
+constexpr std::uint8_t kExtendedAddressMode = 3;
+constexpr EventBits_t kAckOutcomeAvailableBit = BIT0;
+constexpr EventBits_t kAckExpectationClearedBit = BIT1;
+constexpr EventBits_t kDiscoveryOutcomeAvailableBit = BIT2;
+constexpr EventBits_t kAckWaitBits =
+    kAckOutcomeAvailableBit | kAckExpectationClearedBit;
+constexpr std::array<std::uint32_t, 2> kConfirmedSendBackoffMs{5, 10};
 
 IsspResult mapEspError(esp_err_t error)
 {
@@ -53,7 +62,20 @@ Issp154Transport::Issp154Transport(const Issp154TransportConfig &config)
       txFrame_{},
       replyFrame_{},
       destination_{},
-      hasDestination_(false)
+      hasDestination_(false),
+      ackExpectation_{},
+      ackOutcome_{},
+      ackExpectationActive_(false),
+      ackOutcomeAvailable_(false),
+      ackWaitActive_(false),
+      discoveryDeviceId_(0),
+      discoverySequence_(0),
+      discoveredAddress_{},
+      discoveryActive_(false),
+      discoveryOutcomeAvailable_(false),
+      discoveryOutcomeValid_(false),
+      ackEventGroupStorage_{},
+      ackEventGroup_(nullptr)
 {
 }
 
@@ -64,24 +86,184 @@ IsspResult Issp154Transport::setDestination(const std::uint8_t *extendedAddress,
         return IsspResult::InvalidArgument;
     }
 
+    portENTER_CRITICAL(&ackLock_);
     std::copy_n(extendedAddress, destination_.size(), destination_.begin());
     hasDestination_ = true;
+    portEXIT_CRITICAL(&ackLock_);
     return IsspResult::Ok;
 }
 
 void Issp154Transport::clearDestination()
 {
+    portENTER_CRITICAL(&ackLock_);
     destination_.fill(0);
     hasDestination_ = false;
+    portEXIT_CRITICAL(&ackLock_);
 }
 
 bool Issp154Transport::hasDestination() const
 {
-    return hasDestination_;
+    portENTER_CRITICAL(&ackLock_);
+    const bool result = hasDestination_;
+    portEXIT_CRITICAL(&ackLock_);
+    return result;
+}
+
+IsspResult Issp154Transport::armAckExpectation(
+    const Issp154AckExpectation &expectation)
+{
+    if (ackEventGroup_ != nullptr) {
+        xEventGroupClearBits(ackEventGroup_, kAckWaitBits);
+    }
+
+    portENTER_CRITICAL(&ackLock_);
+    IsspResult result = IsspResult::Ok;
+    if (!hasDestination_) {
+        result = IsspResult::NotReady;
+    } else if (ackExpectationActive_ || ackOutcomeAvailable_ || ackWaitActive_ ||
+               discoveryActive_) {
+        result = IsspResult::Busy;
+    } else {
+        ackExpectation_ = expectation;
+        ackOutcome_ = {};
+        ackExpectationActive_ = true;
+        ackOutcomeAvailable_ = false;
+    }
+    portEXIT_CRITICAL(&ackLock_);
+    return result;
+}
+
+void Issp154Transport::clearAckExpectation()
+{
+    portENTER_CRITICAL(&ackLock_);
+    ackExpectation_ = {};
+    ackOutcome_ = {};
+    ackExpectationActive_ = false;
+    ackOutcomeAvailable_ = false;
+    portEXIT_CRITICAL(&ackLock_);
+
+    if (ackEventGroup_ != nullptr) {
+        xEventGroupClearBits(ackEventGroup_, kAckOutcomeAvailableBit);
+        xEventGroupSetBits(ackEventGroup_, kAckExpectationClearedBit);
+    }
+}
+
+bool Issp154Transport::takeAckAttemptOutcome(Issp154AckAttemptOutcome &outcome)
+{
+    portENTER_CRITICAL(&ackLock_);
+    const bool available = ackOutcomeAvailable_;
+    if (available) {
+        outcome = ackOutcome_;
+        ackExpectation_ = {};
+        ackOutcome_ = {};
+        ackExpectationActive_ = false;
+        ackOutcomeAvailable_ = false;
+    } else {
+        outcome = {};
+    }
+    portEXIT_CRITICAL(&ackLock_);
+    if (available && ackEventGroup_ != nullptr) {
+        xEventGroupClearBits(ackEventGroup_, kAckOutcomeAvailableBit);
+        xEventGroupSetBits(ackEventGroup_, kAckExpectationClearedBit);
+    }
+    return available;
+}
+
+bool Issp154Transport::hasPendingAckExpectation() const
+{
+    portENTER_CRITICAL(&ackLock_);
+    const bool pending = ackExpectationActive_ && !ackOutcomeAvailable_;
+    portEXIT_CRITICAL(&ackLock_);
+    return pending;
+}
+
+IsspResult Issp154Transport::waitAckAttemptOutcome(
+    std::uint32_t timeoutMs,
+    Issp154AckAttemptOutcome &outcome)
+{
+    outcome = {};
+    if (timeoutMs == 0) {
+        return IsspResult::InvalidArgument;
+    }
+    if (ackEventGroup_ == nullptr) {
+        return IsspResult::NotReady;
+    }
+
+    portENTER_CRITICAL(&ackLock_);
+    if (!ackExpectationActive_) {
+        portEXIT_CRITICAL(&ackLock_);
+        return IsspResult::NotReady;
+    }
+    if (ackOutcomeAvailable_) {
+        outcome = ackOutcome_;
+        ackExpectation_ = {};
+        ackOutcome_ = {};
+        ackExpectationActive_ = false;
+        ackOutcomeAvailable_ = false;
+        portEXIT_CRITICAL(&ackLock_);
+        xEventGroupClearBits(ackEventGroup_, kAckWaitBits);
+        return IsspResult::Ok;
+    }
+    if (ackWaitActive_) {
+        portEXIT_CRITICAL(&ackLock_);
+        return IsspResult::Busy;
+    }
+    ackWaitActive_ = true;
+    portEXIT_CRITICAL(&ackLock_);
+
+    std::uint64_t waitTicks =
+        (static_cast<std::uint64_t>(timeoutMs) * configTICK_RATE_HZ + 999U) /
+        1000U;
+    if (waitTicks == 0) {
+        waitTicks = 1;
+    }
+    if (waitTicks > static_cast<std::uint64_t>(portMAX_DELAY)) {
+        waitTicks = static_cast<std::uint64_t>(portMAX_DELAY);
+    }
+
+    (void)xEventGroupWaitBits(
+        ackEventGroup_,
+        kAckWaitBits,
+        pdTRUE,
+        pdFALSE,
+        static_cast<TickType_t>(waitTicks));
+
+    IsspResult result = IsspResult::Failed;
+    portENTER_CRITICAL(&ackLock_);
+    if (ackOutcomeAvailable_) {
+        outcome = ackOutcome_;
+        ackExpectation_ = {};
+        ackOutcome_ = {};
+        ackExpectationActive_ = false;
+        ackOutcomeAvailable_ = false;
+        result = IsspResult::Ok;
+    } else if (!ackExpectationActive_) {
+        result = IsspResult::NotReady;
+    }
+    ackWaitActive_ = false;
+    portEXIT_CRITICAL(&ackLock_);
+    return result;
 }
 
 IsspResult Issp154Transport::begin()
 {
+    if (ackEventGroup_ == nullptr) {
+        ackEventGroup_ = xEventGroupCreateStatic(&ackEventGroupStorage_);
+        if (ackEventGroup_ == nullptr) {
+            state_ = IsspTransportState::Error;
+            return IsspResult::Failed;
+        }
+    }
+    clearAckExpectation();
+    portENTER_CRITICAL(&ackLock_);
+    discoveryDeviceId_ = 0;
+    discoverySequence_ = 0;
+    discoveredAddress_.fill(0);
+    discoveryActive_ = false;
+    discoveryOutcomeAvailable_ = false;
+    discoveryOutcomeValid_ = false;
+    portEXIT_CRITICAL(&ackLock_);
+
     if (config_.extendedAddress == nullptr) {
         state_ = IsspTransportState::Error;
         return IsspResult::InvalidArgument;
@@ -123,7 +305,219 @@ IsspResult Issp154Transport::begin()
     return IsspResult::Ok;
 }
 
+IsspResult Issp154Transport::discoverDestination(
+    std::uint32_t deviceId,
+    std::uint16_t sequence,
+    std::array<std::uint8_t, kIssp154ExtendedAddressSize> &destination)
+{
+    destination.fill(0);
+    if (state_ != IsspTransportState::Ready || ackEventGroup_ == nullptr) {
+        return IsspResult::NotReady;
+    }
+    if (config_.extendedAddress == nullptr) {
+        return IsspResult::InvalidArgument;
+    }
+
+    std::array<std::uint8_t, IsspPayloadSize> payload{};
+    std::size_t payloadLength = 0;
+    const IsspResult encodeResult = encodeDiscoveryRequest(
+        deviceId, sequence, payload.data(), payload.size(), payloadLength);
+    if (encodeResult != IsspResult::Ok) {
+        return encodeResult;
+    }
+
+    portENTER_CRITICAL(&ackLock_);
+    if (ackExpectationActive_ || ackOutcomeAvailable_ || ackWaitActive_ ||
+        discoveryActive_) {
+        portEXIT_CRITICAL(&ackLock_);
+        return IsspResult::Busy;
+    }
+    discoveryDeviceId_ = deviceId;
+    discoverySequence_ = sequence;
+    discoveredAddress_.fill(0);
+    discoveryActive_ = true;
+    discoveryOutcomeAvailable_ = false;
+    discoveryOutcomeValid_ = false;
+    portEXIT_CRITICAL(&ackLock_);
+
+    IsspResult result = IsspResult::NotReady;
+    for (std::uint8_t attempt = 0; attempt < 3; ++attempt) {
+        if (issp154_transport_is_synchronous_transmit_busy()) {
+            result = IsspResult::Busy;
+            break;
+        }
+
+        portENTER_CRITICAL(&ackLock_);
+        discoveryOutcomeAvailable_ = false;
+        discoveryOutcomeValid_ = false;
+        discoveredAddress_.fill(0);
+        portEXIT_CRITICAL(&ackLock_);
+        xEventGroupClearBits(ackEventGroup_, kDiscoveryOutcomeAvailableBit);
+
+        std::size_t frameLength = 0;
+        const std::uint8_t macSequence = macSequence_;
+        if (!issp154_mac_build_broadcast_from_extended(
+                config_.panId,
+                config_.extendedAddress,
+                macSequence,
+                payload.data(),
+                payloadLength,
+                txFrame_.data(),
+                txFrame_.size(),
+                &frameLength) ||
+            frameLength != static_cast<std::size_t>(txFrame_[0]) + 1U) {
+            result = IsspResult::Failed;
+            break;
+        }
+        ++macSequence_;
+
+        const IsspResult transmitResult = mapTransmitError(
+            issp154_transport_transmit_and_wait(
+                txFrame_.data(), config_.cca, kPhysicalTxTimeoutMs));
+        if (transmitResult == IsspResult::Busy) {
+            result = IsspResult::Busy;
+            break;
+        }
+        if (transmitResult == IsspResult::InvalidArgument) {
+            result = IsspResult::InvalidArgument;
+            break;
+        }
+        if (transmitResult != IsspResult::Ok) {
+            continue;
+        }
+
+        (void)xEventGroupWaitBits(
+            ackEventGroup_,
+            kDiscoveryOutcomeAvailableBit,
+            pdTRUE,
+            pdFALSE,
+            pdMS_TO_TICKS(120));
+
+        portENTER_CRITICAL(&ackLock_);
+        const bool valid = discoveryOutcomeAvailable_ && discoveryOutcomeValid_;
+        if (valid) {
+            destination = discoveredAddress_;
+        }
+        portEXIT_CRITICAL(&ackLock_);
+        if (valid) {
+            result = IsspResult::Ok;
+            break;
+        }
+    }
+
+    portENTER_CRITICAL(&ackLock_);
+    discoveryDeviceId_ = 0;
+    discoverySequence_ = 0;
+    discoveredAddress_.fill(0);
+    discoveryActive_ = false;
+    discoveryOutcomeAvailable_ = false;
+    discoveryOutcomeValid_ = false;
+    portEXIT_CRITICAL(&ackLock_);
+    xEventGroupClearBits(ackEventGroup_, kDiscoveryOutcomeAvailableBit);
+    return result;
+}
+
 IsspResult Issp154Transport::send(const std::uint8_t *data, std::size_t length)
+{
+    return transmitPayloadOnce(data, length);
+}
+
+IsspResult Issp154Transport::sendConfirmedOnce(
+    const std::uint8_t *data,
+    std::size_t length,
+    const Issp154AckExpectation &expectation,
+    std::uint32_t ackTimeoutMs,
+    Issp154ConfirmedSendResult &result)
+{
+    result = {};
+    if (data == nullptr || length == 0 || ackTimeoutMs == 0) {
+        return IsspResult::InvalidArgument;
+    }
+    if (state_ != IsspTransportState::Ready || !hasDestination()) {
+        return IsspResult::NotReady;
+    }
+    if (issp154_transport_is_synchronous_transmit_busy()) {
+        return IsspResult::Busy;
+    }
+
+    IsspResult operationResult = armAckExpectation(expectation);
+    if (operationResult != IsspResult::Ok) {
+        return operationResult;
+    }
+
+    operationResult = transmitPayloadOnce(data, length);
+    if (operationResult != IsspResult::Ok) {
+        clearAckExpectation();
+        return operationResult;
+    }
+
+    Issp154AckAttemptOutcome outcome{};
+    operationResult = waitAckAttemptOutcome(ackTimeoutMs, outcome);
+    if (operationResult != IsspResult::Ok) {
+        clearAckExpectation();
+        return operationResult;
+    }
+
+    result = {
+        .attemptResult = outcome.result,
+        .ackStatus = outcome.ackStatus,
+    };
+    return IsspResult::Ok;
+}
+
+IsspResult Issp154Transport::sendConfirmed(
+    const std::uint8_t *data,
+    std::size_t length,
+    const Issp154AckExpectation &expectation,
+    std::uint32_t ackTimeoutMs,
+    Issp154ConfirmedSendSummary &summary)
+{
+    summary = {};
+    if (data == nullptr || length == 0 || ackTimeoutMs == 0) {
+        return IsspResult::InvalidArgument;
+    }
+
+    for (std::uint8_t attempt = 0; attempt < 3; ++attempt) {
+        if (attempt > 0) {
+            if (hasPendingAckExpectation()) {
+                return IsspResult::Busy;
+            }
+            TickType_t delayTicks = pdMS_TO_TICKS(
+                kConfirmedSendBackoffMs[attempt - 1U]);
+            if (delayTicks == 0) {
+                delayTicks = 1;
+            }
+            vTaskDelay(delayTicks);
+        }
+
+        Issp154ConfirmedSendResult attemptResult{};
+        const IsspResult operationResult = sendConfirmedOnce(
+            data, length, expectation, ackTimeoutMs, attemptResult);
+        if (operationResult == IsspResult::InvalidArgument ||
+            operationResult == IsspResult::NotReady ||
+            operationResult == IsspResult::Busy) {
+            return operationResult;
+        }
+
+        summary.attempts = static_cast<std::uint8_t>(attempt + 1U);
+        if (operationResult == IsspResult::Ok) {
+            summary.attemptResult = attemptResult.attemptResult;
+            summary.ackStatus = attemptResult.ackStatus;
+            if (attemptResult.attemptResult ==
+                Issp154AckAttemptResult::AckReceived) {
+                return IsspResult::Ok;
+            }
+        } else {
+            summary.attemptResult = Issp154AckAttemptResult::None;
+            summary.ackStatus = IsspAckStatus::Ok;
+        }
+    }
+
+    return IsspResult::Failed;
+}
+
+IsspResult Issp154Transport::transmitPayloadOnce(const std::uint8_t *data,
+                                                 std::size_t length)
 {
     if (data == nullptr || length == 0) {
         return IsspResult::InvalidArgument;
@@ -286,8 +680,145 @@ void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
             &payload,
             &payloadLength,
             &replyContext) &&
-        payload != nullptr && payloadLength > 0 && receiveHandler_ != nullptr) {
-        receiveHandler_(payload, payloadLength, &replyContext, receiveContext_);
+        payload != nullptr && payloadLength > 0) {
+        std::uint32_t discoveryDeviceId = 0;
+        std::uint16_t discoverySequence = 0;
+        bool discoveryActive = false;
+        portENTER_CRITICAL(&ackLock_);
+        discoveryActive = discoveryActive_;
+        if (discoveryActive) {
+            discoveryDeviceId = discoveryDeviceId_;
+            discoverySequence = discoverySequence_;
+        }
+        portEXIT_CRITICAL(&ackLock_);
+
+        if (discoveryActive) {
+            IsspDecodedDiscoveryResponse response{};
+            const bool responseDecoded =
+                decodeDiscoveryResponse(payload, payloadLength, response) ==
+                IsspResult::Ok;
+            const bool matches = responseDecoded &&
+                replyContext.source_address_mode == kExtendedAddressMode &&
+                replyContext.destination_address_mode == kExtendedAddressMode &&
+                replyContext.source_pan_id == config_.panId &&
+                replyContext.destination_pan_id == config_.panId &&
+                std::equal(config_.extendedAddress,
+                           config_.extendedAddress + kIssp154ExtendedAddressSize,
+                           replyContext.destination_address) &&
+                response.deviceId == discoveryDeviceId &&
+                response.sequence == discoverySequence &&
+                response.endpointId == 0 &&
+                response.status == IsspAckStatus::Ok;
+
+            bool recorded = false;
+            portENTER_CRITICAL(&ackLock_);
+            if (discoveryActive_ &&
+                discoveryDeviceId_ == discoveryDeviceId &&
+                discoverySequence_ == discoverySequence &&
+                !discoveryOutcomeAvailable_) {
+                discoveryOutcomeAvailable_ = true;
+                discoveryOutcomeValid_ = matches;
+                if (matches) {
+                    std::copy_n(replyContext.source_address,
+                                discoveredAddress_.size(),
+                                discoveredAddress_.begin());
+                }
+                recorded = true;
+            }
+            portEXIT_CRITICAL(&ackLock_);
+            if (recorded && ackEventGroup_ != nullptr) {
+                xEventGroupSetBits(ackEventGroup_,
+                                   kDiscoveryOutcomeAvailableBit);
+            }
+            return;
+        }
+
+        Issp154AckExpectation expected{};
+        std::array<std::uint8_t, kIssp154ExtendedAddressSize> expectedSource{};
+        std::uint16_t expectedPanId = 0;
+        bool expectationActive = false;
+        bool outcomeAvailable = false;
+        bool destinationConfigured = false;
+        bool outcomeRecorded = false;
+
+        portENTER_CRITICAL(&ackLock_);
+        expectationActive = ackExpectationActive_;
+        if (expectationActive) {
+            expected = ackExpectation_;
+            outcomeAvailable = ackOutcomeAvailable_;
+            expectedSource = destination_;
+            expectedPanId = config_.panId;
+            destinationConfigured = hasDestination_;
+        }
+        portEXIT_CRITICAL(&ackLock_);
+
+        if (expectationActive) {
+            IsspDecodedAck decodedAck{};
+            if (decodeAck(payload, payloadLength, decodedAck) == IsspResult::Ok) {
+                const bool sourceMatches = destinationConfigured &&
+                    replyContext.source_address_mode == kExtendedAddressMode &&
+                    replyContext.source_pan_id == expectedPanId &&
+                    std::equal(expectedSource.begin(), expectedSource.end(),
+                               replyContext.source_address);
+                const bool matches = sourceMatches &&
+                    decodedAck.deviceId == expected.deviceId &&
+                    decodedAck.sequence == expected.sequence &&
+                    decodedAck.endpointId == expected.endpointId;
+                if (!outcomeAvailable) {
+                    portENTER_CRITICAL(&ackLock_);
+                    if (ackExpectationActive_ &&
+                        ackExpectation_.deviceId == expected.deviceId &&
+                        ackExpectation_.sequence == expected.sequence &&
+                        ackExpectation_.endpointId == expected.endpointId &&
+                        !ackOutcomeAvailable_) {
+                        if (matches) {
+                            ackOutcome_ = {
+                                .result = Issp154AckAttemptResult::AckReceived,
+                                .ackStatus = decodedAck.status,
+                            };
+                        } else {
+                            ackOutcome_ = {
+                                .result = Issp154AckAttemptResult::Interrupted,
+                                .ackStatus = IsspAckStatus::Ok,
+                            };
+                        }
+                        ackOutcomeAvailable_ = true;
+                        outcomeRecorded = true;
+                    }
+                    portEXIT_CRITICAL(&ackLock_);
+                }
+                if (outcomeRecorded && ackEventGroup_ != nullptr) {
+                    xEventGroupSetBits(
+                        ackEventGroup_, kAckOutcomeAvailableBit);
+                }
+                return;
+            }
+
+            if (!outcomeAvailable) {
+                portENTER_CRITICAL(&ackLock_);
+                if (ackExpectationActive_ &&
+                    ackExpectation_.deviceId == expected.deviceId &&
+                    ackExpectation_.sequence == expected.sequence &&
+                    ackExpectation_.endpointId == expected.endpointId &&
+                    !ackOutcomeAvailable_) {
+                    ackOutcome_ = {
+                        .result = Issp154AckAttemptResult::Interrupted,
+                        .ackStatus = IsspAckStatus::Ok,
+                    };
+                    ackOutcomeAvailable_ = true;
+                    outcomeRecorded = true;
+                }
+                portEXIT_CRITICAL(&ackLock_);
+            }
+        }
+
+        if (outcomeRecorded && ackEventGroup_ != nullptr) {
+            xEventGroupSetBits(ackEventGroup_, kAckOutcomeAvailableBit);
+        }
+
+        if (receiveHandler_ != nullptr) {
+            receiveHandler_(payload, payloadLength, &replyContext, receiveContext_);
+        }
     }
 
 }
