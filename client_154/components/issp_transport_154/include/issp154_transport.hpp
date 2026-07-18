@@ -99,6 +99,7 @@ public:
         Issp154ConfirmedSendSummary &summary);
 
     IsspResult begin() override;
+    IsspResult end();
     IsspResult send(const std::uint8_t *data, std::size_t length) override;
     IsspResult sendReply(const std::uint8_t *data,
                          std::size_t length,

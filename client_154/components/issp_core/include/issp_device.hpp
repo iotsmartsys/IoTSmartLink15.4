@@ -33,6 +33,8 @@ public:
     IsspDevice(const IsspDeviceConfig &config, IIsspTransport &transport);
 
     IsspResult addBehavior(IDeviceBehavior &behavior);
+    /// Initializes the registered behaviors and activates receive processing.
+    /// The application must start the transport before calling this method.
     IsspResult start();
     std::uint32_t deviceId() const;
     IsspTransportState transportState() const;
@@ -48,6 +50,8 @@ public:
     bool completePendingReport(const IsspPendingReportToken &token, bool delivered);
     IsspResult preparePendingReport(IsspPreparedReport &preparedReport);
     /// The handler is called after a pending report is inserted or updated.
+    /// Publications made while processing a command are notified after the
+    /// command reply attempt completes.
     /// It must be non-blocking and must not process or transmit the report.
     void setPendingReportHandler(PendingReportHandler handler, void *context);
 
@@ -67,6 +71,8 @@ private:
     };
 
     static void advanceGeneration(std::uint32_t &generation);
+    void notifyPendingReport();
+    void finishCommandProcessing();
     std::uint32_t nextPendingReportOrder();
     void normalizePendingReportOrders();
 
@@ -87,6 +93,8 @@ private:
     void *commandContext_;
     PendingReportHandler pendingReportHandler_;
     void *pendingReportContext_;
+    bool processingCommand_;
+    bool reportNotificationDeferred_;
     std::uint16_t reportSequence_;
     std::array<PendingReportSlot, kMaxPendingReports> pendingReports_;
     std::size_t pendingReportCount_;

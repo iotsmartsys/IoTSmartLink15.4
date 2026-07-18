@@ -23,6 +23,9 @@ esp_err_t iot154_radio_init(uint8_t channel,
                             iot154_tx_done_cb_t tx_done_cb,
                             iot154_tx_failed_cb_t tx_failed_cb);
 
+/// @brief Disable the radio subsystem and unregister its callback list.
+esp_err_t iot154_radio_deinit(void);
+
 /// @brief Put radio in continuous receive mode.
 esp_err_t iot154_radio_start_rx(void);
 

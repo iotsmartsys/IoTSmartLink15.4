@@ -1,5 +1,7 @@
 #include "issp154_report_executor.hpp"
 
+#include "esp_log.h"
+
 namespace issp
 {
 
@@ -56,11 +58,24 @@ IsspResult Issp154ReportExecutor::start()
 
 IsspResult Issp154ReportExecutor::processOne()
 {
+    ESP_LOGI("REPORT_EXECUTOR", "prepare_pending_report begin");
     IsspPreparedReport prepared{};
     const IsspResult prepareResult = device_.preparePendingReport(prepared);
+    ESP_LOGI("REPORT_EXECUTOR",
+             "prepare_pending_report result=%u",
+             static_cast<unsigned>(prepareResult));
     if (prepareResult != IsspResult::Ok) {
         return prepareResult;
     }
+
+    ESP_LOGI("REPORT_EXECUTOR",
+             "prepared slot=%u generation=%lu endpoint=%u event=%u value=%u sequence=%u",
+             static_cast<unsigned>(prepared.token.slotIndex),
+             static_cast<unsigned long>(prepared.token.generation),
+             static_cast<unsigned>(prepared.report.endpointId),
+             static_cast<unsigned>(prepared.report.eventType),
+             static_cast<unsigned>(prepared.report.value),
+             static_cast<unsigned>(prepared.sequence));
 
     const Issp154AckExpectation expectation{
         .deviceId = prepared.deviceId,
@@ -68,18 +83,36 @@ IsspResult Issp154ReportExecutor::processOne()
         .endpointId = prepared.report.endpointId,
     };
     Issp154ConfirmedSendSummary summary{};
+    ESP_LOGI("REPORT_EXECUTOR",
+             "confirmed_send begin slot=%u generation=%lu",
+             static_cast<unsigned>(prepared.token.slotIndex),
+             static_cast<unsigned long>(prepared.token.generation));
     const IsspResult sendResult = transport_.sendConfirmed(
         prepared.payload.data(),
         prepared.payloadLength,
         expectation,
         kReportAckTimeoutMs,
         summary);
+    ESP_LOGI("REPORT_EXECUTOR",
+             "confirmed_send result=%u attempts=%u attempt_result=%u ack_status=%u",
+             static_cast<unsigned>(sendResult),
+             static_cast<unsigned>(summary.attempts),
+             static_cast<unsigned>(summary.attemptResult),
+             static_cast<unsigned>(summary.ackStatus));
     const bool delivered =
         sendResult == IsspResult::Ok &&
         summary.attemptResult == Issp154AckAttemptResult::AckReceived &&
         summary.ackStatus == IsspAckStatus::Ok;
 
-    if (!device_.completePendingReport(prepared.token, delivered)) {
+    const bool completeResult =
+        device_.completePendingReport(prepared.token, delivered);
+    ESP_LOGI("REPORT_EXECUTOR",
+             "complete_pending_report result=%s delivered=%s slot=%u generation=%lu",
+             completeResult ? "ok" : "failed",
+             delivered ? "yes" : "no",
+             static_cast<unsigned>(prepared.token.slotIndex),
+             static_cast<unsigned long>(prepared.token.generation));
+    if (!completeResult) {
         return IsspResult::Failed;
     }
     if (!delivered) {
@@ -104,13 +137,19 @@ void Issp154ReportExecutor::runTask(void *context)
 
 void Issp154ReportExecutor::notifyPendingReport(void *context)
 {
+    ESP_LOGI("REPORT_EXECUTOR",
+             "pending_report_notification received context=%s",
+             context != nullptr ? "valid" : "null");
     if (context == nullptr) {
         return;
     }
 
     auto *executor = static_cast<Issp154ReportExecutor *>(context);
     if (executor->taskHandle_ != nullptr) {
+        ESP_LOGI("REPORT_EXECUTOR", "pending_report_notification task_notified=yes");
         xTaskNotifyGive(executor->taskHandle_);
+    } else {
+        ESP_LOGI("REPORT_EXECUTOR", "pending_report_notification task_notified=no");
     }
 }
 
@@ -118,13 +157,25 @@ void Issp154ReportExecutor::run()
 {
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        ESP_LOGI("REPORT_EXECUTOR", "task awakened");
 
         for (;;) {
             IsspReport report{};
+            ESP_LOGI("REPORT_EXECUTOR", "checking_pending_report");
             if (!device_.peekPendingReport(report)) {
+                ESP_LOGI("REPORT_EXECUTOR", "checking_pending_report result=none");
                 break;
             }
-            if (processOne() != IsspResult::Ok) {
+            ESP_LOGI("REPORT_EXECUTOR",
+                     "checking_pending_report result=available endpoint=%u event=%u value=%u",
+                     static_cast<unsigned>(report.endpointId),
+                     static_cast<unsigned>(report.eventType),
+                     static_cast<unsigned>(report.value));
+            const IsspResult processResult = processOne();
+            ESP_LOGI("REPORT_EXECUTOR",
+                     "process_one result=%u",
+                     static_cast<unsigned>(processResult));
+            if (processResult != IsspResult::Ok) {
                 break;
             }
         }

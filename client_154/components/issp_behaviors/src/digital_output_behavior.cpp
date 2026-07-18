@@ -1,5 +1,6 @@
 #include "digital_output_behavior.hpp"
 
+#include "esp_log.h"
 #include "ibehavior_state_publisher.hpp"
 
 namespace issp
@@ -48,24 +49,57 @@ std::uint32_t DigitalOutputBehavior::levelForState(bool state) const
 
 bool DigitalOutputBehavior::accepts(const IsspCommand &command) const
 {
-    return command.endpointId == config_.endpointId &&
-           command.eventType == config_.eventType;
+    const bool accepted = command.endpointId == config_.endpointId &&
+                          command.eventType == config_.eventType;
+    ESP_LOGI("DIGITAL_OUTPUT_ACCEPT",
+             "endpoint_received=%u endpoint_configured=%u event_received=%u event_configured=%u result=%s",
+             static_cast<unsigned>(command.endpointId),
+             static_cast<unsigned>(config_.endpointId),
+             static_cast<unsigned>(command.eventType),
+             static_cast<unsigned>(config_.eventType),
+             accepted ? "accepted" : "rejected");
+    return accepted;
 }
 
 IsspCommandResult DigitalOutputBehavior::handle(const IsspCommand &command)
 {
+    const bool previousState = state_;
+    ESP_LOGI("DIGITAL_OUTPUT_HANDLE",
+             "enter value=%u previous_state=%u",
+             static_cast<unsigned>(command.value),
+             previousState ? 1U : 0U);
     if (publisher_ == nullptr)
     {
+        ESP_LOGI("DIGITAL_OUTPUT_HANDLE",
+                 "value=rejected reason=no_publisher previous_state=%u resulting_state=%u",
+                 previousState ? 1U : 0U,
+                 state_ ? 1U : 0U);
         return IsspCommandResult::Failed;
     }
 
     if (command.value != 0U && command.value != 1U)
     {
+        ESP_LOGI("DIGITAL_OUTPUT_HANDLE",
+                 "value=rejected value_received=%u previous_state=%u resulting_state=%u",
+                 static_cast<unsigned>(command.value),
+                 previousState ? 1U : 0U,
+                 state_ ? 1U : 0U);
         return IsspCommandResult::Invalid;
     }
 
     const bool requestedState = command.value == 1U;
-    if (gpio_set_level(config_.pin, levelForState(requestedState)) != ESP_OK)
+    ESP_LOGI("DIGITAL_OUTPUT_HANDLE",
+             "value=accepted value_received=%u requested_state=%u",
+             static_cast<unsigned>(command.value),
+             requestedState ? 1U : 0U);
+    const esp_err_t gpioResult =
+        gpio_set_level(config_.pin, levelForState(requestedState));
+    ESP_LOGI("DIGITAL_OUTPUT_HANDLE",
+             "gpio_set_level_result=%d previous_state=%u resulting_state=%u",
+             static_cast<int>(gpioResult),
+             previousState ? 1U : 0U,
+             gpioResult == ESP_OK ? (requestedState ? 1U : 0U) : (state_ ? 1U : 0U));
+    if (gpioResult != ESP_OK)
     {
         return IsspCommandResult::Failed;
     }
@@ -78,7 +112,13 @@ IsspCommandResult DigitalOutputBehavior::handle(const IsspCommand &command)
         .value = static_cast<std::uint8_t>(state_ ? 1U : 0U),
     };
 
-    if (publisher_->publishState(report) != IsspResult::Ok)
+    const IsspResult publishResult = publisher_->publishState(report);
+    ESP_LOGI("DIGITAL_OUTPUT_HANDLE",
+             "publish_state_result=%u previous_state=%u resulting_state=%u",
+             static_cast<unsigned>(publishResult),
+             previousState ? 1U : 0U,
+             state_ ? 1U : 0U);
+    if (publishResult != IsspResult::Ok)
     {
         return IsspCommandResult::Failed;
     }

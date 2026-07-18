@@ -6,6 +6,8 @@
 static iot154_rx_done_cb_t s_rx_cb;
 static iot154_tx_done_cb_t s_tx_done_cb;
 static iot154_tx_failed_cb_t s_tx_failed_cb;
+static bool s_callbacks_registered;
+static bool s_radio_enabled;
 
 static void IRAM_ATTR radio_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *frame_info)
 {
@@ -46,14 +48,57 @@ esp_err_t iot154_radio_init(uint8_t channel,
         .tx_failed_cb = radio_tx_failed,
     };
 
-    ESP_RETURN_ON_ERROR(esp_ieee802154_event_callback_list_register(callbacks), "iot154", "register callbacks");
-    ESP_RETURN_ON_ERROR(esp_ieee802154_enable(), "iot154", "enable radio");
+    esp_err_t error = esp_ieee802154_event_callback_list_register(callbacks);
+    if (error != ESP_OK) {
+        s_rx_cb = NULL;
+        s_tx_done_cb = NULL;
+        s_tx_failed_cb = NULL;
+        return error;
+    }
+    s_callbacks_registered = true;
+
+    error = esp_ieee802154_enable();
+    if (error != ESP_OK) {
+        const esp_err_t unregister_error = esp_ieee802154_event_callback_list_unregister();
+        if (unregister_error == ESP_OK) {
+            s_callbacks_registered = false;
+            s_rx_cb = NULL;
+            s_tx_done_cb = NULL;
+            s_tx_failed_cb = NULL;
+        }
+        return error;
+    }
+    s_radio_enabled = true;
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_channel(channel), "iot154", "set channel");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_panid(pan_id), "iot154", "set pan");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_short_address(short_addr), "iot154", "set short address");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_coordinator(coordinator), "iot154", "set coordinator");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_promiscuous(false), "iot154", "set promiscuous");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_rx_when_idle(true), "iot154", "set rx idle");
+    return ESP_OK;
+}
+
+esp_err_t iot154_radio_deinit(void)
+{
+    if (s_radio_enabled) {
+        const esp_err_t error = esp_ieee802154_disable();
+        if (error != ESP_OK) {
+            return error;
+        }
+        s_radio_enabled = false;
+    }
+
+    if (s_callbacks_registered) {
+        const esp_err_t error = esp_ieee802154_event_callback_list_unregister();
+        if (error != ESP_OK) {
+            return error;
+        }
+        s_callbacks_registered = false;
+    }
+
+    s_rx_cb = NULL;
+    s_tx_done_cb = NULL;
+    s_tx_failed_cb = NULL;
     return ESP_OK;
 }
 

@@ -43,6 +43,9 @@ typedef struct {
  */
 esp_err_t issp154_transport_init(const issp154_transport_config_t *config);
 
+/// @brief Release the radio and transport resources initialized by init.
+esp_err_t issp154_transport_deinit(void);
+
 /// @brief Configure the local IEEE 802.15.4 extended address.
 esp_err_t issp154_transport_set_extended_address(const uint8_t *extended_address);
 
