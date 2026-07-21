@@ -13,8 +13,11 @@ constexpr TickType_t kLogFlushDelay = pdMS_TO_TICKS(50);
 
 } // namespace
 
-FactoryResetService::FactoryResetService()
-    : requested_(false)
+FactoryResetService::FactoryResetService(FactoryResetCleanup cleanup,
+                                         void *cleanupContext)
+    : requested_(false),
+      cleanup_(cleanup),
+      cleanupContext_(cleanupContext)
 {
 }
 
@@ -27,10 +30,20 @@ void FactoryResetService::requestFactoryReset()
 
     requested_ = true;
     ESP_LOGW(kTag, "requested");
-    ESP_LOGW(kTag, "begin persistence_preserved=yes");
+    ESP_LOGW(kTag, "begin persistence_preserved=no");
 
-    // Persistence cleanup will be added when the factory-reset contract is
-    // defined. For now, the central reset point performs a controlled reboot.
+    if (cleanup_ == nullptr) {
+        ESP_LOGE(kTag, "failed reason=cleanup_unavailable");
+        requested_ = false;
+        return;
+    }
+    const esp_err_t cleanupResult = cleanup_(cleanupContext_);
+    if (cleanupResult != ESP_OK) {
+        ESP_LOGE(kTag, "failed reason=persistence_cleanup result=%s",
+                 esp_err_to_name(cleanupResult));
+        requested_ = false;
+        return;
+    }
     ESP_LOGW(kTag, "completed action=restart");
     vTaskDelay(kLogFlushDelay);
     esp_restart();

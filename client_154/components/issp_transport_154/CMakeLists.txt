@@ -3,7 +3,7 @@ idf_component_register(
         "src/issp154_transport.c"
         "src/issp154_transport.cpp"
         "src/issp154_report_executor.cpp"
-        "src/issp154_destination_manager.cpp"
+        "src/issp154_network_manager.cpp"
         "src/issp154_mac_frame.c"
         "src/iot154_radio.c"
     INCLUDE_DIRS

@@ -73,12 +73,29 @@ Issp154Transport::Issp154Transport(const Issp154TransportConfig &config)
       discoveryDeviceId_(0),
       discoverySequence_(0),
       discoveredAddress_{},
+      discoveredPanId_(0),
       discoveryActive_(false),
       discoveryOutcomeAvailable_(false),
       discoveryOutcomeValid_(false),
       ackEventGroupStorage_{},
       ackEventGroup_(nullptr)
 {
+}
+
+IsspResult Issp154Transport::configureNetwork(std::uint8_t channel,
+                                              std::uint16_t panId,
+                                              bool promiscuous)
+{
+    if (state_ != IsspTransportState::Stopped || channel < 11U || channel > 26U) {
+        return state_ == IsspTransportState::Stopped
+            ? IsspResult::InvalidArgument
+            : IsspResult::Busy;
+    }
+    config_.channel = channel;
+    config_.panId = panId;
+    config_.promiscuous = promiscuous;
+    clearDestination();
+    return IsspResult::Ok;
 }
 
 IsspResult Issp154Transport::setDestination(const std::uint8_t *extendedAddress,
@@ -261,12 +278,17 @@ IsspResult Issp154Transport::begin()
     discoveryDeviceId_ = 0;
     discoverySequence_ = 0;
     discoveredAddress_.fill(0);
+    discoveredPanId_ = 0;
     discoveryActive_ = false;
     discoveryOutcomeAvailable_ = false;
     discoveryOutcomeValid_ = false;
     portEXIT_CRITICAL(&ackLock_);
 
     if (config_.extendedAddress == nullptr) {
+        state_ = IsspTransportState::Error;
+        return IsspResult::InvalidArgument;
+    }
+    if (config_.channel < 11U || config_.channel > 26U) {
         state_ = IsspTransportState::Error;
         return IsspResult::InvalidArgument;
     }
@@ -278,6 +300,7 @@ IsspResult Issp154Transport::begin()
         .pan_id = config_.panId,
         .short_address = config_.shortAddress,
         .coordinator = config_.coordinator,
+        .promiscuous = config_.promiscuous,
         .rx_done_cb = &Issp154Transport::handleRxDone,
         .tx_done_cb = &Issp154Transport::handleTxDone,
         .tx_failed_cb = &Issp154Transport::handleTxFailed,
@@ -318,6 +341,7 @@ IsspResult Issp154Transport::end()
     discoveryDeviceId_ = 0;
     discoverySequence_ = 0;
     discoveredAddress_.fill(0);
+    discoveredPanId_ = 0;
     discoveryActive_ = false;
     discoveryOutcomeAvailable_ = false;
     discoveryOutcomeValid_ = false;
@@ -337,12 +361,12 @@ IsspResult Issp154Transport::end()
     return IsspResult::Ok;
 }
 
-IsspResult Issp154Transport::discoverDestination(
+IsspResult Issp154Transport::discoverNetwork(
     std::uint32_t deviceId,
     std::uint16_t sequence,
-    std::array<std::uint8_t, kIssp154ExtendedAddressSize> &destination)
+    Issp154DiscoveredNetwork &network)
 {
-    destination.fill(0);
+    network = {};
     if (state_ != IsspTransportState::Ready || ackEventGroup_ == nullptr) {
         return IsspResult::NotReady;
     }
@@ -367,6 +391,7 @@ IsspResult Issp154Transport::discoverDestination(
     discoveryDeviceId_ = deviceId;
     discoverySequence_ = sequence;
     discoveredAddress_.fill(0);
+    discoveredPanId_ = 0;
     discoveryActive_ = true;
     discoveryOutcomeAvailable_ = false;
     discoveryOutcomeValid_ = false;
@@ -383,6 +408,7 @@ IsspResult Issp154Transport::discoverDestination(
         discoveryOutcomeAvailable_ = false;
         discoveryOutcomeValid_ = false;
         discoveredAddress_.fill(0);
+        discoveredPanId_ = 0;
         portEXIT_CRITICAL(&ackLock_);
         xEventGroupClearBits(ackEventGroup_, kDiscoveryOutcomeAvailableBit);
 
@@ -428,7 +454,8 @@ IsspResult Issp154Transport::discoverDestination(
         portENTER_CRITICAL(&ackLock_);
         const bool valid = discoveryOutcomeAvailable_ && discoveryOutcomeValid_;
         if (valid) {
-            destination = discoveredAddress_;
+            network.coordinatorAddress = discoveredAddress_;
+            network.panId = discoveredPanId_;
         }
         portEXIT_CRITICAL(&ackLock_);
         if (valid) {
@@ -441,6 +468,7 @@ IsspResult Issp154Transport::discoverDestination(
     discoveryDeviceId_ = 0;
     discoverySequence_ = 0;
     discoveredAddress_.fill(0);
+    discoveredPanId_ = 0;
     discoveryActive_ = false;
     discoveryOutcomeAvailable_ = false;
     discoveryOutcomeValid_ = false;
@@ -829,8 +857,8 @@ void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
             const bool matches = responseDecoded &&
                 replyContext.source_address_mode == kExtendedAddressMode &&
                 replyContext.destination_address_mode == kExtendedAddressMode &&
-                replyContext.source_pan_id == config_.panId &&
-                replyContext.destination_pan_id == config_.panId &&
+                replyContext.source_pan_id != 0xffffU &&
+                replyContext.destination_pan_id == replyContext.source_pan_id &&
                 std::equal(config_.extendedAddress,
                            config_.extendedAddress + kIssp154ExtendedAddressSize,
                            replyContext.destination_address) &&
@@ -851,6 +879,7 @@ void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
                     std::copy_n(replyContext.source_address,
                                 discoveredAddress_.size(),
                                 discoveredAddress_.begin());
+                    discoveredPanId_ = replyContext.source_pan_id;
                 }
                 recorded = true;
             }

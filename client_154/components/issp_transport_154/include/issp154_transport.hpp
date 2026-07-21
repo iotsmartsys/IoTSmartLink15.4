@@ -23,6 +23,13 @@ struct Issp154TransportConfig
     bool coordinator;
     const std::uint8_t *extendedAddress;
     bool cca;
+    bool promiscuous;
+};
+
+struct Issp154DiscoveredNetwork
+{
+    std::uint16_t panId;
+    std::array<std::uint8_t, kIssp154ExtendedAddressSize> coordinatorAddress;
 };
 
 struct Issp154AckExpectation
@@ -63,16 +70,20 @@ class Issp154Transport final : public IIsspTransport
 public:
     explicit Issp154Transport(const Issp154TransportConfig &config);
 
+    IsspResult configureNetwork(std::uint8_t channel,
+                                std::uint16_t panId,
+                                bool promiscuous);
+
     IsspResult setDestination(const std::uint8_t *extendedAddress,
                               std::size_t length);
     void clearDestination();
     bool hasDestination() const;
     /// Performs up to three legacy discovery attempts. The caller must not be
     /// the RX task or an ISR.
-    IsspResult discoverDestination(
+    IsspResult discoverNetwork(
         std::uint32_t deviceId,
         std::uint16_t sequence,
-        std::array<std::uint8_t, kIssp154ExtendedAddressSize> &destination);
+        Issp154DiscoveredNetwork &network);
 
     IsspResult armAckExpectation(const Issp154AckExpectation &expectation);
     void clearAckExpectation();
@@ -141,6 +152,7 @@ private:
     std::uint32_t discoveryDeviceId_;
     std::uint16_t discoverySequence_;
     std::array<std::uint8_t, kIssp154ExtendedAddressSize> discoveredAddress_;
+    std::uint16_t discoveredPanId_;
     bool discoveryActive_;
     bool discoveryOutcomeAvailable_;
     bool discoveryOutcomeValid_;

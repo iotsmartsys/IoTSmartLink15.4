@@ -19,6 +19,7 @@ esp_err_t iot154_radio_init(uint8_t channel,
                             uint16_t pan_id,
                             uint16_t short_addr,
                             bool coordinator,
+                            bool promiscuous,
                             iot154_rx_done_cb_t rx_cb,
                             iot154_tx_done_cb_t tx_done_cb,
                             iot154_tx_failed_cb_t tx_failed_cb);

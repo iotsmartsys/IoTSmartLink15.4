@@ -34,6 +34,7 @@ esp_err_t iot154_radio_init(uint8_t channel,
                             uint16_t pan_id,
                             uint16_t short_addr,
                             bool coordinator,
+                            bool promiscuous,
                             iot154_rx_done_cb_t rx_cb,
                             iot154_tx_done_cb_t tx_done_cb,
                             iot154_tx_failed_cb_t tx_failed_cb)
@@ -73,7 +74,7 @@ esp_err_t iot154_radio_init(uint8_t channel,
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_panid(pan_id), "iot154", "set pan");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_short_address(short_addr), "iot154", "set short address");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_coordinator(coordinator), "iot154", "set coordinator");
-    ESP_RETURN_ON_ERROR(esp_ieee802154_set_promiscuous(false), "iot154", "set promiscuous");
+    ESP_RETURN_ON_ERROR(esp_ieee802154_set_promiscuous(promiscuous), "iot154", "set promiscuous");
     ESP_RETURN_ON_ERROR(esp_ieee802154_set_rx_when_idle(true), "iot154", "set rx idle");
     return ESP_OK;
 }

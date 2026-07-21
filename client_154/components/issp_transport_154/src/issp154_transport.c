@@ -314,6 +314,7 @@ esp_err_t issp154_transport_init(const issp154_transport_config_t *config)
                                               config->pan_id,
                                               config->short_address,
                                               config->coordinator,
+                                              config->promiscuous,
                                               transport_rx_done,
                                               transport_tx_done,
                                               transport_tx_failed);

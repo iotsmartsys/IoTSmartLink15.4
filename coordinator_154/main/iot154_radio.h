@@ -18,6 +18,7 @@ extern "C"
     /// @brief Initialize IEEE 802.15.4 radio with fixed PAN, short address and channel.
     esp_err_t iot154_radio_init(uint16_t short_addr,
                                 bool coordinator,
+                                bool promiscuous,
                                 iot154_rx_done_cb_t rx_cb,
                                 iot154_tx_done_cb_t tx_done_cb,
                                 iot154_tx_failed_cb_t tx_failed_cb);

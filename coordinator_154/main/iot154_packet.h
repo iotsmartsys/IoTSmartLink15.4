@@ -177,7 +177,7 @@ static inline bool iot154_parse_frame_info(const uint8_t *frame, iot154_frame_in
         }
         const uint16_t dst_pan = (uint16_t)frame[pos] | ((uint16_t)frame[pos + 1] << 8);
         pos += 2;
-        if (dst_pan != IOT154_PAN_ID) {
+        if (dst_pan != IOT154_PAN_ID && dst_pan != 0xffffU) {
             return false;
         }
 

@@ -14,6 +14,7 @@
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_rom_sys.h"
+#include "esp_timer.h"
 #include "nvs_flash.h"
 
 #include "iot154_packet.h"
@@ -38,9 +39,11 @@ static const EventBits_t TEST_TOGGLE_BIT = BIT3;
 #define HOST_UART_BUF_SIZE 4096
 #define HOST_UART_LINE_MAX 4096
 #define REPORT_ACK_TURNAROUND_DELAY_US 20000
+#define DISCOVERY_RESPONSE_TURNAROUND_DELAY_US 20000
 #define COMMAND_ACK_TIMEOUT_MS 300
 #define COMMAND_RETRY_DELAY_MS 50
 #define COMMAND_MAX_ATTEMPTS 3
+#define COMMISSIONING_JOIN_WINDOW_SECONDS 60
 
 #define ISSP154_HOST_DEVICE_ID_PREFIX "issp154-"
 #define ISSP154_HOST_DEVICE_ID_PREFIX_LEN (sizeof(ISSP154_HOST_DEVICE_ID_PREFIX) - 1)
@@ -50,7 +53,7 @@ static const EventBits_t TEST_TOGGLE_BIT = BIT3;
 #define ISSP154_CAPABILITY_ENDPOINT_PREFIX "_ep_"
 #define ISSP154_CAPABILITY_ENDPOINT_SEPARATOR "_"
 #define ISSP154_ENDPOINT_ID_MAX_TEXT_LEN 3
-#define ISSP154_CAPABILITY_ENDPOINT_TEXT_LEN \
+#define ISSP154_CAPABILITY_ENDPOINT_TEXT_LEN                                               \
     ((sizeof(ISSP154_CAPABILITY_ENDPOINT_PREFIX) - 1) + ISSP154_ENDPOINT_ID_MAX_TEXT_LEN + \
      (sizeof(ISSP154_CAPABILITY_ENDPOINT_SEPARATOR) - 1))
 #define ISSP154_CAPABILITY_TYPE_MAX_LEN 32
@@ -84,8 +87,11 @@ static uint16_t s_report_ack_issp_seq;
 static uint8_t s_report_ack_dst[IOT154_EXT_ADDR_LEN];
 static uint8_t s_last_device_ext_addr[IOT154_EXT_ADDR_LEN];
 static bool s_has_last_device;
+static bool s_join_window_open;
+static int64_t s_join_window_deadline_us;
 
-typedef struct {
+typedef struct
+{
     bool active;
     bool awaiting_ack;
     uint8_t attempts;
@@ -103,7 +109,8 @@ typedef struct {
 
 static pending_command_t s_pending_command;
 
-typedef struct {
+typedef struct
+{
     uint32_t device_id;
     uint16_t last_seq;
     uint8_t ext_addr[IOT154_EXT_ADDR_LEN];
@@ -126,14 +133,22 @@ static const char DRAM_ATTR s_tx_error_unknown[] = "UNKNOWN";
 
 static const char *IRAM_ATTR tx_error_name(esp_ieee802154_tx_error_t error)
 {
-    switch (error) {
-    case ESP_IEEE802154_TX_ERR_CCA_BUSY: return s_tx_error_cca_busy;
-    case ESP_IEEE802154_TX_ERR_ABORT: return s_tx_error_abort;
-    case ESP_IEEE802154_TX_ERR_NO_ACK: return s_tx_error_no_ack;
-    case ESP_IEEE802154_TX_ERR_INVALID_ACK: return s_tx_error_invalid_ack;
-    case ESP_IEEE802154_TX_ERR_COEXIST: return s_tx_error_coexist;
-    case ESP_IEEE802154_TX_ERR_SECURITY: return s_tx_error_security;
-    default: return s_tx_error_unknown;
+    switch (error)
+    {
+    case ESP_IEEE802154_TX_ERR_CCA_BUSY:
+        return s_tx_error_cca_busy;
+    case ESP_IEEE802154_TX_ERR_ABORT:
+        return s_tx_error_abort;
+    case ESP_IEEE802154_TX_ERR_NO_ACK:
+        return s_tx_error_no_ack;
+    case ESP_IEEE802154_TX_ERR_INVALID_ACK:
+        return s_tx_error_invalid_ack;
+    case ESP_IEEE802154_TX_ERR_COEXIST:
+        return s_tx_error_coexist;
+    case ESP_IEEE802154_TX_ERR_SECURITY:
+        return s_tx_error_security;
+    default:
+        return s_tx_error_unknown;
     }
 }
 
@@ -141,7 +156,8 @@ static const char *IRAM_ATTR tx_error_name(esp_ieee802154_tx_error_t error)
 static void init_nvs(void)
 {
     esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ESP_ERROR_CHECK(nvs_flash_init());
         return;
@@ -180,21 +196,25 @@ static void IRAM_ATTR on_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *fr
     BaseType_t task_woken = pdFALSE;
     const uint8_t len = frame != NULL ? frame[0] : 0;
     const bool pending_slot = s_events != NULL &&
-        (xEventGroupGetBitsFromISR(s_events) & RX_DONE_BIT) != 0;
-    if (frame_info != NULL) {
+                              (xEventGroupGetBitsFromISR(s_events) & RX_DONE_BIT) != 0;
+    if (frame_info != NULL)
+    {
         ESP_DRAM_LOGI(DRAM_STR("COORD_RADIO_RX"),
                       "frame received phy_len=%u rssi=%d lqi=%u storage=single_slot pending=%s",
                       (unsigned)len,
                       (int)frame_info->rssi,
                       (unsigned)frame_info->lqi,
                       pending_slot ? s_log_yes : s_log_no);
-    } else {
+    }
+    else
+    {
         ESP_DRAM_LOGI(DRAM_STR("COORD_RADIO_RX"),
                       "frame received phy_len=%u rssi=unavailable lqi=unavailable storage=single_slot pending=%s",
                       (unsigned)len,
                       pending_slot ? s_log_yes : s_log_no);
     }
-    if (len <= IOT154_MAX_FRAME_LEN) {
+    if (len <= IOT154_MAX_FRAME_LEN)
+    {
         memcpy(s_rx_frame, frame, len + 1);
         s_rx_len = len;
         s_rx_info = *frame_info;
@@ -204,12 +224,15 @@ static void IRAM_ATTR on_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *fr
                       (unsigned)len,
                       len >= 3 ? (unsigned)frame[3] : 0U,
                       pending_slot ? s_log_yes : s_log_no);
-    } else {
+    }
+    else
+    {
         ESP_DRAM_LOGI(DRAM_STR("COORD_RADIO_RX"),
                       "enqueue=failed reason=invalid_frame_or_metadata phy_len=%u",
                       (unsigned)len);
     }
-    if (frame != NULL) {
+    if (frame != NULL)
+    {
         esp_ieee802154_receive_handle_done(frame);
     }
     portYIELD_FROM_ISR(task_woken);
@@ -219,7 +242,8 @@ static void IRAM_ATTR on_tx_done(const uint8_t *frame, const uint8_t *ack, esp_i
 {
     BaseType_t task_woken = pdFALSE;
     xEventGroupSetBitsFromISR(s_events, TX_DONE_BIT, &task_woken);
-    if (s_tx_is_report_ack) {
+    if (s_tx_is_report_ack)
+    {
         ESP_DRAM_LOGI(DRAM_STR("COORD_REPORT_ACK"),
                       "callback=tx_done frame=%p issp_sequence=%u ack_mac_sequence=%u radio_state=%u",
                       (const void *)frame,
@@ -227,7 +251,8 @@ static void IRAM_ATTR on_tx_done(const uint8_t *frame, const uint8_t *ack, esp_i
                       (unsigned)s_report_ack_mac_seq,
                       (unsigned)esp_ieee802154_get_state());
     }
-    if (ack != NULL) {
+    if (ack != NULL)
+    {
         esp_ieee802154_receive_handle_done(ack);
     }
     portYIELD_FROM_ISR(task_woken);
@@ -238,7 +263,8 @@ static void IRAM_ATTR on_tx_failed(const uint8_t *frame, esp_ieee802154_tx_error
     BaseType_t task_woken = pdFALSE;
     s_radio_tx_error = error;
     xEventGroupSetBitsFromISR(s_events, TX_FAILED_BIT, &task_woken);
-    if (s_tx_is_report_ack) {
+    if (s_tx_is_report_ack)
+    {
         ESP_DRAM_LOGI(DRAM_STR("COORD_REPORT_ACK"),
                       "callback=tx_failed frame=%p issp_sequence=%u ack_mac_sequence=%u error=%u error_name=%s radio_state=%u",
                       (const void *)frame,
@@ -266,11 +292,16 @@ static void format_mac_address(uint8_t mode,
                                char *out,
                                size_t out_len)
 {
-    if (mode == IOT154_ADDR_MODE_EXT) {
+    if (mode == IOT154_ADDR_MODE_EXT)
+    {
         format_ext_addr(ext_addr, out, out_len);
-    } else if (mode == IOT154_ADDR_MODE_SHORT) {
+    }
+    else if (mode == IOT154_ADDR_MODE_SHORT)
+    {
         snprintf(out, out_len, "0x%04x", short_addr);
-    } else {
+    }
+    else
+    {
         snprintf(out, out_len, "none");
     }
 }
@@ -285,7 +316,8 @@ static bool diagnostic_extract_mac(const uint8_t *frame,
     *payload_length = 0;
     memset(info, 0, sizeof(*info));
     memset(packet, 0, sizeof(*packet));
-    if (frame == NULL || frame[0] < IOT154_MAC_HEADER_LEN + sizeof(*packet) + IOT154_FCS_LEN) {
+    if (frame == NULL || frame[0] < IOT154_MAC_HEADER_LEN + sizeof(*packet) + IOT154_FCS_LEN)
+    {
         *reason = "frame_too_short";
         return false;
     }
@@ -299,73 +331,95 @@ static bool diagnostic_extract_mac(const uint8_t *frame,
     info->src_mode = src_mode;
     info->dst_mode = dst_mode;
 
-    if (dst_mode != IOT154_ADDR_MODE_NONE) {
-        if (pos + 2 > frame_length) {
+    if (dst_mode != IOT154_ADDR_MODE_NONE)
+    {
+        if (pos + 2 > frame_length)
+        {
             *reason = "destination_pan_truncated";
             return false;
         }
         const uint16_t dst_pan = (uint16_t)frame[pos] | ((uint16_t)frame[pos + 1] << 8);
         pos += 2;
-        if (dst_pan != IOT154_PAN_ID) {
+        if (dst_pan != IOT154_PAN_ID && dst_pan != 0xffffU)
+        {
             *reason = "destination_pan_mismatch";
             return false;
         }
-        if (dst_mode == IOT154_ADDR_MODE_SHORT) {
-            if (pos + 2 > frame_length) {
+        if (dst_mode == IOT154_ADDR_MODE_SHORT)
+        {
+            if (pos + 2 > frame_length)
+            {
                 *reason = "destination_short_truncated";
                 return false;
             }
             info->dst_short = (uint16_t)frame[pos] | ((uint16_t)frame[pos + 1] << 8);
             info->dst_broadcast = info->dst_short == IOT154_BROADCAST_ADDR;
             pos += 2;
-        } else if (dst_mode == IOT154_ADDR_MODE_EXT) {
-            if (pos + IOT154_EXT_ADDR_LEN > frame_length) {
+        }
+        else if (dst_mode == IOT154_ADDR_MODE_EXT)
+        {
+            if (pos + IOT154_EXT_ADDR_LEN > frame_length)
+            {
                 *reason = "destination_extended_truncated";
                 return false;
             }
             memcpy(info->dst_ext, &frame[pos], IOT154_EXT_ADDR_LEN);
             pos += IOT154_EXT_ADDR_LEN;
-        } else {
+        }
+        else
+        {
             *reason = "destination_mode_invalid";
             return false;
         }
     }
 
-    if (src_mode != IOT154_ADDR_MODE_NONE) {
-        if (!pan_compression) {
-            if (pos + 2 > frame_length) {
+    if (src_mode != IOT154_ADDR_MODE_NONE)
+    {
+        if (!pan_compression)
+        {
+            if (pos + 2 > frame_length)
+            {
                 *reason = "source_pan_truncated";
                 return false;
             }
             const uint16_t src_pan = (uint16_t)frame[pos] | ((uint16_t)frame[pos + 1] << 8);
             pos += 2;
-            if (src_pan != IOT154_PAN_ID) {
+            if (src_pan != IOT154_PAN_ID)
+            {
                 *reason = "source_pan_mismatch";
                 return false;
             }
         }
-        if (src_mode == IOT154_ADDR_MODE_SHORT) {
-            if (pos + 2 > frame_length) {
+        if (src_mode == IOT154_ADDR_MODE_SHORT)
+        {
+            if (pos + 2 > frame_length)
+            {
                 *reason = "source_short_truncated";
                 return false;
             }
             info->src_short = (uint16_t)frame[pos] | ((uint16_t)frame[pos + 1] << 8);
             pos += 2;
-        } else if (src_mode == IOT154_ADDR_MODE_EXT) {
-            if (pos + IOT154_EXT_ADDR_LEN > frame_length) {
+        }
+        else if (src_mode == IOT154_ADDR_MODE_EXT)
+        {
+            if (pos + IOT154_EXT_ADDR_LEN > frame_length)
+            {
                 *reason = "source_extended_truncated";
                 return false;
             }
             memcpy(info->src_ext, &frame[pos], IOT154_EXT_ADDR_LEN);
             pos += IOT154_EXT_ADDR_LEN;
-        } else {
+        }
+        else
+        {
             *reason = "source_mode_invalid";
             return false;
         }
     }
 
     const size_t mac_header_length = pos - 1U;
-    if (frame[0] < mac_header_length + sizeof(*packet) + IOT154_FCS_LEN) {
+    if (frame[0] < mac_header_length + sizeof(*packet) + IOT154_FCS_LEN)
+    {
         *reason = "payload_truncated";
         return false;
     }
@@ -397,13 +451,16 @@ static void format_capability_name(const char *device_id, uint8_t endpoint_id, u
 
 static int hex_nibble(char ch)
 {
-    if (ch >= '0' && ch <= '9') {
+    if (ch >= '0' && ch <= '9')
+    {
         return ch - '0';
     }
-    if (ch >= 'a' && ch <= 'f') {
+    if (ch >= 'a' && ch <= 'f')
+    {
         return ch - 'a' + 10;
     }
-    if (ch >= 'A' && ch <= 'F') {
+    if (ch >= 'A' && ch <= 'F')
+    {
         return ch - 'A' + 10;
     }
     return -1;
@@ -414,19 +471,23 @@ static bool parse_host_ext_addr(const char *text, uint8_t *ext_addr)
 {
     if (text == NULL ||
         ext_addr == NULL ||
-        strncmp(text, ISSP154_HOST_DEVICE_ID_PREFIX, ISSP154_HOST_DEVICE_ID_PREFIX_LEN) != 0) {
+        strncmp(text, ISSP154_HOST_DEVICE_ID_PREFIX, ISSP154_HOST_DEVICE_ID_PREFIX_LEN) != 0)
+    {
         return false;
     }
 
     const char *cursor = text + ISSP154_HOST_DEVICE_ID_PREFIX_LEN;
-    if (strlen(cursor) != ISSP154_HOST_DEVICE_ID_HEX_LEN) {
+    if (strlen(cursor) != ISSP154_HOST_DEVICE_ID_HEX_LEN)
+    {
         return false;
     }
 
-    for (size_t i = 0; i < IOT154_EXT_ADDR_LEN; ++i) {
+    for (size_t i = 0; i < IOT154_EXT_ADDR_LEN; ++i)
+    {
         int high = hex_nibble(cursor[i * 2]);
         int low = hex_nibble(cursor[i * 2 + 1]);
-        if (high < 0 || low < 0) {
+        if (high < 0 || low < 0)
+        {
             return false;
         }
         ext_addr[i] = (uint8_t)((high << 4) | low);
@@ -437,7 +498,8 @@ static bool parse_host_ext_addr(const char *text, uint8_t *ext_addr)
 
 static const char *type_from_event(uint8_t event_type)
 {
-    switch (event_type) {
+    switch (event_type)
+    {
     case IOT154_EVENT_DOOR:
         return "Door Sensor";
     case IOT154_EVENT_POWER:
@@ -451,11 +513,14 @@ static const char *type_from_event(uint8_t event_type)
 
 static const char *value_from_event(uint8_t event_type, uint8_t value, char *fallback, size_t fallback_len)
 {
-    if (event_type == IOT154_EVENT_DOOR) {
+    if (event_type == IOT154_EVENT_DOOR)
+    {
         return value == 1 ? "open" : "closed";
     }
-    if (event_type == IOT154_EVENT_POWER) {
-        if (value == IOT154_VALUE_TOGGLE) {
+    if (event_type == IOT154_EVENT_POWER)
+    {
+        if (value == IOT154_VALUE_TOGGLE)
+        {
             return "toggle";
         }
         return value != 0 ? "on" : "off";
@@ -470,17 +535,20 @@ static bool extract_host_device_id_and_endpoint_from_capability(const char *capa
                                                                 size_t out_len,
                                                                 uint8_t *endpoint_id)
 {
-    if (capability == NULL || out == NULL || out_len == 0 || endpoint_id == NULL) {
+    if (capability == NULL || out == NULL || out_len == 0 || endpoint_id == NULL)
+    {
         return false;
     }
 
     const char *endpoint = strstr(capability, ISSP154_CAPABILITY_ENDPOINT_PREFIX);
-    if (endpoint == NULL) {
+    if (endpoint == NULL)
+    {
         return false;
     }
 
     size_t len = (size_t)(endpoint - capability);
-    if (len == 0 || len >= out_len) {
+    if (len == 0 || len >= out_len)
+    {
         return false;
     }
 
@@ -493,7 +561,8 @@ static bool extract_host_device_id_and_endpoint_from_capability(const char *capa
     if (end == endpoint_text ||
         *end != ISSP154_CAPABILITY_ENDPOINT_SEPARATOR[0] ||
         parsed == 0 ||
-        parsed > UINT8_MAX) {
+        parsed > UINT8_MAX)
+    {
         out[0] = '\0';
         return false;
     }
@@ -515,24 +584,29 @@ static bool command_to_event(const char *capability,
                              uint8_t *event_type,
                              uint8_t *event_value)
 {
-    if (capability == NULL || value == NULL || event_type == NULL || event_value == NULL) {
+    if (capability == NULL || value == NULL || event_type == NULL || event_value == NULL)
+    {
         return false;
     }
 
-    if (!capability_is_switch_plug(capability, type)) {
+    if (!capability_is_switch_plug(capability, type))
+    {
         return false;
     }
 
     *event_type = IOT154_EVENT_POWER;
-    if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0 || strcmp(value, "true") == 0) {
+    if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0 || strcmp(value, "true") == 0)
+    {
         *event_value = IOT154_VALUE_ON;
         return true;
     }
-    if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0 || strcmp(value, "false") == 0) {
+    if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0 || strcmp(value, "false") == 0)
+    {
         *event_value = IOT154_VALUE_OFF;
         return true;
     }
-    if (strcmp(value, "toggle") == 0) {
+    if (strcmp(value, "toggle") == 0)
+    {
         *event_value = IOT154_VALUE_TOGGLE;
         return true;
     }
@@ -542,7 +616,8 @@ static bool command_to_event(const char *capability,
 
 static const char *skip_json_ws(const char *cursor)
 {
-    while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') {
+    while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n')
+    {
         cursor++;
     }
     return cursor;
@@ -550,22 +625,27 @@ static const char *skip_json_ws(const char *cursor)
 
 static bool parse_json_string(const char **cursor, char *out, size_t out_len)
 {
-    if (**cursor != '"' || out_len == 0) {
+    if (**cursor != '"' || out_len == 0)
+    {
         return false;
     }
 
     (*cursor)++;
     size_t written = 0;
-    while (**cursor != '\0') {
+    while (**cursor != '\0')
+    {
         char ch = *(*cursor)++;
-        if (ch == '"') {
+        if (ch == '"')
+        {
             out[written] = '\0';
             return true;
         }
 
-        if (ch == '\\') {
+        if (ch == '\\')
+        {
             ch = *(*cursor)++;
-            switch (ch) {
+            switch (ch)
+            {
             case '"':
             case '\\':
             case '/':
@@ -591,7 +671,8 @@ static bool parse_json_string(const char **cursor, char *out, size_t out_len)
             }
         }
 
-        if (written + 1 < out_len) {
+        if (written + 1 < out_len)
+        {
             out[written++] = ch;
         }
     }
@@ -604,11 +685,13 @@ static bool skip_json_value(const char **cursor)
 {
     char ignored[2] = {0};
     *cursor = skip_json_ws(*cursor);
-    if (**cursor == '"') {
+    if (**cursor == '"')
+    {
         return parse_json_string(cursor, ignored, sizeof(ignored));
     }
 
-    while (**cursor != '\0' && **cursor != ',' && **cursor != '}') {
+    while (**cursor != '\0' && **cursor != ',' && **cursor != '}')
+    {
         (*cursor)++;
     }
     return true;
@@ -617,37 +700,45 @@ static bool skip_json_value(const char **cursor)
 static bool json_get_string(const char *line, const char *field_name, char *out, size_t out_len)
 {
     const char *cursor = skip_json_ws(line);
-    if (*cursor != '{') {
+    if (*cursor != '{')
+    {
         return false;
     }
     cursor++;
 
-    while (*cursor != '\0') {
+    while (*cursor != '\0')
+    {
         char key[64] = {0};
         cursor = skip_json_ws(cursor);
-        if (*cursor == '}') {
+        if (*cursor == '}')
+        {
             break;
         }
-        if (!parse_json_string(&cursor, key, sizeof(key))) {
+        if (!parse_json_string(&cursor, key, sizeof(key)))
+        {
             return false;
         }
 
         cursor = skip_json_ws(cursor);
-        if (*cursor != ':') {
+        if (*cursor != ':')
+        {
             return false;
         }
         cursor++;
         cursor = skip_json_ws(cursor);
 
-        if (strcmp(key, field_name) == 0) {
+        if (strcmp(key, field_name) == 0)
+        {
             return parse_json_string(&cursor, out, out_len);
         }
-        if (!skip_json_value(&cursor)) {
+        if (!skip_json_value(&cursor))
+        {
             return false;
         }
 
         cursor = skip_json_ws(cursor);
-        if (*cursor == ',') {
+        if (*cursor == ',')
+        {
             cursor++;
         }
     }
@@ -658,14 +749,17 @@ static bool json_get_string(const char *line, const char *field_name, char *out,
 static size_t json_escape_string(const char *in, char *out, size_t out_len)
 {
     size_t written = 0;
-    if (out_len == 0) {
+    if (out_len == 0)
+    {
         return 0;
     }
 
-    for (; in != NULL && *in != '\0'; ++in) {
+    for (; in != NULL && *in != '\0'; ++in)
+    {
         const char *escaped = NULL;
         char control[7] = {0};
-        switch (*in) {
+        switch (*in)
+        {
         case '"':
             escaped = "\\\"";
             break;
@@ -688,18 +782,23 @@ static size_t json_escape_string(const char *in, char *out, size_t out_len)
             escaped = "\\t";
             break;
         default:
-            if ((unsigned char)*in < 0x20) {
+            if ((unsigned char)*in < 0x20)
+            {
                 snprintf(control, sizeof(control), "\\u%04x", (unsigned char)*in);
                 escaped = control;
             }
             break;
         }
 
-        if (escaped != NULL) {
-            while (*escaped != '\0' && written + 1 < out_len) {
+        if (escaped != NULL)
+        {
+            while (*escaped != '\0' && written + 1 < out_len)
+            {
                 out[written++] = *escaped++;
             }
-        } else if (written + 1 < out_len) {
+        }
+        else if (written + 1 < out_len)
+        {
             out[written++] = *in;
         }
     }
@@ -711,17 +810,20 @@ static size_t json_escape_string(const char *in, char *out, size_t out_len)
 static void host_send_line(const char *line)
 {
     const size_t len = strlen(line);
-    if (len >= HOST_UART_LINE_MAX - 1) {
+    if (len >= HOST_UART_LINE_MAX - 1)
+    {
         ESP_LOGW(TAG, "host JSON too large: %u bytes", (unsigned)len);
         return;
     }
 
-    if (s_host_uart_lock != NULL) {
+    if (s_host_uart_lock != NULL)
+    {
         xSemaphoreTake(s_host_uart_lock, portMAX_DELAY);
     }
     uart_write_bytes(HOST_UART_NUM, line, len);
     uart_write_bytes(HOST_UART_NUM, "\n", 1);
-    if (s_host_uart_lock != NULL) {
+    if (s_host_uart_lock != NULL)
+    {
         xSemaphoreGive(s_host_uart_lock);
     }
 }
@@ -847,7 +949,8 @@ static void send_radio_ack(uint32_t device_id, uint16_t seq, uint8_t endpoint_id
              seq,
              (unsigned)ack_mac_sequence,
              (unsigned)esp_ieee802154_get_state());
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         ESP_LOGW(TAG, "ACK TX failed seq=%u start_err=%s", seq, esp_err_to_name(err));
         s_radio_tx_busy = false;
         const esp_err_t restore_result = iot154_radio_start_rx();
@@ -861,7 +964,9 @@ static void send_radio_ack(uint32_t device_id, uint16_t seq, uint8_t endpoint_id
                  seq,
                  (unsigned)ack_mac_sequence);
         s_tx_is_report_ack = false;
-    } else {
+    }
+    else
+    {
         s_radio_tx_busy = true;
     }
 }
@@ -885,15 +990,41 @@ static void send_discovery_response(uint32_t device_id, uint16_t seq, const uint
     s_tx_type = "DISCOVERY_RESP";
     s_tx_is_report_ack = false;
     s_tx_is_command = false;
+    ESP_LOGI("COMMISSIONING",
+             "discovery_response turnaround_delay_us=%u seq=%u",
+             (unsigned)DISCOVERY_RESPONSE_TURNAROUND_DELAY_US,
+             seq);
+    esp_rom_delay_us(DISCOVERY_RESPONSE_TURNAROUND_DELAY_US);
     esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         ESP_LOGW(TAG, "DISCOVERY_RESP TX failed seq=%u start_err=%s", seq, esp_err_to_name(err));
         s_radio_tx_busy = false;
         iot154_radio_start_rx();
-    } else {
+    }
+    else
+    {
         s_radio_tx_busy = true;
     }
+}
+
+static void update_join_window(void)
+{
+    if (!s_join_window_open || esp_timer_get_time() < s_join_window_deadline_us)
+    {
+        return;
+    }
+
+    const esp_err_t result = esp_ieee802154_set_promiscuous(false);
+    if (result != ESP_OK)
+    {
+        ESP_LOGW("COMMISSIONING", "join_window close_failed result=%s",
+                 esp_err_to_name(result));
+        return;
+    }
+    s_join_window_open = false;
+    ESP_LOGI("COMMISSIONING", "join_window closed");
 }
 
 /// @brief Return true when this source address + seq was already processed, remembering the logical protocol ID.
@@ -901,23 +1032,28 @@ static bool is_duplicate(uint32_t device_id, uint16_t seq, const uint8_t *src_ex
 {
     device_seq_state_t *free_slot = NULL;
 
-    for (size_t i = 0; i < sizeof(s_devices) / sizeof(s_devices[0]); ++i) {
-        if (s_devices[i].valid && iot154_ext_addr_equal(s_devices[i].ext_addr, src_ext_addr)) {
+    for (size_t i = 0; i < sizeof(s_devices) / sizeof(s_devices[0]); ++i)
+    {
+        if (s_devices[i].valid && iot154_ext_addr_equal(s_devices[i].ext_addr, src_ext_addr))
+        {
             s_devices[i].device_id = device_id;
             memcpy(s_last_device_ext_addr, src_ext_addr, IOT154_EXT_ADDR_LEN);
             s_has_last_device = true;
-            if (s_devices[i].last_seq == seq) {
+            if (s_devices[i].last_seq == seq)
+            {
                 return true;
             }
             s_devices[i].last_seq = seq;
             return false;
         }
-        if (!s_devices[i].valid && free_slot == NULL) {
+        if (!s_devices[i].valid && free_slot == NULL)
+        {
             free_slot = &s_devices[i];
         }
     }
 
-    if (free_slot == NULL) {
+    if (free_slot == NULL)
+    {
         free_slot = &s_devices[0];
     }
 
@@ -932,8 +1068,10 @@ static bool is_duplicate(uint32_t device_id, uint16_t seq, const uint8_t *src_ex
 
 static const device_seq_state_t *find_device_by_ext_addr(const uint8_t *ext_addr)
 {
-    for (size_t i = 0; i < sizeof(s_devices) / sizeof(s_devices[0]); ++i) {
-        if (s_devices[i].valid && iot154_ext_addr_equal(s_devices[i].ext_addr, ext_addr)) {
+    for (size_t i = 0; i < sizeof(s_devices) / sizeof(s_devices[0]); ++i)
+    {
+        if (s_devices[i].valid && iot154_ext_addr_equal(s_devices[i].ext_addr, ext_addr))
+        {
             return &s_devices[i];
         }
     }
@@ -943,7 +1081,8 @@ static const device_seq_state_t *find_device_by_ext_addr(const uint8_t *ext_addr
 static bool find_last_device(uint32_t *device_id, const uint8_t **ext_addr)
 {
     const device_seq_state_t *device = s_has_last_device ? find_device_by_ext_addr(s_last_device_ext_addr) : NULL;
-    if (device == NULL) {
+    if (device == NULL)
+    {
         return false;
     }
 
@@ -954,7 +1093,8 @@ static bool find_last_device(uint32_t *device_id, const uint8_t **ext_addr)
 
 static bool transmit_pending_command(void)
 {
-    if (!s_pending_command.active || s_radio_tx_busy) {
+    if (!s_pending_command.active || s_radio_tx_busy)
+    {
         return false;
     }
 
@@ -982,7 +1122,8 @@ static bool transmit_pending_command(void)
     s_pending_command.awaiting_ack = false;
     esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         ESP_LOGW(TAG,
                  "CMD TX failed dev=0x%08" PRIx32 " seq=%u attempt=%u start_err=%s",
                  command.device_id,
@@ -1014,24 +1155,28 @@ static bool start_host_command(const char *host_device_id,
                                uint8_t value)
 {
     uint8_t ext_addr[IOT154_EXT_ADDR_LEN] = {0};
-    if (s_pending_command.active) {
+    if (s_pending_command.active)
+    {
         ESP_LOGW(TAG, "command rejected: another command is pending seq=%u",
                  (unsigned)s_pending_command.sequence);
         return false;
     }
 
-    if (!parse_host_ext_addr(host_device_id, ext_addr)) {
+    if (!parse_host_ext_addr(host_device_id, ext_addr))
+    {
         return false;
     }
 
     const device_seq_state_t *device = find_device_by_ext_addr(ext_addr);
-    if (device == NULL) {
+    if (device == NULL)
+    {
         ESP_LOGW(TAG, "command target not known dev=%s", host_device_id);
         return false;
     }
 
     ++s_next_command_seq;
-    if (s_next_command_seq == 0) {
+    if (s_next_command_seq == 0)
+    {
         ++s_next_command_seq;
     }
 
@@ -1059,15 +1204,19 @@ static bool start_host_command(const char *host_device_id,
 
 static void complete_pending_command(bool accepted, const char *error)
 {
-    if (!s_pending_command.active) {
+    if (!s_pending_command.active)
+    {
         return;
     }
 
-    if (accepted) {
+    if (accepted)
+    {
         host_send_ack(s_pending_command.host_device_id,
                       s_pending_command.capability_name,
                       s_pending_command.host_value);
-    } else {
+    }
+    else
+    {
         host_send_error(s_pending_command.host_device_id,
                         s_pending_command.capability_name,
                         s_pending_command.host_value,
@@ -1078,16 +1227,19 @@ static void complete_pending_command(bool accepted, const char *error)
 
 static void process_pending_command(void)
 {
-    if (!s_pending_command.active || s_radio_tx_busy) {
+    if (!s_pending_command.active || s_radio_tx_busy)
+    {
         return;
     }
 
     const TickType_t now = xTaskGetTickCount();
-    if ((int32_t)(now - s_pending_command.deadline) < 0) {
+    if ((int32_t)(now - s_pending_command.deadline) < 0)
+    {
         return;
     }
 
-    if (s_pending_command.attempts >= COMMAND_MAX_ATTEMPTS) {
+    if (s_pending_command.attempts >= COMMAND_MAX_ATTEMPTS)
+    {
         ESP_LOGW(TAG,
                  "CMD failed seq=%u reason=ack_timeout attempts=%u",
                  (unsigned)s_pending_command.sequence,
@@ -1109,7 +1261,8 @@ static void test_toggle_task(void *arg)
 {
     (void)arg;
 
-    while (true) {
+    while (true)
+    {
         vTaskDelay(pdMS_TO_TICKS(5000));
         xEventGroupSetBits(s_events, TEST_TOGGLE_BIT);
     }
@@ -1127,18 +1280,21 @@ static void handle_host_line(char *line)
 
     ESP_LOGI(TAG, "host line rx len=%u", (unsigned)strlen(line));
 
-    if (skip_json_ws(line)[0] != '{') {
+    if (skip_json_ws(line)[0] != '{')
+    {
         ESP_LOGW(TAG, "ignored host line: invalid JSON object");
         return;
     }
 
-    if (json_get_string(line, "direction", direction, sizeof(direction)) && strcmp(direction, "cmd") != 0) {
+    if (json_get_string(line, "direction", direction, sizeof(direction)) && strcmp(direction, "cmd") != 0)
+    {
         return;
     }
 
     if (!json_get_string(line, "device_id", device_id_text, sizeof(device_id_text)) ||
         !json_get_string(line, "capability_name", capability_name, sizeof(capability_name)) ||
-        !json_get_string(line, "value", value, sizeof(value))) {
+        !json_get_string(line, "value", value, sizeof(value)))
+    {
         ESP_LOGW(TAG, "ignored host cmd: missing string field");
         return;
     }
@@ -1147,14 +1303,16 @@ static void handle_host_line(char *line)
     if (!extract_host_device_id_and_endpoint_from_capability(capability_name,
                                                              host_device_id,
                                                              sizeof(host_device_id),
-                                                             &endpoint_id)) {
+                                                             &endpoint_id))
+    {
         ESP_LOGW(TAG, "ignored host cmd: invalid capability target capability=%s", capability_name);
         host_send_error(device_id_text, capability_name, value, "invalid capability target");
         return;
     }
 
     uint8_t ext_addr[IOT154_EXT_ADDR_LEN] = {0};
-    if (!parse_host_ext_addr(host_device_id, ext_addr)) {
+    if (!parse_host_ext_addr(host_device_id, ext_addr))
+    {
         ESP_LOGW(TAG, "ignored host cmd: invalid ISSP154 device id %s", host_device_id);
         host_send_error(device_id_text, capability_name, value, "invalid issp154 device id");
         return;
@@ -1162,7 +1320,8 @@ static void handle_host_line(char *line)
 
     uint8_t event_type = 0;
     uint8_t event_value = 0;
-    if (!command_to_event(capability_name, type, value, &event_type, &event_value)) {
+    if (!command_to_event(capability_name, type, value, &event_type, &event_value))
+    {
         ESP_LOGW(TAG, "ignored host cmd: unsupported capability/value capability=%s type=%s value=%s", capability_name, type, value);
         host_send_error(device_id_text, capability_name, value, "unsupported capability or value");
         return;
@@ -1174,7 +1333,8 @@ static void handle_host_line(char *line)
                             value,
                             endpoint_id,
                             event_type,
-                            event_value)) {
+                            event_value))
+    {
         ESP_LOGW(TAG, "ignored host cmd: unavailable host_id=%s capability=%s value=%s", host_device_id, capability_name, value);
         host_send_error(device_id_text, capability_name, value,
                         s_pending_command.active ? "another command is pending" : "target not known");
@@ -1194,14 +1354,18 @@ static void poll_host_uart(void)
     uint8_t bytes[128];
 
     int read = uart_read_bytes(HOST_UART_NUM, bytes, sizeof(bytes), 0);
-    for (int i = 0; i < read; ++i) {
+    for (int i = 0; i < read; ++i)
+    {
         const char ch = (char)bytes[i];
-        if (ch == '\n') {
-            if (line_len > 0 && line[line_len - 1] == '\r') {
+        if (ch == '\n')
+        {
+            if (line_len > 0 && line[line_len - 1] == '\r')
+            {
                 line_len--;
             }
             line[line_len] = '\0';
-            if (line_len > 0) {
+            if (line_len > 0)
+            {
                 handle_host_line(line);
             }
             line_len = 0;
@@ -1211,10 +1375,13 @@ static void poll_host_uart(void)
             continue;
         }
 
-        if (line_len < sizeof(line) - 1) {
+        if (line_len < sizeof(line) - 1)
+        {
             line[line_len++] = ch;
             line[line_len] = '\0';
-        } else {
+        }
+        else
+        {
             ESP_LOGW(TAG, "discarding oversized host line");
             line_len = 0;
             in_string = false;
@@ -1223,27 +1390,35 @@ static void poll_host_uart(void)
             continue;
         }
 
-        if (escape_next) {
+        if (escape_next)
+        {
             escape_next = false;
             continue;
         }
-        if (ch == '\\' && in_string) {
+        if (ch == '\\' && in_string)
+        {
             escape_next = true;
             continue;
         }
-        if (ch == '"') {
+        if (ch == '"')
+        {
             in_string = !in_string;
             continue;
         }
-        if (in_string) {
+        if (in_string)
+        {
             continue;
         }
 
-        if (ch == '{') {
+        if (ch == '{')
+        {
             brace_depth++;
-        } else if (ch == '}' && brace_depth > 0) {
+        }
+        else if (ch == '}' && brace_depth > 0)
+        {
             brace_depth--;
-            if (brace_depth == 0 && line_len > 0) {
+            if (brace_depth == 0 && line_len > 0)
+            {
                 handle_host_line(line);
                 line_len = 0;
                 in_string = false;
@@ -1261,7 +1436,8 @@ void app_main(void)
     init_host_uart();
     ESP_ERROR_CHECK(esp_read_mac(s_central_ext_addr, ESP_MAC_IEEE802154));
     s_events = xEventGroupCreate();
-    ESP_ERROR_CHECK(iot154_radio_init(IOT154_CENTRAL_ADDR, true, on_rx_done, on_tx_done, on_tx_failed));
+    ESP_ERROR_CHECK(iot154_radio_init(IOT154_CENTRAL_ADDR, true, true,
+                                      on_rx_done, on_tx_done, on_tx_failed));
     ESP_ERROR_CHECK(esp_ieee802154_set_extended_address(s_central_ext_addr));
     ESP_ERROR_CHECK(iot154_radio_start_rx());
     // xTaskCreate(test_toggle_task, "test_toggle", 3072, NULL, 4, NULL);
@@ -1274,16 +1450,25 @@ void app_main(void)
              IOT154_CENTRAL_ADDR,
              central_mac_text);
 
+    s_join_window_open = true;
+    s_join_window_deadline_us = esp_timer_get_time() +
+                                (int64_t)COMMISSIONING_JOIN_WINDOW_SECONDS * 1000000LL;
+    ESP_LOGI("COMMISSIONING", "join_window opened duration_s=%u",
+             (unsigned)COMMISSIONING_JOIN_WINDOW_SECONDS);
+
     host_send_gateway("hello");
 
-    while (true) {
+    while (true)
+    {
+        update_join_window();
         EventBits_t bits = xEventGroupWaitBits(s_events,
                                                RX_DONE_BIT | TX_DONE_BIT | TX_FAILED_BIT | TEST_TOGGLE_BIT,
                                                pdTRUE,
                                                pdFALSE,
                                                pdMS_TO_TICKS(50));
 
-        if ((bits & RX_DONE_BIT) != 0) {
+        if ((bits & RX_DONE_BIT) != 0)
+        {
             uint8_t frame[IOT154_MAX_FRAME_LEN + 1];
             memcpy(frame, s_rx_frame, s_rx_len + 1);
             const uint8_t received_mac_sequence =
@@ -1297,7 +1482,8 @@ void app_main(void)
                                         &diagnostic_mac,
                                         &diagnostic_packet,
                                         &payload_length,
-                                        &mac_rejection_reason)) {
+                                        &mac_rejection_reason))
+            {
                 ESP_LOGW("COORD_MAC_PARSE",
                          "result=rejected reason=%s phy_len=%u received_mac_sequence=%u",
                          mac_rejection_reason,
@@ -1333,7 +1519,8 @@ void app_main(void)
 
             iot154_frame_info_t mac = {0};
             iot154_packet_t packet = {0};
-            if (!iot154_parse_frame_info(frame, &mac, &packet)) {
+            if (!iot154_parse_frame_info(frame, &mac, &packet))
+            {
                 ESP_LOGW("COORD_PROTOCOL_RX",
                          "result=rejected reason=version_or_checksum type=%u issp_sequence=%u device_id=0x%08" PRIx32 " endpoint=%u event=%u value=%u received_mac_sequence=%u",
                          (unsigned)diagnostic_packet.msg_type,
@@ -1360,16 +1547,30 @@ void app_main(void)
             if (packet.msg_type == IOT154_MSG_DISCOVERY_REQ &&
                 mac.dst_mode == IOT154_ADDR_MODE_SHORT &&
                 mac.dst_broadcast &&
-                mac.src_mode == IOT154_ADDR_MODE_EXT) {
+                mac.src_mode == IOT154_ADDR_MODE_EXT)
+            {
                 char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
                 format_ext_addr(mac.src_ext, sensor_mac_text, sizeof(sensor_mac_text));
-                ESP_LOGI(TAG, "DISCOVERY_REQ dev=0x%08" PRIx32 " seq=%u sensor=%s", packet.device_id, packet.seq, sensor_mac_text);
-                (void)is_duplicate(packet.device_id, packet.seq, mac.src_ext);
-                send_discovery_response(packet.device_id, packet.seq, mac.src_ext);
-            } else if (packet.msg_type == IOT154_MSG_DATA &&
-                       mac.dst_mode == IOT154_ADDR_MODE_EXT &&
-                       iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
-                       mac.src_mode == IOT154_ADDR_MODE_EXT) {
+                if (s_join_window_open)
+                {
+                    ESP_LOGI("COMMISSIONING",
+                             "discovery accepted dev=0x%08" PRIx32 " seq=%u sensor=%s",
+                             packet.device_id, packet.seq, sensor_mac_text);
+                    (void)is_duplicate(packet.device_id, packet.seq, mac.src_ext);
+                    send_discovery_response(packet.device_id, packet.seq, mac.src_ext);
+                }
+                else
+                {
+                    ESP_LOGI("COMMISSIONING",
+                             "discovery ignored reason=join_window_closed dev=0x%08" PRIx32,
+                             packet.device_id);
+                }
+            }
+            else if (packet.msg_type == IOT154_MSG_DATA &&
+                     mac.dst_mode == IOT154_ADDR_MODE_EXT &&
+                     iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
+                     mac.src_mode == IOT154_ADDR_MODE_EXT)
+            {
                 const bool registry_existed =
                     find_device_by_ext_addr(mac.src_ext) != NULL;
                 bool duplicate = is_duplicate(packet.device_id, packet.seq, mac.src_ext);
@@ -1380,12 +1581,15 @@ void app_main(void)
                          duplicate ? "yes" : "no",
                          (unsigned)packet.seq,
                          (unsigned)received_mac_sequence);
-                if (duplicate) {
+                if (duplicate)
+                {
                     ESP_LOGI(TAG, "DATA duplicate dev=0x%08" PRIx32 " seq=%u", packet.device_id, packet.seq);
                     ESP_LOGI("COORD_REPORT",
                              "state_update=skipped_duplicate issp_sequence=%u",
                              (unsigned)packet.seq);
-                } else {
+                }
+                else
+                {
                     ESP_LOGI(TAG,
                              "DATA new dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u",
                              packet.device_id, packet.seq, packet.endpoint_id, packet.event_type, packet.value);
@@ -1400,16 +1604,18 @@ void app_main(void)
                          duplicate ? "yes" : "no",
                          (unsigned)packet.seq);
                 send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
-            } else if (packet.msg_type == IOT154_MSG_ACK &&
-                       mac.dst_mode == IOT154_ADDR_MODE_EXT &&
-                       iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
-                       mac.src_mode == IOT154_ADDR_MODE_EXT) {
+            }
+            else if (packet.msg_type == IOT154_MSG_ACK &&
+                     mac.dst_mode == IOT154_ADDR_MODE_EXT &&
+                     iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
+                     mac.src_mode == IOT154_ADDR_MODE_EXT)
+            {
                 const bool matches_pending = s_pending_command.active &&
-                    packet.device_id == s_pending_command.device_id &&
-                    packet.seq == s_pending_command.sequence &&
-                    packet.endpoint_id == s_pending_command.endpoint_id &&
-                    iot154_ext_addr_equal(mac.src_ext,
-                                          s_pending_command.destination);
+                                             packet.device_id == s_pending_command.device_id &&
+                                             packet.seq == s_pending_command.sequence &&
+                                             packet.endpoint_id == s_pending_command.endpoint_id &&
+                                             iot154_ext_addr_equal(mac.src_ext,
+                                                                   s_pending_command.destination);
                 ESP_LOGI(TAG,
                          "CMD ACK dev=0x%08" PRIx32 " seq=%u endpoint=%u status=%u match_pending=%s",
                          packet.device_id,
@@ -1417,19 +1623,28 @@ void app_main(void)
                          packet.endpoint_id,
                          packet.value,
                          matches_pending ? "yes" : "no");
-                if (matches_pending) {
-                    if (packet.value == IOT154_ACK_STATUS_OK) {
+                if (matches_pending)
+                {
+                    if (packet.value == IOT154_ACK_STATUS_OK)
+                    {
                         complete_pending_command(true, NULL);
-                    } else if (packet.value == IOT154_ACK_STATUS_UNSUPPORTED) {
+                    }
+                    else if (packet.value == IOT154_ACK_STATUS_UNSUPPORTED)
+                    {
                         complete_pending_command(false,
                                                  "client rejected unsupported command");
-                    } else {
+                    }
+                    else
+                    {
                         complete_pending_command(false,
                                                  "client rejected invalid command");
                     }
                 }
-            } else {
-                if (packet.msg_type == IOT154_MSG_DATA) {
+            }
+            else
+            {
+                if (packet.msg_type == IOT154_MSG_DATA)
+                {
                     ESP_LOGW("COORD_REPORT",
                              "result=rejected reason=mac_destination_or_source_not_supported ack_decision=do_not_send issp_sequence=%u received_mac_sequence=%u",
                              (unsigned)packet.seq,
@@ -1444,16 +1659,19 @@ void app_main(void)
             }
         }
 
-        if ((bits & TX_DONE_BIT) != 0) {
+        if ((bits & TX_DONE_BIT) != 0)
+        {
             const bool report_ack = s_tx_is_report_ack;
             const bool command_tx = s_tx_is_command;
             ESP_LOGI(TAG, "%s TX done seq=%u", s_tx_type, s_radio_tx_seq);
             s_radio_tx_busy = false;
             const esp_err_t restore_result = iot154_radio_start_rx();
-            if (command_tx) {
+            if (command_tx)
+            {
                 s_tx_is_command = false;
                 if (s_pending_command.active &&
-                    s_pending_command.sequence == s_radio_tx_seq) {
+                    s_pending_command.sequence == s_radio_tx_seq)
+                {
                     s_pending_command.awaiting_ack = true;
                     s_pending_command.deadline =
                         xTaskGetTickCount() +
@@ -1465,7 +1683,8 @@ void app_main(void)
                              (unsigned)COMMAND_ACK_TIMEOUT_MS);
                 }
             }
-            if (report_ack) {
+            if (report_ack)
+            {
                 char destination_text[3 * IOT154_EXT_ADDR_LEN] = {0};
                 format_ext_addr(s_report_ack_dst, destination_text, sizeof(destination_text));
                 ESP_LOGI("COORD_REPORT_ACK",
@@ -1484,23 +1703,27 @@ void app_main(void)
             ESP_ERROR_CHECK(restore_result);
         }
 
-        if ((bits & TX_FAILED_BIT) != 0) {
+        if ((bits & TX_FAILED_BIT) != 0)
+        {
             const bool report_ack = s_tx_is_report_ack;
             const bool command_tx = s_tx_is_command;
             ESP_LOGW(TAG, "%s TX failed seq=%u error=%d", s_tx_type, s_radio_tx_seq, s_radio_tx_error);
             s_radio_tx_busy = false;
             const esp_err_t restore_result = iot154_radio_start_rx();
-            if (command_tx) {
+            if (command_tx)
+            {
                 s_tx_is_command = false;
                 if (s_pending_command.active &&
-                    s_pending_command.sequence == s_radio_tx_seq) {
+                    s_pending_command.sequence == s_radio_tx_seq)
+                {
                     s_pending_command.awaiting_ack = false;
                     s_pending_command.deadline =
                         xTaskGetTickCount() +
                         pdMS_TO_TICKS(COMMAND_RETRY_DELAY_MS);
                 }
             }
-            if (report_ack) {
+            if (report_ack)
+            {
                 char destination_text[3 * IOT154_EXT_ADDR_LEN] = {0};
                 format_ext_addr(s_report_ack_dst, destination_text, sizeof(destination_text));
                 ESP_LOGI("COORD_REPORT_ACK",

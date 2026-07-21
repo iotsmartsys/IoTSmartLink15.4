@@ -26,6 +26,7 @@ typedef struct {
     uint16_t pan_id;
     uint16_t short_address;
     bool coordinator;
+    bool promiscuous;
     issp154_transport_rx_done_cb_t rx_done_cb;
     issp154_transport_tx_done_cb_t tx_done_cb;
     issp154_transport_tx_failed_cb_t tx_failed_cb;

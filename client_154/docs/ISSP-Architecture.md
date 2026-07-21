@@ -2,7 +2,7 @@ ISSP — Especificação Arquitetural
 
 Status: Em evolução
 Responsável arquitetural: Marcelo Miranda
-Última atualização: 17/07/2026
+Última atualização: 20/07/2026
 
 ⸻
 
@@ -36,7 +36,8 @@ O objetivo é permitir que diferentes firmwares utilizem o protocolo sem replica
 A biblioteca ISSP deve ser responsável por:
 
 * inicializar e encerrar o transporte IEEE 802.15.4;
-* descobrir e manter o endereço do coordenador;
+* descobrir e manter o descritor da rede, incluindo canal, PAN ID e endereço do
+  coordenador;
 * enviar mensagens ao coordenador;
 * receber mensagens do coordenador;
 * interpretar o envelope do protocolo ISSP;
@@ -130,39 +131,39 @@ Deve:
 
 6. Estado atual
 
-A infraestrutura principal da nova arquitetura já existe, incluindo:
+A infraestrutura principal da nova arquitetura já existe e forma o runtime
+utilizado atualmente pela aplicação, incluindo:
 
 * transporte IEEE 802.15.4;
-* descoberta do coordenador;
-* persistência do destino;
+* descoberta do coordenador em canal e PAN ID configurados;
+* persistência do endereço de destino;
 * envio confirmado;
 * recepção de payload;
 * representação de dispositivo;
 * comportamento de saída digital;
-* executor de reports.
+* executor de reports;
+* ACK e deduplicação de comandos;
+* report inicial confirmado;
+* reset local por pressão prolongada.
 
-Entretanto, esses componentes ainda não formam um runtime completo utilizado pela aplicação.
-
-A implementação legada ainda possui responsabilidades que deverão ser migradas gradualmente para a nova arquitetura.
+O runtime novo já substitui o cliente legado no `main.cpp`. A próxima evolução
+necessária é remover a configuração fixa de canal e PAN ID por meio do fluxo de
+commissioning descrito em `ISSP-Commissioning.md`.
 
 ⸻
 
 7. Próximo objetivo de implementação
 
-O próximo objetivo é compor o runtime mínimo da biblioteca na aplicação cliente.
+O próximo objetivo é implementar commissioning limitado no tempo:
 
-Esse runtime deverá:
+1. o coordenador abre uma janela de ingresso após o boot;
+2. o client sem configuração varre os canais IEEE 802.15.4;
+3. o client descobre canal, PAN ID e endereço do coordenador;
+4. o descritor completo é persistido e reutilizado;
+5. o factory reset remove esse vínculo de rede.
 
-1. inicializar o transporte;
-2. localizar ou descobrir o coordenador;
-3. criar o IsspDevice;
-4. registrar um DigitalOutputBehavior;
-5. iniciar o Issp154ReportExecutor;
-6. receber um comando remoto;
-7. alterar fisicamente a saída;
-8. publicar o novo estado.
-
-A implementação legada não deverá ser removida antes da validação desse fluxo completo.
+Os requisitos, limites e critérios de aceite estão definidos em
+`ISSP-Commissioning.md`.
 
 ⸻
 
@@ -170,13 +171,14 @@ A implementação legada não deverá ser removida antes da validação desse fl
 
 Ainda não fazem parte do próximo recorte:
 
-* remoção definitiva do cliente legado;
 * suporte a múltiplos dispositivos em um mesmo runtime;
 * deduplicação avançada de comandos;
 * telemetria detalhada;
 * otimizações de consumo;
 * generalização prematura de APIs;
-* alterações no protocolo sem necessidade demonstrada.
+* alterações no payload do protocolo sem necessidade demonstrada;
+* descoberta executada indefinidamente;
+* mudança automática de canal de uma rede já formada.
 
 ⸻
 
