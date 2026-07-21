@@ -43,6 +43,10 @@ namespace issp
           pendingReportContext_(nullptr),
           processingCommand_(false),
           reportNotificationDeferred_(false),
+          hasLastCommand_(false),
+          lastCommandSequence_(0),
+          lastCommand_{},
+          lastCommandResult_(IsspCommandResult::Failed),
           reportSequence_(0),
           pendingReports_{},
           pendingReportCount_(0),
@@ -481,9 +485,30 @@ namespace issp
                     static_cast<unsigned>(decodedCommand.command.value));
         std::printf("DEVICE_DISPATCH: command_decode=accepted forwarding_to_behavior=yes\n");
 
-        processingCommand_ = true;
-        reportNotificationDeferred_ = false;
-        const IsspCommandResult result = onCommand(decodedCommand.command);
+        const bool duplicate = hasLastCommand_ &&
+            lastCommandSequence_ == decodedCommand.sequence &&
+            lastCommand_.endpointId == decodedCommand.command.endpointId &&
+            lastCommand_.eventType == decodedCommand.command.eventType &&
+            lastCommand_.value == decodedCommand.command.value;
+
+        IsspCommandResult result = lastCommandResult_;
+        if (duplicate)
+        {
+            std::printf("COMMAND_DEDUP: duplicate=yes sequence=%u action=resend_ack\n",
+                        static_cast<unsigned>(decodedCommand.sequence));
+        }
+        else
+        {
+            processingCommand_ = true;
+            reportNotificationDeferred_ = false;
+            result = onCommand(decodedCommand.command);
+            hasLastCommand_ = true;
+            lastCommandSequence_ = decodedCommand.sequence;
+            lastCommand_ = decodedCommand.command;
+            lastCommandResult_ = result;
+            std::printf("COMMAND_DEDUP: duplicate=no sequence=%u action=executed\n",
+                        static_cast<unsigned>(decodedCommand.sequence));
+        }
         std::printf("COMMAND_ACK: behavior_result=%u\n",
                     static_cast<unsigned>(result));
         std::uint8_t ackPayload[IsspPayloadSize]{};
@@ -500,7 +525,10 @@ namespace issp
         {
             std::printf("COMMAND_ACK: encode_result=%u reason=encode_failed\n",
                         static_cast<unsigned>(encodeResult));
-            finishCommandProcessing();
+            if (!duplicate)
+            {
+                finishCommandProcessing();
+            }
             return;
         }
         std::printf("COMMAND_ACK: encode_result=%u ack_status=%u\n",
@@ -513,7 +541,10 @@ namespace issp
             replyContext);
         std::printf("COMMAND_ACK: send_reply_result=%u\n",
                     static_cast<unsigned>(sendResult));
-        finishCommandProcessing();
+        if (!duplicate)
+        {
+            finishCommandProcessing();
+        }
         (void)sendResult;
     }
 

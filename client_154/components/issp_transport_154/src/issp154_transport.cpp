@@ -17,6 +17,7 @@ namespace
 
 constexpr std::uint32_t kPhysicalTxTimeoutMs = 100;
 constexpr std::uint8_t kExtendedAddressMode = 3;
+constexpr std::uint8_t kCommandMessageType = 5;
 constexpr EventBits_t kAckOutcomeAvailableBit = BIT0;
 constexpr EventBits_t kAckExpectationClearedBit = BIT1;
 constexpr EventBits_t kDiscoveryOutcomeAvailableBit = BIT2;
@@ -957,6 +958,48 @@ void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
 
         if (outcomeRecorded && ackEventGroup_ != nullptr) {
             xEventGroupSetBits(ackEventGroup_, kAckOutcomeAvailableBit);
+        }
+
+        if (payloadLength > 1 && payload[1] == kCommandMessageType) {
+            const bool destinationConfigured = hasDestination_;
+            const bool sourceModeMatches =
+                replyContext.source_address_mode == kExtendedAddressMode;
+            const bool destinationModeMatches =
+                replyContext.destination_address_mode == kExtendedAddressMode;
+            const bool sourcePanMatches =
+                replyContext.source_pan_id == config_.panId;
+            const bool destinationPanMatches =
+                replyContext.destination_pan_id == config_.panId;
+            const bool sourceAddressMatches = destinationConfigured &&
+                std::equal(destination_.begin(), destination_.end(),
+                           replyContext.source_address);
+            const bool destinationAddressMatches =
+                config_.extendedAddress != nullptr &&
+                std::equal(config_.extendedAddress,
+                           config_.extendedAddress +
+                               kIssp154ExtendedAddressSize,
+                           replyContext.destination_address);
+            const bool trusted = destinationConfigured &&
+                sourceModeMatches && destinationModeMatches &&
+                sourcePanMatches && destinationPanMatches &&
+                sourceAddressMatches && destinationAddressMatches;
+
+            ESP_LOGI("COMMAND_ORIGIN",
+                     "trusted=%s destination_configured=%s src_mode=%u dst_mode=%u src_pan=0x%04x dst_pan=0x%04x src_match=%s dst_match=%s",
+                     trusted ? "yes" : "no",
+                     destinationConfigured ? "yes" : "no",
+                     static_cast<unsigned>(replyContext.source_address_mode),
+                     static_cast<unsigned>(replyContext.destination_address_mode),
+                     static_cast<unsigned>(replyContext.source_pan_id),
+                     static_cast<unsigned>(replyContext.destination_pan_id),
+                     sourceAddressMatches ? "yes" : "no",
+                     destinationAddressMatches ? "yes" : "no");
+
+            if (!trusted) {
+                ESP_LOGW("COMMAND_ORIGIN",
+                         "command discarded reason=untrusted_mac_origin");
+                return;
+            }
         }
 
         if (receiveHandler_ != nullptr) {

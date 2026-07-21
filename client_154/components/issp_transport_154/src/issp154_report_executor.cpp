@@ -9,7 +9,15 @@ namespace
 {
 
 constexpr std::uint32_t kReportAckTimeoutMs = 50;
+constexpr std::uint32_t kPendingReportRetryDelayMs = 1000;
 constexpr UBaseType_t kReportTaskPriority = tskIDLE_PRIORITY + 3;
+
+bool isRetryableResult(IsspResult result)
+{
+    return result == IsspResult::NotReady ||
+           result == IsspResult::Busy ||
+           result == IsspResult::Failed;
+}
 
 } // namespace
 
@@ -176,6 +184,17 @@ void Issp154ReportExecutor::run()
                      "process_one result=%u",
                      static_cast<unsigned>(processResult));
             if (processResult != IsspResult::Ok) {
+                if (isRetryableResult(processResult)) {
+                    ESP_LOGW("REPORT_EXECUTOR",
+                             "pending_report_retry scheduled_in_ms=%lu result=%u",
+                             static_cast<unsigned long>(kPendingReportRetryDelayMs),
+                             static_cast<unsigned>(processResult));
+                    vTaskDelay(pdMS_TO_TICKS(kPendingReportRetryDelayMs));
+                    continue;
+                }
+                ESP_LOGE("REPORT_EXECUTOR",
+                         "pending_report_retry disabled reason=non_retryable result=%u",
+                         static_cast<unsigned>(processResult));
                 break;
             }
         }

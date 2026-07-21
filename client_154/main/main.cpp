@@ -13,8 +13,11 @@
 #include "issp154_destination_manager.hpp"
 #include "issp154_report_executor.hpp"
 #include "issp154_transport.hpp"
+#include "factory_reset_service.hpp"
+#include "reset_button_monitor.hpp"
 
 #define IOT154_RELAY_GPIO GPIO_NUM_13
+#define IOT154_RESET_BUTTON_GPIO GPIO_NUM_9
 #define IOT154_RELAY_ENDPOINT_ID 1
 #define IOT154_SENSOR_DEVICE_ID 0x15400001
 
@@ -54,7 +57,7 @@ extern "C" void app_main()
         .pin = IOT154_RELAY_GPIO,
         .activeLevel = 1,
         .initialState = false,
-        .reportOnStart = false,
+        .reportOnStart = true,
     };
 
     static issp::Issp154Transport transport(transport_config);
@@ -64,6 +67,24 @@ extern "C" void app_main()
     static issp::IsspDevice device(device_config, transport);
     static issp::DigitalOutputBehavior relay_behavior(relay_config);
     static issp::Issp154ReportExecutor report_executor(device, transport);
+    static FactoryResetService factory_reset_service;
+    static const ResetButtonConfig reset_button_config = {
+        .gpio = IOT154_RESET_BUTTON_GPIO,
+        .holdTimeMs = 10000,
+        .pollIntervalMs = 20,
+        .activeLow = true,
+    };
+    static ResetButtonMonitor reset_button_monitor(
+        reset_button_config,
+        factory_reset_service);
+
+    const esp_err_t reset_button_result = reset_button_monitor.start();
+    if (reset_button_result != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Factory reset button initialization failed: %s",
+                 esp_err_to_name(reset_button_result));
+        return;
+    }
 
     const issp::IsspResult transport_result = transport.begin();
     if (transport_result != issp::IsspResult::Ok)

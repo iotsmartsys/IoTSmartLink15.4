@@ -6,6 +6,15 @@
 namespace issp
 {
 
+namespace
+{
+
+constexpr std::uint8_t kOffValue = 0;
+constexpr std::uint8_t kOnValue = 1;
+constexpr std::uint8_t kToggleValue = 2;
+
+} // namespace
+
 DigitalOutputBehavior::DigitalOutputBehavior(const DigitalOutputConfig &config)
     : config_(config),
       publisher_(nullptr),
@@ -39,6 +48,28 @@ IsspResult DigitalOutputBehavior::begin(IBehaviorStatePublisher &publisher)
     }
 
     publisher_ = &publisher;
+
+    if (config_.reportOnStart)
+    {
+        const IsspReport initialReport{
+            .endpointId = config_.endpointId,
+            .eventType = config_.eventType,
+            .value = static_cast<std::uint8_t>(state_ ? 1U : 0U),
+        };
+        const IsspResult publishResult = publisher_->publishState(initialReport);
+        ESP_LOGI("DIGITAL_OUTPUT_START",
+                 "initial_report endpoint=%u event=%u value=%u result=%u",
+                 static_cast<unsigned>(initialReport.endpointId),
+                 static_cast<unsigned>(initialReport.eventType),
+                 static_cast<unsigned>(initialReport.value),
+                 static_cast<unsigned>(publishResult));
+        if (publishResult != IsspResult::Ok)
+        {
+            publisher_ = nullptr;
+            return publishResult;
+        }
+    }
+
     return IsspResult::Ok;
 }
 
@@ -77,7 +108,9 @@ IsspCommandResult DigitalOutputBehavior::handle(const IsspCommand &command)
         return IsspCommandResult::Failed;
     }
 
-    if (command.value != 0U && command.value != 1U)
+    if (command.value != kOffValue &&
+        command.value != kOnValue &&
+        command.value != kToggleValue)
     {
         ESP_LOGI("DIGITAL_OUTPUT_HANDLE",
                  "value=rejected value_received=%u previous_state=%u resulting_state=%u",
@@ -87,10 +120,14 @@ IsspCommandResult DigitalOutputBehavior::handle(const IsspCommand &command)
         return IsspCommandResult::Invalid;
     }
 
-    const bool requestedState = command.value == 1U;
+    const bool requestedState = command.value == kToggleValue
+                                    ? !previousState
+                                    : command.value == kOnValue;
     ESP_LOGI("DIGITAL_OUTPUT_HANDLE",
-             "value=accepted value_received=%u requested_state=%u",
+             "value=accepted value_received=%u action=%s requested_state=%u",
              static_cast<unsigned>(command.value),
+             command.value == kToggleValue ? "toggle" :
+             (command.value == kOnValue ? "on" : "off"),
              requestedState ? 1U : 0U);
     const esp_err_t gpioResult =
         gpio_set_level(config_.pin, levelForState(requestedState));

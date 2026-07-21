@@ -95,6 +95,10 @@ private:
     void *pendingReportContext_;
     bool processingCommand_;
     bool reportNotificationDeferred_;
+    bool hasLastCommand_;
+    std::uint16_t lastCommandSequence_;
+    IsspCommand lastCommand_;
+    IsspCommandResult lastCommandResult_;
     std::uint16_t reportSequence_;
     std::array<PendingReportSlot, kMaxPendingReports> pendingReports_;
     std::size_t pendingReportCount_;

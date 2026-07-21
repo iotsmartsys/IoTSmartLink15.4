@@ -13,6 +13,7 @@
 #include "esp_ieee802154.h"
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_rom_sys.h"
 #include "nvs_flash.h"
 
 #include "iot154_packet.h"
@@ -36,6 +37,10 @@ static const EventBits_t TEST_TOGGLE_BIT = BIT3;
 #define HOST_UART_BAUD_RATE 115200
 #define HOST_UART_BUF_SIZE 4096
 #define HOST_UART_LINE_MAX 4096
+#define REPORT_ACK_TURNAROUND_DELAY_US 20000
+#define COMMAND_ACK_TIMEOUT_MS 300
+#define COMMAND_RETRY_DELAY_MS 50
+#define COMMAND_MAX_ATTEMPTS 3
 
 #define ISSP154_HOST_DEVICE_ID_PREFIX "issp154-"
 #define ISSP154_HOST_DEVICE_ID_PREFIX_LEN (sizeof(ISSP154_HOST_DEVICE_ID_PREFIX) - 1)
@@ -67,16 +72,36 @@ static esp_ieee802154_frame_info_t s_rx_info;
 static uint8_t s_tx_frame[IOT154_MAX_FRAME_LEN + 1];
 static uint8_t s_mac_seq;
 static uint16_t s_radio_tx_seq;
+static uint16_t s_next_command_seq;
 static esp_ieee802154_tx_error_t s_radio_tx_error;
 static uint8_t s_central_ext_addr[IOT154_EXT_ADDR_LEN];
 static const char *s_tx_type = "ACK";
 static bool s_radio_tx_busy;
 static volatile bool s_tx_is_report_ack;
+static volatile bool s_tx_is_command;
 static uint8_t s_report_ack_mac_seq;
 static uint16_t s_report_ack_issp_seq;
 static uint8_t s_report_ack_dst[IOT154_EXT_ADDR_LEN];
 static uint8_t s_last_device_ext_addr[IOT154_EXT_ADDR_LEN];
 static bool s_has_last_device;
+
+typedef struct {
+    bool active;
+    bool awaiting_ack;
+    uint8_t attempts;
+    TickType_t deadline;
+    uint32_t device_id;
+    uint16_t sequence;
+    uint8_t endpoint_id;
+    uint8_t event_type;
+    uint8_t value;
+    uint8_t destination[IOT154_EXT_ADDR_LEN];
+    char host_device_id[96];
+    char capability_name[ISSP154_CAPABILITY_NAME_BUFFER_SIZE];
+    char host_value[128];
+} pending_command_t;
+
+static pending_command_t s_pending_command;
 
 typedef struct {
     uint32_t device_id;
@@ -410,29 +435,6 @@ static bool parse_host_ext_addr(const char *text, uint8_t *ext_addr)
     return cursor[IOT154_EXT_ADDR_LEN * 2] == '\0';
 }
 
-/// @brief Parse legacy hex/numeric protocol device IDs from the host.
-static bool parse_protocol_device_id(const char *text, uint32_t *device_id)
-{
-    if (text == NULL || device_id == NULL || strncmp(text, "issp154-", 7) == 0) {
-        return false;
-    }
-
-    const char *cursor = text;
-    int base = 10;
-    if (strncmp(cursor, "0x", 2) == 0 || strncmp(cursor, "0X", 2) == 0) {
-        base = 16;
-    }
-
-    char *end = NULL;
-    unsigned long long parsed = strtoull(cursor, &end, base);
-    if (end == cursor || *end != '\0') {
-        return false;
-    }
-
-    *device_id = (uint32_t)parsed;
-    return true;
-}
-
 static const char *type_from_event(uint8_t event_type)
 {
     switch (event_type) {
@@ -756,7 +758,7 @@ static void host_send_error(const char *device_id, const char *capability_name, 
     json_escape_string(reason, s_host_escaped_reason, sizeof(s_host_escaped_reason));
     snprintf(s_host_result_line,
              sizeof(s_host_result_line),
-             "{\"device_id\":\"%s\",\"capability_name\":\"%s\",\"value\":\"%s\",\"direction\":\"err\",\"error\":\"%s\"}",
+             "{\"device_id\":\"%s\",\"capability_name\":\"%s\",\"requested_value\":\"%s\",\"direction\":\"err\",\"error\":\"%s\"}",
              s_host_escaped_device,
              s_host_escaped_capability,
              s_host_escaped_value,
@@ -817,9 +819,15 @@ static void send_radio_ack(uint32_t device_id, uint16_t seq, uint8_t endpoint_id
     s_radio_tx_seq = seq;
     s_tx_type = "ACK";
     s_tx_is_report_ack = true;
+    s_tx_is_command = false;
     s_report_ack_issp_seq = seq;
     s_report_ack_mac_seq = ack_mac_sequence;
     memcpy(s_report_ack_dst, dst_ext_addr, sizeof(s_report_ack_dst));
+    ESP_LOGI("COORD_REPORT_ACK",
+             "turnaround_delay_us=%u issp_sequence=%u",
+             (unsigned)REPORT_ACK_TURNAROUND_DELAY_US,
+             seq);
+    esp_rom_delay_us(REPORT_ACK_TURNAROUND_DELAY_US);
     ESP_LOGI("COORD_REPORT_ACK",
              "transmit_begin issp_sequence=%u ack_mac_sequence=%u destination=%s cca=false",
              seq,
@@ -876,6 +884,7 @@ static void send_discovery_response(uint32_t device_id, uint16_t seq, const uint
     s_radio_tx_seq = seq;
     s_tx_type = "DISCOVERY_RESP";
     s_tx_is_report_ack = false;
+    s_tx_is_command = false;
     esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
     if (err != ESP_OK) {
@@ -931,16 +940,6 @@ static const device_seq_state_t *find_device_by_ext_addr(const uint8_t *ext_addr
     return NULL;
 }
 
-static const device_seq_state_t *find_device_by_protocol_id(uint32_t device_id)
-{
-    for (size_t i = 0; i < sizeof(s_devices) / sizeof(s_devices[0]); ++i) {
-        if (s_devices[i].valid && s_devices[i].device_id == device_id) {
-            return &s_devices[i];
-        }
-    }
-    return NULL;
-}
-
 static bool find_last_device(uint32_t *device_id, const uint8_t **ext_addr)
 {
     const device_seq_state_t *device = s_has_last_device ? find_device_by_ext_addr(s_last_device_ext_addr) : NULL;
@@ -953,76 +952,157 @@ static bool find_last_device(uint32_t *device_id, const uint8_t **ext_addr)
     return true;
 }
 
-static bool send_radio_command(uint32_t device_id,
-                               const uint8_t *dst_ext_addr,
-                               uint8_t endpoint_id,
-                               uint8_t event_type,
-                               uint8_t value)
+static bool transmit_pending_command(void)
 {
-    if (s_radio_tx_busy) {
-        ESP_LOGW(TAG, "command deferred/drop: radio TX busy dev=0x%08" PRIx32, device_id);
-        return false;
-    }
-
-    if (dst_ext_addr == NULL) {
-        ESP_LOGW(TAG, "command target not known dev=0x%08" PRIx32, device_id);
+    if (!s_pending_command.active || s_radio_tx_busy) {
         return false;
     }
 
     iot154_packet_t command = {
         .version = IOT154_VERSION,
         .msg_type = IOT154_MSG_CMD,
-        .device_id = device_id,
-        .seq = s_radio_tx_seq + 1,
-        .endpoint_id = endpoint_id,
-        .event_type = event_type,
-        .value = value,
+        .device_id = s_pending_command.device_id,
+        .seq = s_pending_command.sequence,
+        .endpoint_id = s_pending_command.endpoint_id,
+        .event_type = s_pending_command.event_type,
+        .value = s_pending_command.value,
     };
     iot154_packet_finalize(&command);
-    iot154_build_ext_frame(s_tx_frame, s_central_ext_addr, dst_ext_addr, s_mac_seq++, &command);
+    iot154_build_ext_frame(s_tx_frame,
+                           s_central_ext_addr,
+                           s_pending_command.destination,
+                           s_mac_seq++,
+                           &command);
 
     s_radio_tx_seq = command.seq;
     s_tx_type = "CMD";
     s_tx_is_report_ack = false;
+    s_tx_is_command = true;
+    ++s_pending_command.attempts;
+    s_pending_command.awaiting_ack = false;
     esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "CMD TX failed dev=0x%08" PRIx32 " seq=%u start_err=%s", device_id, command.seq, esp_err_to_name(err));
+        ESP_LOGW(TAG,
+                 "CMD TX failed dev=0x%08" PRIx32 " seq=%u attempt=%u start_err=%s",
+                 command.device_id,
+                 command.seq,
+                 (unsigned)s_pending_command.attempts,
+                 esp_err_to_name(err));
+        s_tx_is_command = false;
         s_radio_tx_busy = false;
         iot154_radio_start_rx();
+        s_pending_command.deadline =
+            xTaskGetTickCount() + pdMS_TO_TICKS(COMMAND_RETRY_DELAY_MS);
         return false;
     }
     s_radio_tx_busy = true;
+    ESP_LOGI(TAG,
+             "CMD TX started dev=0x%08" PRIx32 " seq=%u attempt=%u",
+             command.device_id,
+             command.seq,
+             (unsigned)s_pending_command.attempts);
     return true;
 }
 
-static bool send_radio_command_to_host_device(const char *host_device_id,
-                                              uint8_t endpoint_id,
-                                              uint8_t event_type,
-                                              uint8_t value)
+static bool start_host_command(const char *host_device_id,
+                               const char *host_request_device_id,
+                               const char *capability_name,
+                               const char *host_value,
+                               uint8_t endpoint_id,
+                               uint8_t event_type,
+                               uint8_t value)
 {
     uint8_t ext_addr[IOT154_EXT_ADDR_LEN] = {0};
-    uint32_t device_id = 0;
-
-    if (parse_host_ext_addr(host_device_id, ext_addr)) {
-        const device_seq_state_t *device = find_device_by_ext_addr(ext_addr);
-        if (device == NULL) {
-            ESP_LOGW(TAG, "command target not known dev=%s", host_device_id);
-            return false;
-        }
-        return send_radio_command(device->device_id, ext_addr, endpoint_id, event_type, value);
+    if (s_pending_command.active) {
+        ESP_LOGW(TAG, "command rejected: another command is pending seq=%u",
+                 (unsigned)s_pending_command.sequence);
+        return false;
     }
 
-    if (parse_protocol_device_id(host_device_id, &device_id)) {
-        const device_seq_state_t *device = find_device_by_protocol_id(device_id);
-        if (device == NULL) {
-            ESP_LOGW(TAG, "command target not known dev=0x%08" PRIx32, device_id);
-            return false;
-        }
-        return send_radio_command(device_id, device->ext_addr, endpoint_id, event_type, value);
+    if (!parse_host_ext_addr(host_device_id, ext_addr)) {
+        return false;
     }
 
-    return false;
+    const device_seq_state_t *device = find_device_by_ext_addr(ext_addr);
+    if (device == NULL) {
+        ESP_LOGW(TAG, "command target not known dev=%s", host_device_id);
+        return false;
+    }
+
+    ++s_next_command_seq;
+    if (s_next_command_seq == 0) {
+        ++s_next_command_seq;
+    }
+
+    memset(&s_pending_command, 0, sizeof(s_pending_command));
+    s_pending_command.active = true;
+    s_pending_command.device_id = device->device_id;
+    s_pending_command.sequence = s_next_command_seq;
+    s_pending_command.endpoint_id = endpoint_id;
+    s_pending_command.event_type = event_type;
+    s_pending_command.value = value;
+    memcpy(s_pending_command.destination, ext_addr, sizeof(ext_addr));
+    strlcpy(s_pending_command.host_device_id,
+            host_request_device_id,
+            sizeof(s_pending_command.host_device_id));
+    strlcpy(s_pending_command.capability_name,
+            capability_name,
+            sizeof(s_pending_command.capability_name));
+    strlcpy(s_pending_command.host_value,
+            host_value,
+            sizeof(s_pending_command.host_value));
+
+    (void)transmit_pending_command();
+    return true;
+}
+
+static void complete_pending_command(bool accepted, const char *error)
+{
+    if (!s_pending_command.active) {
+        return;
+    }
+
+    if (accepted) {
+        host_send_ack(s_pending_command.host_device_id,
+                      s_pending_command.capability_name,
+                      s_pending_command.host_value);
+    } else {
+        host_send_error(s_pending_command.host_device_id,
+                        s_pending_command.capability_name,
+                        s_pending_command.host_value,
+                        error);
+    }
+    memset(&s_pending_command, 0, sizeof(s_pending_command));
+}
+
+static void process_pending_command(void)
+{
+    if (!s_pending_command.active || s_radio_tx_busy) {
+        return;
+    }
+
+    const TickType_t now = xTaskGetTickCount();
+    if ((int32_t)(now - s_pending_command.deadline) < 0) {
+        return;
+    }
+
+    if (s_pending_command.attempts >= COMMAND_MAX_ATTEMPTS) {
+        ESP_LOGW(TAG,
+                 "CMD failed seq=%u reason=ack_timeout attempts=%u",
+                 (unsigned)s_pending_command.sequence,
+                 (unsigned)s_pending_command.attempts);
+        complete_pending_command(false, "client command acknowledgement timeout");
+        return;
+    }
+
+    ESP_LOGW(TAG,
+             "CMD retry seq=%u next_attempt=%u reason=%s",
+             (unsigned)s_pending_command.sequence,
+             (unsigned)(s_pending_command.attempts + 1U),
+             s_pending_command.awaiting_ack ? "ack_timeout" : "tx_failed");
+    s_pending_command.awaiting_ack = false;
+    (void)transmit_pending_command();
 }
 
 static void test_toggle_task(void *arg)
@@ -1088,14 +1168,20 @@ static void handle_host_line(char *line)
         return;
     }
 
-    if (!send_radio_command_to_host_device(host_device_id, endpoint_id, event_type, event_value)) {
-        ESP_LOGW(TAG, "ignored host cmd: target not known host_id=%s capability=%s value=%s", host_device_id, capability_name, value);
-        host_send_error(device_id_text, capability_name, value, "target not known");
+    if (!start_host_command(host_device_id,
+                            device_id_text,
+                            capability_name,
+                            value,
+                            endpoint_id,
+                            event_type,
+                            event_value)) {
+        ESP_LOGW(TAG, "ignored host cmd: unavailable host_id=%s capability=%s value=%s", host_device_id, capability_name, value);
+        host_send_error(device_id_text, capability_name, value,
+                        s_pending_command.active ? "another command is pending" : "target not known");
         return;
     }
 
     ESP_LOGI(TAG, "host cmd queued host_id=%s endpoint=%u capability=%s value=%s", host_device_id, endpoint_id, capability_name, value);
-    host_send_ack(device_id_text, capability_name, value);
 }
 
 static void poll_host_uart(void)
@@ -1318,12 +1404,30 @@ void app_main(void)
                        mac.dst_mode == IOT154_ADDR_MODE_EXT &&
                        iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
                        mac.src_mode == IOT154_ADDR_MODE_EXT) {
+                const bool matches_pending = s_pending_command.active &&
+                    packet.device_id == s_pending_command.device_id &&
+                    packet.seq == s_pending_command.sequence &&
+                    packet.endpoint_id == s_pending_command.endpoint_id &&
+                    iot154_ext_addr_equal(mac.src_ext,
+                                          s_pending_command.destination);
                 ESP_LOGI(TAG,
-                         "CMD ACK dev=0x%08" PRIx32 " seq=%u endpoint=%u status=%u",
+                         "CMD ACK dev=0x%08" PRIx32 " seq=%u endpoint=%u status=%u match_pending=%s",
                          packet.device_id,
                          packet.seq,
                          packet.endpoint_id,
-                         packet.value);
+                         packet.value,
+                         matches_pending ? "yes" : "no");
+                if (matches_pending) {
+                    if (packet.value == IOT154_ACK_STATUS_OK) {
+                        complete_pending_command(true, NULL);
+                    } else if (packet.value == IOT154_ACK_STATUS_UNSUPPORTED) {
+                        complete_pending_command(false,
+                                                 "client rejected unsupported command");
+                    } else {
+                        complete_pending_command(false,
+                                                 "client rejected invalid command");
+                    }
+                }
             } else {
                 if (packet.msg_type == IOT154_MSG_DATA) {
                     ESP_LOGW("COORD_REPORT",
@@ -1342,9 +1446,25 @@ void app_main(void)
 
         if ((bits & TX_DONE_BIT) != 0) {
             const bool report_ack = s_tx_is_report_ack;
+            const bool command_tx = s_tx_is_command;
             ESP_LOGI(TAG, "%s TX done seq=%u", s_tx_type, s_radio_tx_seq);
             s_radio_tx_busy = false;
             const esp_err_t restore_result = iot154_radio_start_rx();
+            if (command_tx) {
+                s_tx_is_command = false;
+                if (s_pending_command.active &&
+                    s_pending_command.sequence == s_radio_tx_seq) {
+                    s_pending_command.awaiting_ack = true;
+                    s_pending_command.deadline =
+                        xTaskGetTickCount() +
+                        pdMS_TO_TICKS(COMMAND_ACK_TIMEOUT_MS);
+                    ESP_LOGI(TAG,
+                             "CMD awaiting ACK seq=%u attempt=%u timeout_ms=%u",
+                             (unsigned)s_pending_command.sequence,
+                             (unsigned)s_pending_command.attempts,
+                             (unsigned)COMMAND_ACK_TIMEOUT_MS);
+                }
+            }
             if (report_ack) {
                 char destination_text[3 * IOT154_EXT_ADDR_LEN] = {0};
                 format_ext_addr(s_report_ack_dst, destination_text, sizeof(destination_text));
@@ -1366,9 +1486,20 @@ void app_main(void)
 
         if ((bits & TX_FAILED_BIT) != 0) {
             const bool report_ack = s_tx_is_report_ack;
+            const bool command_tx = s_tx_is_command;
             ESP_LOGW(TAG, "%s TX failed seq=%u error=%d", s_tx_type, s_radio_tx_seq, s_radio_tx_error);
             s_radio_tx_busy = false;
             const esp_err_t restore_result = iot154_radio_start_rx();
+            if (command_tx) {
+                s_tx_is_command = false;
+                if (s_pending_command.active &&
+                    s_pending_command.sequence == s_radio_tx_seq) {
+                    s_pending_command.awaiting_ack = false;
+                    s_pending_command.deadline =
+                        xTaskGetTickCount() +
+                        pdMS_TO_TICKS(COMMAND_RETRY_DELAY_MS);
+                }
+            }
             if (report_ack) {
                 char destination_text[3 * IOT154_EXT_ADDR_LEN] = {0};
                 format_ext_addr(s_report_ack_dst, destination_text, sizeof(destination_text));
@@ -1401,5 +1532,6 @@ void app_main(void)
         // }
 
         poll_host_uart();
+        process_pending_command();
     }
 }
