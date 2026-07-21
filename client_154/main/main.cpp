@@ -8,7 +8,6 @@
 #include "freertos/task.h"
 
 #include "digital_output_behavior.hpp"
-#include "iot154_packet.h"
 #include "issp_device.hpp"
 #include "issp154_network_manager.hpp"
 #include "issp154_report_executor.hpp"
@@ -16,12 +15,17 @@
 #include "factory_reset_service.hpp"
 #include "reset_button_monitor.hpp"
 
-#define IOT154_RELAY_GPIO GPIO_NUM_13
-#define IOT154_RESET_BUTTON_GPIO GPIO_NUM_9
-#define IOT154_RELAY_ENDPOINT_ID 1
-#define IOT154_SENSOR_DEVICE_ID 0x15400001
-
 static const char *TAG = "iot154_switch";
+
+namespace
+{
+constexpr gpio_num_t kRelayGpio = GPIO_NUM_13;
+constexpr gpio_num_t kResetButtonGpio = GPIO_NUM_9;
+constexpr std::uint16_t kClientShortAddress = 0x1001;
+constexpr std::uint32_t kDeviceId = 0x15400001;
+constexpr std::uint8_t kRelayEndpointId = 1;
+constexpr std::uint8_t kPowerEventType = 2;
+}
 
 static void initialize_nvs()
 {
@@ -61,25 +65,25 @@ extern "C" void app_main()
 {
     initialize_nvs();
 
-    static uint8_t switch_ext_addr[IOT154_EXT_ADDR_LEN];
+    static uint8_t switch_ext_addr[issp::kIssp154ExtendedAddressSize];
     ESP_ERROR_CHECK(esp_read_mac(switch_ext_addr, ESP_MAC_IEEE802154));
 
     static const issp::Issp154TransportConfig transport_config = {
         .channel = 0,
         .panId = 0,
-        .shortAddress = IOT154_SENSOR_ADDR,
+        .shortAddress = kClientShortAddress,
         .coordinator = false,
         .extendedAddress = switch_ext_addr,
         .cca = true,
         .promiscuous = false,
     };
     static const issp::IsspDeviceConfig device_config = {
-        .deviceId = IOT154_SENSOR_DEVICE_ID,
+        .deviceId = kDeviceId,
     };
     static const issp::DigitalOutputConfig relay_config = {
-        .endpointId = IOT154_RELAY_ENDPOINT_ID,
-        .eventType = IOT154_EVENT_POWER,
-        .pin = IOT154_RELAY_GPIO,
+        .endpointId = kRelayEndpointId,
+        .eventType = kPowerEventType,
+        .pin = kRelayGpio,
         .activeLevel = 1,
         .initialState = false,
         .reportOnStart = true,
@@ -88,7 +92,7 @@ extern "C" void app_main()
     static issp::Issp154Transport transport(transport_config);
     static issp::Issp154NetworkManager network_manager(
         transport,
-        IOT154_SENSOR_DEVICE_ID);
+        kDeviceId);
     static issp::IsspDevice device(device_config, transport);
     static issp::DigitalOutputBehavior relay_behavior(relay_config);
     static issp::Issp154ReportExecutor report_executor(device, transport);
@@ -96,7 +100,7 @@ extern "C" void app_main()
         clear_network_configuration,
         &network_manager);
     static const ResetButtonConfig reset_button_config = {
-        .gpio = IOT154_RESET_BUTTON_GPIO,
+        .gpio = kResetButtonGpio,
         .holdTimeMs = 10000,
         .pollIntervalMs = 20,
         .activeLow = true,
