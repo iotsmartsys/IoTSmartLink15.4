@@ -1,8 +1,8 @@
 # ISSP — Especificação de Componentes Reutilizáveis
 
 **Tipo:** Normativo
-**Status:** Proposed for approval
-**Versão:** 1.0
+**Status:** Implemented and validated
+**Versão:** 1.1
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 21/07/2026
 **Escopo:** Empacotamento local e prova de reutilização dos componentes ISSP
@@ -311,3 +311,24 @@ Além do relatório definido em `EKM-GUIDELINES.md`, informar:
 
 Uma relação de arquivos ou builds aprovados não substitui a comprovação de cada
 requisito.
+
+---
+
+## 10. Resultado
+
+Os componentes foram movidos sem duplicação para `components/`, e tanto o
+`client_154` quanto `examples/issp_minimal_client` os localizam por
+`EXTRA_COMPONENT_DIRS`. O exemplo inclui e referencia as APIs públicas dos três
+componentes sem iniciar rádio ou executar operações de NVS.
+
+`issp154_transport.h` permanece público porque o contrato C++
+`issp154_transport.hpp` o inclui diretamente e utiliza tipos declarados pelo
+ESP-IDF. Seus consumidores diretos são a implementação C e o wrapper C++ do
+próprio componente. Frame MAC, rádio e demais detalhes de implementação
+permanecem privados em `src/`.
+
+Uma reauditoria comparou as cinco fontes apontadas como preexistentes com os
+pós-diffs registrados pela execução de consolidação. Os hashes coincidem
+exatamente na nova localização, e as três aplicações foram reconstruídas após
+essa comprovação. `EKM-CHG-0004` e `EKM-GAP-0004` estão encerrados com o
+histórico da reabertura preservado.

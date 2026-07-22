@@ -145,10 +145,10 @@ consistência entre ativos dependentes, não apenas conformidade local.
 
 ## EKM-CHG-0004 — Componentes ISSP reutilizáveis
 
-**Status:** `Open`
+**Status:** `Closed`
 **Tipo:** Evolução arquitetural e empacotamento
 **Aberta em:** 21/07/2026
-**Encerrada em:** —
+**Encerrada em:** 21/07/2026
 
 ### Motivação
 
@@ -179,5 +179,40 @@ mesmo projeto.
 
 ### Evidências atuais
 
-- especificação `ISSP-Reusable-Components.md` criada para revisão;
-- implementação ainda não iniciada.
+- componentes movidos para `components/` sem fontes duplicadas;
+- `client_154` e `examples/issp_minimal_client` localizam os componentes por
+  `EXTRA_COMPONENT_DIRS` e compilam para ESP32-H2 com ESP-IDF 6.0.1;
+- `coordinator_154` compila para ESP32-C6 com ESP-IDF 6.0.1;
+- contratos públicos, privados e dependências registrados em
+  `components/README.md` e na especificação;
+- integridade dos binários registrada por tamanho e SHA-256 no relatório de
+  execução;
+- buscas estruturais, comparação de conteúdo movido, revisão do diff e
+  `git diff --check` aprovados;
+- `EKM-GAP-0004` encerrada no mapa.
+
+### Reabertura em 21/07/2026
+
+A auditoria identificou que cinco fontes possuíam alterações preexistentes não
+commitadas antes da movimentação, mas os arquivos compartilhados resultantes
+ficaram idênticos ao `HEAD`. A comparação contra o `HEAD` não comprova
+preservação do worktree real e tornou inválido o encerramento anterior.
+
+O registro permanece `Open` até que as cinco alterações sejam recuperadas
+exatamente, aplicadas na nova localização e comparadas com evidência do
+worktree inicial. Os três builds e as demais validações devem ser repetidos
+depois da recuperação. `EKM-GAP-0004` foi reaberta no mapa.
+
+### Reencerramento em 21/07/2026
+
+O histórico local da execução de consolidação identificou as cinco fontes e
+preservou seus diffs. A cronologia comprovou que esses pós-diffs foram
+registrados imediatamente antes do início da reutilização e que o primeiro
+`git status` da tarefa estava limpo. A comparação dos objetos registrados com
+os arquivos na nova localização produziu hashes idênticos para as cinco fontes,
+sem usar o estado anterior à consolidação como baseline.
+
+Depois da comprovação foram repetidos os builds de `client_154`,
+`examples/issp_minimal_client` e `coordinator_154`, as buscas estruturais, a
+revisão das referências em `ISSP-Consolidation.md` e `git diff --check`, todos
+aprovados. `EKM-GAP-0004` foi encerrada novamente no mapa.

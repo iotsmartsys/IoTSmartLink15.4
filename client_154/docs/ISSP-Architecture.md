@@ -1,8 +1,8 @@
 # ISSP — Especificação Arquitetural
 
 **Tipo:** Normativo
-**Status:** Active — refatoração funcional e consolidação concluídas
-**Versão:** 1.1
+**Status:** Active — refatoração, consolidação e empacotamento local concluídos
+**Versão:** 1.2
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 21/07/2026
 **Escopo:** Runtime ISSP do client IEEE 802.15.4
@@ -51,6 +51,11 @@ main.cpp
 │   └── issp_core
 └── reset e composição específica da aplicação
 ```
+
+Os três componentes ISSP residem no diretório compartilhado `components/` na
+raiz do repositório. O `client_154` e consumidores independentes os localizam
+por `EXTRA_COMPONENT_DIRS` e dependem deles pelos nomes públicos, sem incluir
+fontes ou headers privados por caminho relativo.
 
 - `issp_core` implementa o protocolo, a representação do dispositivo, o
   despacho e a deduplicação de comandos e a fila lógica de reports. Não depende
@@ -215,6 +220,11 @@ removeu o runtime legado e reduziu a instrumentação temporária sem autorizaç
 para alterar payload, protocolo, timeouts, retries, delays funcionais ou regras
 de negócio.
 
+O empacotamento local também está concluído: os componentes são compartilhados
+sem duplicação entre aplicações, o `client_154` consome essa localização e
+`examples/issp_minimal_client` comprova compilação e link das APIs públicas sem
+iniciar rádio, transmitir ou alterar NVS.
+
 ## 9. Limites e trabalhos posteriores
 
 Não fazem parte da arquitetura implementada neste recorte:
@@ -232,8 +242,7 @@ Não fazem parte da arquitetura implementada neste recorte:
 - nova política de perda do coordenador;
 - implementação de novo ciclo de vida, incluindo `stop()`, sem caso de uso
   aprovado;
-- empacotamento ou distribuição para outros firmwares, movimentação para outro
-  repositório e publicação em registry.
+- distribuição em outro repositório e publicação em registry.
 
 O protocolo wire ainda requer uma especificação dedicada para assegurar sua
 reconstruibilidade completa. Essa lacuna registrada não autoriza inferir ou

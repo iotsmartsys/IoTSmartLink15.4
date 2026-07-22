@@ -38,10 +38,10 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 
 | Área | Fonte normativa | Implementação principal | Evidência atual | Estado |
 |---|---|---|---|---|
-| Arquitetura ISSP | `client_154/docs/ISSP-Architecture.md` | `client_154/components/issp_*` e `client_154/main/main.cpp` | Builds, validação em hardware e auditoria documental | Active; restauração concluída em `EKM-CHG-0002` |
+| Arquitetura ISSP | `client_154/docs/ISSP-Architecture.md` | `components/issp_*` e `client_154/main/main.cpp` | Builds, validação em hardware, consumidor mínimo e auditoria documental | Active; reutilização concluída e reauditada em `EKM-CHG-0004` |
 | Commissioning | `client_154/docs/ISSP-Commissioning.md` | `Issp154NetworkManager`, transporte e coordenador | Cenários registrados na própria especificação e testes em hardware | Implemented and validated |
 | Consolidação | `client_154/docs/ISSP-Consolidation.md` | Client e coordenador | Relatório de execução e auditoria posterior | Implemented; correções de conformidade pendentes |
-| Componentes reutilizáveis | `client_154/docs/ISSP-Reusable-Components.md` | `client_154/components/issp_*` até a migração | Ainda sem consumidor independente | Proposed; `EKM-CHG-0004` Open |
+| Componentes reutilizáveis | `client_154/docs/ISSP-Reusable-Components.md` | `components/issp_*` | Dois consumidores compilando; equivalência das cinco alterações preexistentes comprovada | Implemented and validated; `EKM-CHG-0004` Closed |
 | Protocolo ISSP | Arquitetura e contratos em `issp_core` | `issp_protocol.*` | Build e testes existentes | Necessita especificação wire dedicada para reconstruibilidade completa |
 | Transporte IEEE 802.15.4 | Arquitetura e commissioning | `issp_transport_154` | Build e testes em hardware | Implemented |
 | Behaviors | Arquitetura ISSP | `issp_behaviors` | Build e comportamento em hardware | Implemented |
@@ -70,7 +70,7 @@ passadas já refletiam o estado atual.
 | `EKM-GAP-0001` | `Closed` | Restaurar as decisões vigentes removidas de `ISSP-Architecture.md` durante a consolidação | Conteúdo restaurado, validado contra implementação e mapa atualizado | `ISSP-Architecture.md` v1.1 e `EKM-CHG-0002` |
 | `EKM-GAP-0002` | `Open` | Criar especificação dedicada do protocolo wire ISSP | Layout, tipos, checksum, endianness e compatibilidade definidos e validados | Requer recorte próprio |
 | `EKM-GAP-0003` | `Open` | Mapear requisitos estáveis para testes automatizados e de hardware | Matriz requisito–evidência vigente | Requer recorte próprio |
-| `EKM-GAP-0004` | `Open` | Registrar contratos públicos e provar reutilização local dos componentes | APIs, dependências e compatibilidade documentadas; segundo consumidor compilando | `ISSP-Reusable-Components.md` e `EKM-CHG-0004` |
+| `EKM-GAP-0004` | `Closed` | Registrar contratos públicos, provar reutilização local e comprovar preservação do worktree inicial | APIs, dependências e compatibilidade documentadas; segundo consumidor compilando; cinco alterações preexistentes recuperadas e equivalência comprovada contra o worktree inicial | `ISSP-Reusable-Components.md`, `components/README.md` e `EKM-CHG-0004` |
 | `EKM-GAP-0005` | `Open` | Definir preservação dos relatórios de validação relevantes | Localização, retenção e autoridade definidas | Requer decisão operacional |
 
 Uma lacuna registrada não autoriza o assistente a preenchê-la por suposição.

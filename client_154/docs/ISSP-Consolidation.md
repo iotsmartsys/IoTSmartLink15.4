@@ -106,9 +106,9 @@ Preservar integralmente, salvo redução de logs ou atualização documental
 expressamente prevista nesta especificação:
 
 ```text
-client_154/components/issp_core/
-client_154/components/issp_transport_154/
-client_154/components/issp_behaviors/
+components/issp_core/
+components/issp_transport_154/
+components/issp_behaviors/
 client_154/main/main.cpp
 client_154/main/reset/
 coordinator_154/
@@ -126,8 +126,9 @@ Confirmar que:
 - canal e PAN ID não voltaram a ser constantes operacionais no client;
 - a remoção não alterou o payload ISSP nem os builders/parsers atuais.
 
-Os nomes internos `iot154_radio.*` usados como implementação privada de baixo
-nível pelo `issp_transport_154` não são o cliente legado e não devem ser
+Os nomes internos `iot154_radio.*` em
+`components/issp_transport_154/src/`, usados como implementação privada de
+baixo nível pelo transporte atual, não são o cliente legado e não devem ser
 removidos ou renomeados neste recorte.
 
 ---
