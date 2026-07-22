@@ -1,0 +1,91 @@
+# EKM — Mapa das Fontes de Verdade
+
+**Tipo:** Normativo
+**Status:** Active
+**Versão:** 1.3
+**Responsável:** Marcelo Miranda
+**Última atualização:** 22/07/2026
+**Escopo:** Todo o repositório
+
+---
+
+## 1. Objetivo
+
+Indicar onde está o conhecimento autoritativo de cada área do projeto e como
+localizar sua implementação e suas evidências.
+
+Este mapa não duplica o conteúdo das fontes. Ele aponta para elas e registra sua
+classificação e estado.
+
+---
+
+## 2. Governança do repositório
+
+| Área | Fonte | Tipo | Estado |
+|---|---|---|---|
+| Instruções para assistentes | `AGENTS.md` | Normativo | Active |
+| Diretrizes EKM | `docs/rfc/EKM-GUIDELINES.md` | Normativo | Active v1.3; ciclo de vida das especificações definido em `EKM-CHG-0006` |
+| Mapa de conhecimento | `docs/rfc/KNOWLEDGE-MAP.md` | Normativo | Active |
+| Histórico de mudanças EKM | `docs/rfc/EKM-CHANGELOG.md` | Operacional | Active |
+| Manual da IA Executora | `docs/rfc/MAN-0001.md` | Normativo complementar | Active |
+| Instruções do Copilot | `.github/copilot-instructions.md` | Adaptador | Active |
+
+Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferença,
+`EKM-GUIDELINES.md` é a fonte canônica das regras EKM.
+
+---
+
+## 3. Especificações ISSP e IEEE 802.15.4
+
+| Área | Fonte normativa | Estado normativo | Estado da implementação | Implementação principal | Evidência atual |
+|---|---|---|---|---|---|
+| Arquitetura ISSP | `docs/specs/ISSP-Architecture.md` | Active | Validated | `components/issp_*` e `client_154/main/main.cpp` | Builds, hardware, consumidor mínimo e auditoria documental |
+| Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
+| Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
+| Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
+| Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | `issp_protocol.*` | Lacuna `EKM-GAP-0002` |
+| Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `client_154/main/reset/` | Pressão por 10 segundos e redescoberta em hardware |
+| Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE e ACK em hardware |
+| Reports confirmados | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, executor e coordenador | Report inicial, ACK e retries em hardware |
+
+---
+
+## 4. Documentos históricos e do método
+
+| Documento | Tipo | Autoridade atual |
+|---|---|---|
+| `client_154/docs/ai-assisted-engineering/PILOT-ISSP.md` | Histórico/experimental | Registra o piloto; não substitui especificações técnicas |
+| `docs/rfc/MAN-0001.md` | Normativo complementar | Consultar antes de alterar o método correspondente |
+
+Documentos históricos não devem ser atualizados para simular que decisões
+passadas já refletiam o estado atual.
+
+---
+
+## 5. Lacunas conhecidas de conhecimento
+
+| ID | Estado | Lacuna | Critério de encerramento | Evidência ou dependência |
+|---|---|---|---|---|
+| `EKM-GAP-0001` | `Closed` | Restaurar as decisões vigentes removidas de `ISSP-Architecture.md` durante a consolidação | Conteúdo restaurado, validado contra implementação e mapa atualizado | `ISSP-Architecture.md` v1.1 e `EKM-CHG-0002` |
+| `EKM-GAP-0002` | `Open` | Criar especificação dedicada do protocolo wire ISSP | Layout, tipos, checksum, endianness e compatibilidade definidos e validados | Requer recorte próprio |
+| `EKM-GAP-0003` | `Open` | Mapear requisitos estáveis para testes automatizados e de hardware | Matriz requisito–evidência vigente | Requer recorte próprio |
+| `EKM-GAP-0004` | `Closed` | Registrar contratos públicos, provar reutilização local e comprovar preservação do worktree inicial | APIs, dependências e compatibilidade documentadas; segundo consumidor compilando; cinco alterações preexistentes recuperadas e equivalência comprovada contra o worktree inicial | `ISSP-Reusable-Components.md`, `components/README.md` e `EKM-CHG-0004` |
+| `EKM-GAP-0005` | `Open` | Definir preservação dos relatórios de validação relevantes | Localização, retenção e autoridade definidas | Requer decisão operacional |
+
+Uma lacuna registrada não autoriza o assistente a preenchê-la por suposição.
+
+---
+
+## 6. Regra de manutenção
+
+Atualizar este mapa quando:
+
+- uma nova fonte normativa for criada;
+- um documento for substituído, arquivado ou mudar de autoridade;
+- um componente assumir ou perder responsabilidade;
+- uma nova evidência se tornar obrigatória;
+- uma lacuna de conhecimento for identificada ou encerrada.
+- uma mudança EKM alterar o estado ou a autoridade de uma fonte.
+- uma especificação mudar de estado normativo ou de estado da implementação.
+
+Não remover uma entrada sem indicar o destino do conhecimento correspondente.

@@ -24,7 +24,6 @@ static const char *TAG = "central_154";
 static const EventBits_t RX_DONE_BIT = BIT0;
 static const EventBits_t TX_DONE_BIT = BIT1;
 static const EventBits_t TX_FAILED_BIT = BIT2;
-static const EventBits_t TEST_TOGGLE_BIT = BIT3;
 
 #ifndef HOST_UART_TX_GPIO
 #define HOST_UART_TX_GPIO 16
@@ -85,8 +84,6 @@ static volatile bool s_tx_is_command;
 static uint8_t s_report_ack_mac_seq;
 static uint16_t s_report_ack_issp_seq;
 static uint8_t s_report_ack_dst[IOT154_EXT_ADDR_LEN];
-static uint8_t s_last_device_ext_addr[IOT154_EXT_ADDR_LEN];
-static bool s_has_last_device;
 static bool s_join_window_open;
 static int64_t s_join_window_deadline_us;
 
@@ -120,37 +117,6 @@ typedef struct
 static device_seq_state_t s_devices[8];
 
 static const char *type_from_event(uint8_t event_type);
-
-static const char DRAM_ATTR s_log_yes[] = "yes";
-static const char DRAM_ATTR s_log_no[] = "no";
-static const char DRAM_ATTR s_tx_error_cca_busy[] = "CCA_BUSY";
-static const char DRAM_ATTR s_tx_error_abort[] = "ABORT";
-static const char DRAM_ATTR s_tx_error_no_ack[] = "NO_ACK";
-static const char DRAM_ATTR s_tx_error_invalid_ack[] = "INVALID_ACK";
-static const char DRAM_ATTR s_tx_error_coexist[] = "COEXIST";
-static const char DRAM_ATTR s_tx_error_security[] = "SECURITY";
-static const char DRAM_ATTR s_tx_error_unknown[] = "UNKNOWN";
-
-static const char *IRAM_ATTR tx_error_name(esp_ieee802154_tx_error_t error)
-{
-    switch (error)
-    {
-    case ESP_IEEE802154_TX_ERR_CCA_BUSY:
-        return s_tx_error_cca_busy;
-    case ESP_IEEE802154_TX_ERR_ABORT:
-        return s_tx_error_abort;
-    case ESP_IEEE802154_TX_ERR_NO_ACK:
-        return s_tx_error_no_ack;
-    case ESP_IEEE802154_TX_ERR_INVALID_ACK:
-        return s_tx_error_invalid_ack;
-    case ESP_IEEE802154_TX_ERR_COEXIST:
-        return s_tx_error_coexist;
-    case ESP_IEEE802154_TX_ERR_SECURITY:
-        return s_tx_error_security;
-    default:
-        return s_tx_error_unknown;
-    }
-}
 
 /// @brief Initialize NVS before RF calibration data is loaded by the PHY.
 static void init_nvs(void)
@@ -197,39 +163,20 @@ static void IRAM_ATTR on_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *fr
     const uint8_t len = frame != NULL ? frame[0] : 0;
     const bool pending_slot = s_events != NULL &&
                               (xEventGroupGetBitsFromISR(s_events) & RX_DONE_BIT) != 0;
-    if (frame_info != NULL)
-    {
-        ESP_DRAM_LOGI(DRAM_STR("COORD_RADIO_RX"),
-                      "frame received phy_len=%u rssi=%d lqi=%u storage=single_slot pending=%s",
-                      (unsigned)len,
-                      (int)frame_info->rssi,
-                      (unsigned)frame_info->lqi,
-                      pending_slot ? s_log_yes : s_log_no);
-    }
-    else
-    {
-        ESP_DRAM_LOGI(DRAM_STR("COORD_RADIO_RX"),
-                      "frame received phy_len=%u rssi=unavailable lqi=unavailable storage=single_slot pending=%s",
-                      (unsigned)len,
-                      pending_slot ? s_log_yes : s_log_no);
-    }
     if (len <= IOT154_MAX_FRAME_LEN)
     {
         memcpy(s_rx_frame, frame, len + 1);
         s_rx_len = len;
         s_rx_info = *frame_info;
         xEventGroupSetBitsFromISR(s_events, RX_DONE_BIT, &task_woken);
-        ESP_DRAM_LOGI(DRAM_STR("COORD_RADIO_RX"),
-                      "enqueue=ok storage=single_slot phy_len=%u mac_sequence=%u overwritten_pending=%s",
-                      (unsigned)len,
-                      len >= 3 ? (unsigned)frame[3] : 0U,
-                      pending_slot ? s_log_yes : s_log_no);
+        if (pending_slot)
+        {
+            ESP_DRAM_LOGW(DRAM_STR("COORD_RX"), "pending frame overwritten");
+        }
     }
     else
     {
-        ESP_DRAM_LOGI(DRAM_STR("COORD_RADIO_RX"),
-                      "enqueue=failed reason=invalid_frame_or_metadata phy_len=%u",
-                      (unsigned)len);
+        ESP_DRAM_LOGW(DRAM_STR("COORD_RX"), "invalid frame discarded");
     }
     if (frame != NULL)
     {
@@ -242,15 +189,6 @@ static void IRAM_ATTR on_tx_done(const uint8_t *frame, const uint8_t *ack, esp_i
 {
     BaseType_t task_woken = pdFALSE;
     xEventGroupSetBitsFromISR(s_events, TX_DONE_BIT, &task_woken);
-    if (s_tx_is_report_ack)
-    {
-        ESP_DRAM_LOGI(DRAM_STR("COORD_REPORT_ACK"),
-                      "callback=tx_done frame=%p issp_sequence=%u ack_mac_sequence=%u radio_state=%u",
-                      (const void *)frame,
-                      (unsigned)s_report_ack_issp_seq,
-                      (unsigned)s_report_ack_mac_seq,
-                      (unsigned)esp_ieee802154_get_state());
-    }
     if (ack != NULL)
     {
         esp_ieee802154_receive_handle_done(ack);
@@ -263,17 +201,6 @@ static void IRAM_ATTR on_tx_failed(const uint8_t *frame, esp_ieee802154_tx_error
     BaseType_t task_woken = pdFALSE;
     s_radio_tx_error = error;
     xEventGroupSetBitsFromISR(s_events, TX_FAILED_BIT, &task_woken);
-    if (s_tx_is_report_ack)
-    {
-        ESP_DRAM_LOGI(DRAM_STR("COORD_REPORT_ACK"),
-                      "callback=tx_failed frame=%p issp_sequence=%u ack_mac_sequence=%u error=%u error_name=%s radio_state=%u",
-                      (const void *)frame,
-                      (unsigned)s_report_ack_issp_seq,
-                      (unsigned)s_report_ack_mac_seq,
-                      (unsigned)error,
-                      tx_error_name(error),
-                      (unsigned)esp_ieee802154_get_state());
-    }
     portYIELD_FROM_ISR(task_woken);
 }
 
@@ -284,26 +211,6 @@ static void format_ext_addr(const uint8_t *addr, char *out, size_t out_len)
              out_len,
              "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
              addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7]);
-}
-
-static void format_mac_address(uint8_t mode,
-                               uint16_t short_addr,
-                               const uint8_t *ext_addr,
-                               char *out,
-                               size_t out_len)
-{
-    if (mode == IOT154_ADDR_MODE_EXT)
-    {
-        format_ext_addr(ext_addr, out, out_len);
-    }
-    else if (mode == IOT154_ADDR_MODE_SHORT)
-    {
-        snprintf(out, out_len, "0x%04x", short_addr);
-    }
-    else
-    {
-        snprintf(out, out_len, "none");
-    }
 }
 
 static bool diagnostic_extract_mac(const uint8_t *frame,
@@ -901,22 +808,16 @@ static void send_radio_ack(uint32_t device_id, uint16_t seq, uint8_t endpoint_id
         .value = IOT154_ACK_STATUS_OK,
     };
     iot154_packet_finalize(&ack);
-    const bool encode_ok = iot154_packet_is_valid(&ack);
     const uint8_t ack_mac_sequence = s_mac_seq;
     const size_t frame_length =
         iot154_build_ext_frame(s_tx_frame, s_central_ext_addr, dst_ext_addr, s_mac_seq++, &ack);
     char destination_text[3 * IOT154_EXT_ADDR_LEN] = {0};
     format_ext_addr(dst_ext_addr, destination_text, sizeof(destination_text));
 
-    ESP_LOGI("COORD_REPORT_ACK",
-             "build issp_sequence=%u status=%u destination=%s encode_result=%s mac_build_result=%s frame_len=%u ack_mac_sequence=%u",
-             seq,
-             (unsigned)ack.value,
-             destination_text,
-             encode_ok ? "ok" : "failed",
-             frame_length == (size_t)s_tx_frame[0] + 1U ? "ok" : "failed",
-             (unsigned)frame_length,
-             (unsigned)ack_mac_sequence);
+    if (frame_length != (size_t)s_tx_frame[0] + 1U)
+    {
+        ESP_LOGW(TAG, "ACK frame build failed seq=%u", seq);
+    }
 
     s_radio_tx_seq = seq;
     s_tx_type = "ACK";
@@ -925,44 +826,18 @@ static void send_radio_ack(uint32_t device_id, uint16_t seq, uint8_t endpoint_id
     s_report_ack_issp_seq = seq;
     s_report_ack_mac_seq = ack_mac_sequence;
     memcpy(s_report_ack_dst, dst_ext_addr, sizeof(s_report_ack_dst));
-    ESP_LOGI("COORD_REPORT_ACK",
-             "turnaround_delay_us=%u issp_sequence=%u",
-             (unsigned)REPORT_ACK_TURNAROUND_DELAY_US,
-             seq);
     esp_rom_delay_us(REPORT_ACK_TURNAROUND_DELAY_US);
-    ESP_LOGI("COORD_REPORT_ACK",
-             "transmit_begin issp_sequence=%u ack_mac_sequence=%u destination=%s cca=false",
-             seq,
-             (unsigned)ack_mac_sequence,
-             destination_text);
-    const esp_err_t sleep_result = esp_ieee802154_sleep();
-    ESP_LOGI("COORD_REPORT_ACK",
-             "sleep result=%d result_name=%s radio_state=%u",
-             sleep_result,
-             esp_err_to_name(sleep_result),
-             (unsigned)esp_ieee802154_get_state());
+    (void)esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
-    ESP_LOGI("COORD_REPORT_ACK",
-             "transmit_call result=%d result_name=%s issp_sequence=%u ack_mac_sequence=%u radio_state=%u",
-             err,
-             esp_err_to_name(err),
-             seq,
-             (unsigned)ack_mac_sequence,
-             (unsigned)esp_ieee802154_get_state());
     if (err != ESP_OK)
     {
         ESP_LOGW(TAG, "ACK TX failed seq=%u start_err=%s", seq, esp_err_to_name(err));
         s_radio_tx_busy = false;
         const esp_err_t restore_result = iot154_radio_start_rx();
-        ESP_LOGI("COORD_REPORT_ACK",
-                 "restore_rx result=%d result_name=%s radio_state=%u",
-                 restore_result,
-                 esp_err_to_name(restore_result),
-                 (unsigned)esp_ieee802154_get_state());
-        ESP_LOGI("COORD_REPORT_ACK",
-                 "final result=transmit_rejected issp_sequence=%u ack_mac_sequence=%u",
-                 seq,
-                 (unsigned)ack_mac_sequence);
+        if (restore_result != ESP_OK)
+        {
+            ESP_LOGW(TAG, "ACK RX restore failed: %s", esp_err_to_name(restore_result));
+        }
         s_tx_is_report_ack = false;
     }
     else
@@ -1037,8 +912,6 @@ static bool is_duplicate(uint32_t device_id, uint16_t seq, const uint8_t *src_ex
         if (s_devices[i].valid && iot154_ext_addr_equal(s_devices[i].ext_addr, src_ext_addr))
         {
             s_devices[i].device_id = device_id;
-            memcpy(s_last_device_ext_addr, src_ext_addr, IOT154_EXT_ADDR_LEN);
-            s_has_last_device = true;
             if (s_devices[i].last_seq == seq)
             {
                 return true;
@@ -1061,8 +934,6 @@ static bool is_duplicate(uint32_t device_id, uint16_t seq, const uint8_t *src_ex
     free_slot->last_seq = seq;
     memcpy(free_slot->ext_addr, src_ext_addr, IOT154_EXT_ADDR_LEN);
     free_slot->valid = true;
-    memcpy(s_last_device_ext_addr, src_ext_addr, IOT154_EXT_ADDR_LEN);
-    s_has_last_device = true;
     return false;
 }
 
@@ -1076,19 +947,6 @@ static const device_seq_state_t *find_device_by_ext_addr(const uint8_t *ext_addr
         }
     }
     return NULL;
-}
-
-static bool find_last_device(uint32_t *device_id, const uint8_t **ext_addr)
-{
-    const device_seq_state_t *device = s_has_last_device ? find_device_by_ext_addr(s_last_device_ext_addr) : NULL;
-    if (device == NULL)
-    {
-        return false;
-    }
-
-    *device_id = device->device_id;
-    *ext_addr = device->ext_addr;
-    return true;
 }
 
 static bool transmit_pending_command(void)
@@ -1255,17 +1113,6 @@ static void process_pending_command(void)
              s_pending_command.awaiting_ack ? "ack_timeout" : "tx_failed");
     s_pending_command.awaiting_ack = false;
     (void)transmit_pending_command();
-}
-
-static void test_toggle_task(void *arg)
-{
-    (void)arg;
-
-    while (true)
-    {
-        vTaskDelay(pdMS_TO_TICKS(5000));
-        xEventGroupSetBits(s_events, TEST_TOGGLE_BIT);
-    }
 }
 
 static void handle_host_line(char *line)
@@ -1462,7 +1309,7 @@ void app_main(void)
     {
         update_join_window();
         EventBits_t bits = xEventGroupWaitBits(s_events,
-                                               RX_DONE_BIT | TX_DONE_BIT | TX_FAILED_BIT | TEST_TOGGLE_BIT,
+                                               RX_DONE_BIT | TX_DONE_BIT | TX_FAILED_BIT,
                                                pdTRUE,
                                                pdFALSE,
                                                pdMS_TO_TICKS(50));
@@ -1471,9 +1318,6 @@ void app_main(void)
         {
             uint8_t frame[IOT154_MAX_FRAME_LEN + 1];
             memcpy(frame, s_rx_frame, s_rx_len + 1);
-            const uint8_t received_mac_sequence =
-                s_rx_len >= 3 ? frame[3] : 0;
-
             iot154_frame_info_t diagnostic_mac = {0};
             iot154_packet_t diagnostic_packet = {0};
             size_t payload_length = 0;
@@ -1484,65 +1328,18 @@ void app_main(void)
                                         &payload_length,
                                         &mac_rejection_reason))
             {
-                ESP_LOGW("COORD_MAC_PARSE",
-                         "result=rejected reason=%s phy_len=%u received_mac_sequence=%u",
-                         mac_rejection_reason,
-                         (unsigned)s_rx_len,
-                         (unsigned)received_mac_sequence);
-                ESP_LOGW("COORD_PROTOCOL_RX",
-                         "result=discarded reason=mac_rejected received_mac_sequence=%u",
-                         (unsigned)received_mac_sequence);
+                ESP_LOGW(TAG, "invalid MAC frame discarded reason=%s",
+                         mac_rejection_reason);
                 continue;
             }
-
-            char source_address[3 * IOT154_EXT_ADDR_LEN] = {0};
-            char destination_address[3 * IOT154_EXT_ADDR_LEN] = {0};
-            format_mac_address(diagnostic_mac.src_mode,
-                               diagnostic_mac.src_short,
-                               diagnostic_mac.src_ext,
-                               source_address,
-                               sizeof(source_address));
-            format_mac_address(diagnostic_mac.dst_mode,
-                               diagnostic_mac.dst_short,
-                               diagnostic_mac.dst_ext,
-                               destination_address,
-                               sizeof(destination_address));
-            ESP_LOGI("COORD_MAC_PARSE",
-                     "result=ok src_mode=%u src=%s dst_mode=%u dst=%s pan=0x%04x payload_len=%u received_mac_sequence=%u",
-                     (unsigned)diagnostic_mac.src_mode,
-                     source_address,
-                     (unsigned)diagnostic_mac.dst_mode,
-                     destination_address,
-                     IOT154_PAN_ID,
-                     (unsigned)payload_length,
-                     (unsigned)received_mac_sequence);
 
             iot154_frame_info_t mac = {0};
             iot154_packet_t packet = {0};
             if (!iot154_parse_frame_info(frame, &mac, &packet))
             {
-                ESP_LOGW("COORD_PROTOCOL_RX",
-                         "result=rejected reason=version_or_checksum type=%u issp_sequence=%u device_id=0x%08" PRIx32 " endpoint=%u event=%u value=%u received_mac_sequence=%u",
-                         (unsigned)diagnostic_packet.msg_type,
-                         (unsigned)diagnostic_packet.seq,
-                         diagnostic_packet.device_id,
-                         (unsigned)diagnostic_packet.endpoint_id,
-                         (unsigned)diagnostic_packet.event_type,
-                         (unsigned)diagnostic_packet.value,
-                         (unsigned)received_mac_sequence);
                 ESP_LOGW(TAG, "ignored frame: invalid packet");
                 continue;
             }
-
-            ESP_LOGI("COORD_PROTOCOL_RX",
-                     "result=decoded type=%u issp_sequence=%u device_id=0x%08" PRIx32 " endpoint=%u event=%u value=%u received_mac_sequence=%u",
-                     (unsigned)packet.msg_type,
-                     (unsigned)packet.seq,
-                     packet.device_id,
-                     (unsigned)packet.endpoint_id,
-                     (unsigned)packet.event_type,
-                     (unsigned)packet.value,
-                     (unsigned)received_mac_sequence);
 
             if (packet.msg_type == IOT154_MSG_DISCOVERY_REQ &&
                 mac.dst_mode == IOT154_ADDR_MODE_SHORT &&
@@ -1571,22 +1368,10 @@ void app_main(void)
                      iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
                      mac.src_mode == IOT154_ADDR_MODE_EXT)
             {
-                const bool registry_existed =
-                    find_device_by_ext_addr(mac.src_ext) != NULL;
                 bool duplicate = is_duplicate(packet.device_id, packet.seq, mac.src_ext);
-                ESP_LOGI("COORD_REPORT",
-                         "result=accepted device_id=0x%08" PRIx32 " registry_existed=%s registry_update=completed duplicate=%s issp_sequence=%u received_mac_sequence=%u",
-                         packet.device_id,
-                         registry_existed ? "yes" : "no",
-                         duplicate ? "yes" : "no",
-                         (unsigned)packet.seq,
-                         (unsigned)received_mac_sequence);
                 if (duplicate)
                 {
                     ESP_LOGI(TAG, "DATA duplicate dev=0x%08" PRIx32 " seq=%u", packet.device_id, packet.seq);
-                    ESP_LOGI("COORD_REPORT",
-                             "state_update=skipped_duplicate issp_sequence=%u",
-                             (unsigned)packet.seq);
                 }
                 else
                 {
@@ -1594,15 +1379,7 @@ void app_main(void)
                              "DATA new dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u",
                              packet.device_id, packet.seq, packet.endpoint_id, packet.event_type, packet.value);
                     host_send_event(mac.src_ext, packet.endpoint_id, packet.event_type, packet.value);
-                    ESP_LOGI("COORD_REPORT",
-                             "state_update=invoked result=not_reported_by_current_api issp_sequence=%u",
-                             (unsigned)packet.seq);
                 }
-                ESP_LOGI("COORD_REPORT",
-                         "ack_decision=send status=%u duplicate=%s issp_sequence=%u",
-                         IOT154_ACK_STATUS_OK,
-                         duplicate ? "yes" : "no",
-                         (unsigned)packet.seq);
                 send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
             }
             else if (packet.msg_type == IOT154_MSG_ACK &&
@@ -1645,23 +1422,15 @@ void app_main(void)
             {
                 if (packet.msg_type == IOT154_MSG_DATA)
                 {
-                    ESP_LOGW("COORD_REPORT",
-                             "result=rejected reason=mac_destination_or_source_not_supported ack_decision=do_not_send issp_sequence=%u received_mac_sequence=%u",
-                             (unsigned)packet.seq,
-                             (unsigned)received_mac_sequence);
+                    ESP_LOGW(TAG, "report rejected reason=invalid_mac_origin seq=%u",
+                             (unsigned)packet.seq);
                 }
-                ESP_LOGW("COORD_PROTOCOL_RX",
-                         "result=discarded reason=message_not_for_central type=%u issp_sequence=%u received_mac_sequence=%u",
-                         (unsigned)packet.msg_type,
-                         (unsigned)packet.seq,
-                         (unsigned)received_mac_sequence);
                 ESP_LOGW(TAG, "ignored frame: msg=%u not for this central", packet.msg_type);
             }
         }
 
         if ((bits & TX_DONE_BIT) != 0)
         {
-            const bool report_ack = s_tx_is_report_ack;
             const bool command_tx = s_tx_is_command;
             ESP_LOGI(TAG, "%s TX done seq=%u", s_tx_type, s_radio_tx_seq);
             s_radio_tx_busy = false;
@@ -1683,21 +1452,8 @@ void app_main(void)
                              (unsigned)COMMAND_ACK_TIMEOUT_MS);
                 }
             }
-            if (report_ack)
+            if (s_tx_is_report_ack)
             {
-                char destination_text[3 * IOT154_EXT_ADDR_LEN] = {0};
-                format_ext_addr(s_report_ack_dst, destination_text, sizeof(destination_text));
-                ESP_LOGI("COORD_REPORT_ACK",
-                         "restore_rx result=%d result_name=%s radio_state=%u",
-                         restore_result,
-                         esp_err_to_name(restore_result),
-                         (unsigned)esp_ieee802154_get_state());
-                ESP_LOGI("COORD_REPORT_ACK",
-                         "final result=%s issp_sequence=%u ack_mac_sequence=%u destination=%s",
-                         restore_result == ESP_OK ? "tx_done" : "restore_rx_failed",
-                         (unsigned)s_report_ack_issp_seq,
-                         (unsigned)s_report_ack_mac_seq,
-                         destination_text);
                 s_tx_is_report_ack = false;
             }
             ESP_ERROR_CHECK(restore_result);
@@ -1705,7 +1461,6 @@ void app_main(void)
 
         if ((bits & TX_FAILED_BIT) != 0)
         {
-            const bool report_ack = s_tx_is_report_ack;
             const bool command_tx = s_tx_is_command;
             ESP_LOGW(TAG, "%s TX failed seq=%u error=%d", s_tx_type, s_radio_tx_seq, s_radio_tx_error);
             s_radio_tx_busy = false;
@@ -1722,37 +1477,12 @@ void app_main(void)
                         pdMS_TO_TICKS(COMMAND_RETRY_DELAY_MS);
                 }
             }
-            if (report_ack)
+            if (s_tx_is_report_ack)
             {
-                char destination_text[3 * IOT154_EXT_ADDR_LEN] = {0};
-                format_ext_addr(s_report_ack_dst, destination_text, sizeof(destination_text));
-                ESP_LOGI("COORD_REPORT_ACK",
-                         "restore_rx result=%d result_name=%s radio_state=%u",
-                         restore_result,
-                         esp_err_to_name(restore_result),
-                         (unsigned)esp_ieee802154_get_state());
-                ESP_LOGI("COORD_REPORT_ACK",
-                         "final result=tx_failed error=%u error_name=%s issp_sequence=%u ack_mac_sequence=%u destination=%s",
-                         (unsigned)s_radio_tx_error,
-                         tx_error_name(s_radio_tx_error),
-                         (unsigned)s_report_ack_issp_seq,
-                         (unsigned)s_report_ack_mac_seq,
-                         destination_text);
                 s_tx_is_report_ack = false;
             }
             ESP_ERROR_CHECK(restore_result);
         }
-
-        // if ((bits & TEST_TOGGLE_BIT) != 0) {
-        //     uint32_t device_id = 0;
-        //     const uint8_t *ext_addr = NULL;
-        //     if (find_last_device(&device_id, &ext_addr)) {
-        //         ESP_LOGI(TAG, "test toggle dev=0x%08" PRIx32, device_id);
-        //         (void)send_radio_command(device_id, ext_addr, 1, IOT154_EVENT_POWER, IOT154_VALUE_TOGGLE);
-        //     } else {
-        //         ESP_LOGW(TAG, "test toggle skipped: no known client");
-        //     }
-        // }
 
         poll_host_uart();
         process_pending_command();

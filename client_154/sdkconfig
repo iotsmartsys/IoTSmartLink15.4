@@ -943,12 +943,6 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
-# IoT154 Sensor
-#
-CONFIG_IOT154_COORDINATOR_SEND_FAILURE_LIMIT=5
-# end of IoT154 Sensor
-
-#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_DEBUG=y
