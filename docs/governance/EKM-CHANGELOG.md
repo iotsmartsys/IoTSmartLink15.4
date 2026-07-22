@@ -2,9 +2,9 @@
 
 **Tipo:** Operacional
 **Status:** Active
-**Versão:** 1.0
+**Versão:** 1.1
 **Responsável:** Marcelo Miranda
-**Última atualização:** 21/07/2026
+**Última atualização:** 22/07/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -216,3 +216,48 @@ Depois da comprovação foram repetidos os builds de `client_154`,
 `examples/issp_minimal_client` e `coordinator_154`, as buscas estruturais, a
 revisão das referências em `ISSP-Consolidation.md` e `git diff --check`, todos
 aprovados. `EKM-GAP-0004` foi encerrada novamente no mapa.
+
+---
+
+## EKM-CHG-0005 — Baseline e evidências não ambíguas
+
+**Status:** `Closed`
+**Tipo:** Evolução da governança
+**Aberta em:** 22/07/2026
+**Encerrada em:** 22/07/2026
+
+### Motivação
+
+A auditoria de `EKM-CHG-0004` mostrou que comparar arquivos somente com `HEAD`
+não comprova preservação de alterações preexistentes. A reauditoria também usou
+hashes de objetos Git e SHA-256 de arquivos e binários, exigindo identificação
+explícita para evitar interpretações incorretas. Um diff editorial fora do
+escopo reforçou que toda alteração final deve ser reconciliada e relatada.
+
+### Ativos afetados
+
+- `AGENTS.md`;
+- `.github/copilot-instructions.md`;
+- `docs/governance/EKM-GUIDELINES.md`;
+- `docs/governance/KNOWLEDGE-MAP.md`;
+- este histórico.
+
+### Critérios de encerramento
+
+- baseline do worktree definida como obrigatória antes de mutações;
+- `HEAD` isolado explicitamente insuficiente para preservar estado local;
+- reconciliação entre inventários inicial e final incorporada ao fluxo;
+- alterações sem requisito impedem encerramento;
+- hashes exigem objeto e algoritmo identificados;
+- relatório e Definition of Done EKM atualizados;
+- adaptadores de Codex e Copilot atualizados;
+- documentos validados sem alterações de produto.
+
+### Evidências
+
+- EKM Guidelines v1.2;
+- Knowledge Map v1.2;
+- instruções de assistentes atualizadas;
+- revisão cruzada das novas obrigações;
+- `git diff --check` aprovado;
+- nenhum código ou comportamento de produto alterado.

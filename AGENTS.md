@@ -30,6 +30,13 @@ Antes de analisar ou alterar o projeto:
   para ampliar uma tarefa.
 - Preserve alterações preexistentes que não pertençam ao escopo.
 - Não execute commit, push, criação de branch ou PR sem autorização explícita.
+- Antes da primeira alteração, registre a baseline real do worktree: branch,
+  commit, status, diffs e arquivos não rastreados relevantes. O `HEAD` isolado
+  não substitui essa baseline.
+- Preserve e reconcilie alterações preexistentes. Todo diff final, inclusive
+  formatação, deve possuir requisito, autorização ou justificativa explícita.
+- Identifique a natureza e o algoritmo de hashes usados como evidência, por
+  exemplo: objeto Git SHA-1, arquivo SHA-256 ou binário SHA-256.
 - Trate alterações normativas como uma transação de conhecimento: revise fontes
   dependentes, mapa, lacunas e histórico antes de declarar conclusão.
 - Uma implementação pronta não encerra uma mudança EKM enquanto existirem
@@ -49,5 +56,8 @@ Toda entrega deve distinguir:
 O relatório também deve declarar se a transação EKM está completa, quais fontes
 dependentes foram revisadas e quais registros `Open`, `Closed`, `Blocked` ou
 `Superseded` foram criados ou atualizados.
+
+Inclua a reconciliação entre os inventários inicial e final. Uma alteração não
+explicada impede declarar a execução conforme ou encerrada.
 
 Uma lista de arquivos modificados não substitui essa análise.

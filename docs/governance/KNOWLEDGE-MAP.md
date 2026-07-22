@@ -2,9 +2,9 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.1
+**Versão:** 1.2
 **Responsável:** Marcelo Miranda
-**Última atualização:** 21/07/2026
+**Última atualização:** 22/07/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -24,7 +24,7 @@ classificação e estado.
 | Área | Fonte | Tipo | Estado |
 |---|---|---|---|
 | Instruções para assistentes | `AGENTS.md` | Normativo | Active |
-| Diretrizes EKM | `docs/governance/EKM-GUIDELINES.md` | Normativo | Active |
+| Diretrizes EKM | `docs/governance/EKM-GUIDELINES.md` | Normativo | Active v1.2; baseline e reconciliação obrigatórias em `EKM-CHG-0005` |
 | Mapa de conhecimento | `docs/governance/KNOWLEDGE-MAP.md` | Normativo | Active |
 | Histórico de mudanças EKM | `docs/governance/EKM-CHANGELOG.md` | Operacional | Active |
 | Instruções do Copilot | `.github/copilot-instructions.md` | Adaptador | Active |

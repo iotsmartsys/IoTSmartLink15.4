@@ -2,9 +2,9 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.1
+**Versão:** 1.2
 **Responsável:** Marcelo Miranda
-**Última atualização:** 21/07/2026
+**Última atualização:** 22/07/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -225,9 +225,30 @@ Ausência dessa autorização significa preservar o conteúdo normativo existent
 1. Ler `AGENTS.md` e estas diretrizes.
 2. Consultar o mapa de conhecimento.
 3. Ler integralmente as fontes normativas do escopo.
-4. Inspecionar o estado real do repositório e alterações preexistentes.
+4. Registrar a baseline real do worktree e as alterações preexistentes.
 5. Mapear requisitos para componentes, contratos e validações.
 6. Identificar ambiguidades, conflitos e ativos normativos afetados.
+
+### Baseline do worktree
+
+Antes da primeira mutação, registrar de forma proporcional ao risco:
+
+- caminho do repositório e branch atual;
+- commit apontado por `HEAD`;
+- status de arquivos rastreados e não rastreados;
+- diffs staged e unstaged relevantes;
+- arquivos fora do Git que pertençam ao escopo;
+- hashes de conteúdo quando movimentação, sobrescrita ou equivalência precisem
+  ser comprovadas.
+
+O estado real do worktree é a baseline de preservação. `HEAD`, índice ou último
+commit não substituem alterações locais existentes. Uma tarefa não pode limpar,
+recriar a partir do Git ou normalizar arquivos modificados sem autorização
+explícita.
+
+Quando a ferramenta possuir transcript, log ou snapshot local, ele pode
+complementar a baseline, mas a evidência durável necessária ao encerramento deve
+ser registrada no repositório ou no relatório previsto pela governança.
 
 ### Durante a implementação
 
@@ -246,7 +267,24 @@ Ausência dessa autorização significa preservar o conteúdo normativo existent
 3. Revisar o diff de código e de documentos separadamente.
 4. Verificar se houve mudança sem requisito correspondente.
 5. Verificar se algum requisito ficou sem implementação ou evidência.
-6. Produzir o relatório obrigatório.
+6. Reconciliar o inventário final com a baseline inicial.
+7. Produzir o relatório obrigatório.
+
+### Reconciliação inicial e final
+
+Todo arquivo criado, removido, movido ou modificado deve estar associado a:
+
+- requisito aprovado;
+- autorização explícita;
+- preservação de alteração preexistente; ou
+- justificativa registrada e aceita para um desvio.
+
+Isso inclui alterações apenas editoriais, formatação, configuração gerada e
+documentos. Um diff funcionalmente neutro continua sendo uma alteração e deve
+ser visível no relatório.
+
+Se existir alteração final sem explicação, a execução deve permanecer `Open` ou
+`Blocked` até que ela seja removida, autorizada ou incorporada ao escopo.
 
 ### Análise de impacto documental
 
@@ -297,7 +335,10 @@ Antes de declarar conclusão, responder explicitamente:
 5. O `EKM-CHANGELOG.md` foi revisado e atualizado quando aplicável?
 6. Existem afirmações incompatíveis em fontes ativas?
 7. Os critérios de aceite possuem evidência proporcional ao risco?
-8. A transação de conhecimento está completa?
+8. O inventário final foi reconciliado integralmente com a baseline inicial?
+9. Todo hash usado como evidência identifica sua natureza e seu algoritmo?
+10. Existe algum diff final sem requisito, autorização ou justificativa?
+11. A transação de conhecimento está completa?
 
 Resposta negativa não impede uma entrega parcial, mas impede classificá-la como
 conforme ou encerrada.
@@ -336,6 +377,20 @@ Requisito
 Testes automatizados são especificações executáveis parciais: comprovam
 comportamentos, mas não substituem arquitetura, motivação ou contratos não
 observáveis.
+
+### Identificação de hashes
+
+Todo hash apresentado deve informar o objeto medido e o algoritmo, por exemplo:
+
+```text
+objeto Git SHA-1: 3135c1eb...
+arquivo fonte SHA-256: 561d9a0c...
+binário firmware SHA-256: f0328238...
+```
+
+Não usar apenas “hash” quando valores de naturezas diferentes puderem ser
+confundidos. Hash igual comprova igualdade do conteúdo medido, não equivalência
+funcional de estados que não participaram da comparação.
 
 Quando um bug for encontrado:
 
@@ -392,6 +447,9 @@ O relatório deve conter, no mínimo:
 16. mudanças e lacunas EKM criadas ou atualizadas;
 17. resultado da Definition of Done EKM;
 18. estado final da transação de conhecimento.
+19. baseline inicial e reconciliação do inventário final;
+20. tipo, algoritmo e objeto de cada hash utilizado;
+21. alterações finais sem requisito ou confirmação explícita de que não existem.
 
 Para cada ativo normativo modificado, declarar explicitamente:
 
@@ -422,6 +480,9 @@ Uma execução somente é conforme quando:
 - o relatório torna visíveis mudanças técnicas e de conhecimento;
 - fontes dependentes, mapa, lacunas e histórico permanecem consistentes;
 - a Definition of Done EKM foi respondida;
+- a baseline real do worktree foi preservada;
+- o inventário final não possui alteração inexplicada;
+- hashes e demais evidências são reproduzíveis e não ambíguos;
 - o repositório permanece suficiente para compreender e reconstruir o sistema.
 
 Build aprovado, isoladamente, não comprova conformidade EKM.
