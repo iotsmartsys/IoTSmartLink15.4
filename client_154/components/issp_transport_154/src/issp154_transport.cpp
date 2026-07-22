@@ -501,49 +501,22 @@ IsspResult Issp154Transport::sendConfirmedOnce(
     }
 
     IsspResult operationResult = armAckExpectation(expectation);
-    ESP_LOGI("REPORT_TX",
-             "ack_expectation arm_result=%u sequence=%u endpoint=%u",
-             static_cast<unsigned>(operationResult),
-             static_cast<unsigned>(expectation.sequence),
-             static_cast<unsigned>(expectation.endpointId));
     if (operationResult != IsspResult::Ok) {
         return operationResult;
     }
 
     operationResult = transmitPayloadOnce(data, length);
-    ESP_LOGI("REPORT_TX",
-             "physical_transmit result=%u sequence=%u",
-             static_cast<unsigned>(operationResult),
-             static_cast<unsigned>(expectation.sequence));
     if (operationResult != IsspResult::Ok) {
         clearAckExpectation();
         return operationResult;
     }
 
     Issp154AckAttemptOutcome outcome{};
-    ESP_LOGI("REPORT_TX",
-             "ack_wait begin sequence=%u timeout_ms=%lu",
-             static_cast<unsigned>(expectation.sequence),
-             static_cast<unsigned long>(ackTimeoutMs));
     operationResult = waitAckAttemptOutcome(ackTimeoutMs, outcome);
-    ESP_LOGI("REPORT_TX",
-             "ack_wait result=%u outcome=%u status=%u sequence=%u",
-             static_cast<unsigned>(operationResult),
-             static_cast<unsigned>(outcome.result),
-             static_cast<unsigned>(outcome.ackStatus),
-             static_cast<unsigned>(expectation.sequence));
     if (operationResult == IsspResult::Failed &&
         outcome.result == Issp154AckAttemptResult::None) {
-        ESP_LOGI("REPORT_TX",
-                 "ack_wait outcome=timeout sequence=%u timeout_ms=%lu",
-                 static_cast<unsigned>(expectation.sequence),
-                 static_cast<unsigned long>(ackTimeoutMs));
-    } else if (operationResult == IsspResult::Ok &&
-               outcome.result == Issp154AckAttemptResult::AckReceived) {
-        ESP_LOGI("REPORT_TX",
-                 "ack_wait outcome=ack_received sequence=%u status=%u",
-                 static_cast<unsigned>(expectation.sequence),
-                 static_cast<unsigned>(outcome.ackStatus));
+        ESP_LOGW("ISSP_TRANSPORT", "report ACK timeout sequence=%u",
+                 static_cast<unsigned>(expectation.sequence));
     }
     if (operationResult != IsspResult::Ok) {
         clearAckExpectation();
@@ -565,16 +538,7 @@ IsspResult Issp154Transport::sendConfirmed(
     Issp154ConfirmedSendSummary &summary)
 {
     summary = {};
-    ESP_LOGI("REPORT_TX",
-             "send_confirmed begin sequence=%u destination=%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x payload_len=%u timeout_ms=%lu",
-             static_cast<unsigned>(expectation.sequence),
-             destination_[0], destination_[1], destination_[2], destination_[3],
-             destination_[4], destination_[5], destination_[6], destination_[7],
-             static_cast<unsigned>(length),
-             static_cast<unsigned long>(ackTimeoutMs));
     if (data == nullptr || length == 0 || ackTimeoutMs == 0) {
-        ESP_LOGI("REPORT_TX", "send_confirmed result=%u reason=invalid_argument",
-                 static_cast<unsigned>(IsspResult::InvalidArgument));
         return IsspResult::InvalidArgument;
     }
 
@@ -592,25 +556,11 @@ IsspResult Issp154Transport::sendConfirmed(
         }
 
         Issp154ConfirmedSendResult attemptResult{};
-        ESP_LOGI("REPORT_TX",
-                 "attempt begin number=%u sequence=%u",
-                 static_cast<unsigned>(attempt + 1U),
-                 static_cast<unsigned>(expectation.sequence));
         const IsspResult operationResult = sendConfirmedOnce(
             data, length, expectation, ackTimeoutMs, attemptResult);
-        ESP_LOGI("REPORT_TX",
-                 "attempt result number=%u operation=%u ack_result=%u ack_status=%u sequence=%u",
-                 static_cast<unsigned>(attempt + 1U),
-                 static_cast<unsigned>(operationResult),
-                 static_cast<unsigned>(attemptResult.attemptResult),
-                 static_cast<unsigned>(attemptResult.ackStatus),
-                 static_cast<unsigned>(expectation.sequence));
         if (operationResult == IsspResult::InvalidArgument ||
             operationResult == IsspResult::NotReady ||
             operationResult == IsspResult::Busy) {
-            ESP_LOGI("REPORT_TX", "send_confirmed result=%u attempts=%u",
-                     static_cast<unsigned>(operationResult),
-                     static_cast<unsigned>(attempt + 1U));
             return operationResult;
         }
 
@@ -620,11 +570,6 @@ IsspResult Issp154Transport::sendConfirmed(
             summary.ackStatus = attemptResult.ackStatus;
             if (attemptResult.attemptResult ==
                 Issp154AckAttemptResult::AckReceived) {
-                ESP_LOGI("REPORT_TX",
-                         "send_confirmed result=%u attempts=%u ack_status=%u",
-                         static_cast<unsigned>(IsspResult::Ok),
-                         static_cast<unsigned>(summary.attempts),
-                         static_cast<unsigned>(summary.ackStatus));
                 return IsspResult::Ok;
             }
         } else {
@@ -633,8 +578,8 @@ IsspResult Issp154Transport::sendConfirmed(
         }
     }
 
-    ESP_LOGI("REPORT_TX", "send_confirmed result=%u attempts=%u",
-             static_cast<unsigned>(IsspResult::Failed),
+    ESP_LOGW("ISSP_TRANSPORT", "confirmed report failed sequence=%u attempts=%u",
+             static_cast<unsigned>(expectation.sequence),
              static_cast<unsigned>(summary.attempts));
     return IsspResult::Failed;
 }
@@ -790,7 +735,6 @@ void IRAM_ATTR Issp154Transport::handleTxFailed(const std::uint8_t *frame,
 void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
 {
     if (frame == nullptr) {
-        ESP_LOGI("MAC_PARSE", "rejected reason=null_frame");
         return;
     }
 
@@ -805,37 +749,15 @@ void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
         &payloadLength,
         &replyContext);
     if (!extracted) {
-        ESP_LOGI("MAC_PARSE",
-                 "rejected reason=mac_extract_failed frame_len=%u",
-                 static_cast<unsigned>(frameBufferLength));
         return;
     }
     if (payload == nullptr) {
-        ESP_LOGI("MAC_PARSE", "rejected reason=null_payload");
         return;
     }
     if (payloadLength == 0) {
-        ESP_LOGI("MAC_PARSE", "rejected reason=empty_payload");
         return;
     }
 
-    ESP_LOGI("MAC_PARSE",
-             "ok src_mode=%u src=%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x payload_len=%u",
-             static_cast<unsigned>(replyContext.source_address_mode),
-             replyContext.source_address[0],
-             replyContext.source_address[1],
-             replyContext.source_address[2],
-             replyContext.source_address[3],
-             replyContext.source_address[4],
-             replyContext.source_address[5],
-             replyContext.source_address[6],
-             replyContext.source_address[7],
-             static_cast<unsigned>(payloadLength));
-    ESP_LOGI("TRANSPORT_RX",
-             "payload received len=%u type=%u handler_registered=%s",
-             static_cast<unsigned>(payloadLength),
-             payloadLength > 1 ? static_cast<unsigned>(payload[1]) : 0U,
-             receiveHandler_ != nullptr ? "yes" : "no");
 
     {
         std::uint32_t discoveryDeviceId = 0;
@@ -924,13 +846,10 @@ void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
                     decodedAck.deviceId == expected.deviceId &&
                     decodedAck.sequence == expected.sequence &&
                     decodedAck.endpointId == expected.endpointId;
-                ESP_LOGI("REPORT_ACK",
-                         "received type=%u sequence=%u status=%u expected_sequence=%u match=%s",
-                         payloadLength > 1 ? static_cast<unsigned>(payload[1]) : 0U,
-                         static_cast<unsigned>(decodedAck.sequence),
-                         static_cast<unsigned>(decodedAck.status),
-                         static_cast<unsigned>(expected.sequence),
-                         matches ? "yes" : "no");
+                if (!matches) {
+                    ESP_LOGW("ISSP_TRANSPORT", "incompatible report ACK sequence=%u",
+                             static_cast<unsigned>(decodedAck.sequence));
+                }
                 if (!outcomeAvailable) {
                     portENTER_CRITICAL(&ackLock_);
                     if (ackExpectationActive_ &&
@@ -960,12 +879,6 @@ void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
                 }
                 return;
             }
-
-            ESP_LOGI("REPORT_ACK",
-                     "received type=%u decode_result=%u expected_sequence=%u match=no",
-                     payloadLength > 1 ? static_cast<unsigned>(payload[1]) : 0U,
-                     static_cast<unsigned>(decodeResult),
-                     static_cast<unsigned>(expected.sequence));
 
             if (!outcomeAvailable) {
                 portENTER_CRITICAL(&ackLock_);
@@ -1032,14 +945,7 @@ void IRAM_ATTR Issp154Transport::notifyReceive(std::uint8_t *frame)
         }
 
         if (receiveHandler_ != nullptr) {
-            ESP_LOGI("TRANSPORT_RX",
-                     "delivering payload len=%u handler_registered=yes",
-                     static_cast<unsigned>(payloadLength));
             receiveHandler_(payload, payloadLength, &replyContext, receiveContext_);
-        } else {
-            ESP_LOGI("TRANSPORT_RX",
-                     "payload not delivered len=%u reason=no_handler",
-                     static_cast<unsigned>(payloadLength));
         }
     }
 

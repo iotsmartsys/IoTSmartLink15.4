@@ -1,9 +1,9 @@
 # ISSP 802.15.4 — Especificação de Commissioning
 
-**Status:** Proposta para implementação  
+**Status:** Implementada e validada
 **Versão:** 1.0  
 **Responsável arquitetural:** Marcelo Miranda  
-**Última atualização:** 20/07/2026
+**Última atualização:** 21/07/2026
 
 ---
 
@@ -63,10 +63,9 @@ Regras de validação:
 - um blob presente, porém inválido, deve ser rejeitado e registrado como erro de
   persistência, sem ser utilizado parcialmente.
 
-O descritor substituirá progressivamente a chave atual que contém somente os
-8 bytes do endereço do coordenador. A migração da chave existente deve ser
-explícita: ela não contém canal e PAN ID suficientes e, portanto, não pode ser
-considerada um descritor completo.
+O descritor substitui a chave anterior que continha somente os 8 bytes do
+endereço do coordenador. A chave antiga não contém canal e PAN ID suficientes
+e não é aceita como descritor completo.
 
 ---
 
@@ -285,7 +284,18 @@ diagnóstico do commissioning.
 
 ---
 
-## 12. Fora do escopo inicial
+## 12. Resultado validado
+
+Foram comprovados em hardware os seguintes cenários:
+
+1. descoberta do coordenador durante a janela de ingresso aberta;
+2. segundo boot carregando o descritor da NVS, sem novo scan;
+3. janela fechada encerrando a descoberta de forma controlada com `NotReady`;
+4. factory reset removendo o descritor completo;
+5. redescoberta após a reabertura da janela;
+6. report inicial confirmado por ACK após commissioning.
+
+## 13. Fora do escopo inicial
 
 - seleção automática do melhor canal pelo coordenador;
 - mudança de canal de uma rede já formada;
@@ -297,14 +307,3 @@ diagnóstico do commissioning.
 - discovery ou heartbeat executados indefinidamente.
 
 ---
-
-## 13. Sequência recomendada de implementação
-
-1. Introduzir o descritor persistente e sua validação, ainda sem varredura.
-2. Permitir reconfiguração controlada de channel e PAN ID no transporte.
-3. Implementar scanner limitado de canais no novo `Issp154NetworkManager`.
-4. Implementar a janela de ingresso temporária no coordenador.
-5. Integrar o manager ao `main.cpp`, removendo channel e PAN ID fixos.
-6. Conectar o factory reset à remoção do descritor.
-7. Executar os cenários completos de commissioning e regressão do runtime.
-
