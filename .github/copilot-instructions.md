@@ -3,13 +3,16 @@
 Antes de propor ou executar alterações, siga as instruções canônicas em:
 
 - `../AGENTS.md`
-- `../docs/governance/EKM-GUIDELINES.md`
-- `../docs/governance/KNOWLEDGE-MAP.md`
-- `../docs/governance/EKM-CHANGELOG.md`
+- `../docs/rfc/EKM-GUIDELINES.md`
+- `../docs/rfc/KNOWLEDGE-MAP.md`
+- `../docs/rfc/EKM-CHANGELOG.md`
 
 As especificações definem o comportamento esperado. As diretrizes EKM definem
 como implementar e preservar arquitetura, decisões, contratos e demais ativos
 de conhecimento.
+
+Consulte os dois estados de cada especificação: estado normativo e estado da
+implementação. Um documento `Active` pode possuir implementação `Regressed`.
 
 Não remova ou condense documentos normativos, não resolva divergências
 silenciosamente e não amplie o escopo sem autorização explícita.

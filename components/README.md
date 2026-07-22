@@ -57,5 +57,5 @@ sem publicação em registry, Arduino, PlatformIO, outros transports ou garantia
 para outros targets.
 
 Comportamento e contratos normativos permanecem definidos em
-`client_154/docs/ISSP-Architecture.md`, `client_154/docs/ISSP-Commissioning.md`
-e `client_154/docs/ISSP-Reusable-Components.md`.
+`docs/specs/ISSP-Architecture.md`, `docs/specs/ISSP-Commissioning.md` e
+`docs/specs/ISSP-Reusable-Components.md`.

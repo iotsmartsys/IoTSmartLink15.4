@@ -2,7 +2,7 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.2
+**Versão:** 1.3
 **Responsável:** Marcelo Miranda
 **Última atualização:** 22/07/2026
 **Escopo:** Todo o repositório
@@ -24,9 +24,10 @@ classificação e estado.
 | Área | Fonte | Tipo | Estado |
 |---|---|---|---|
 | Instruções para assistentes | `AGENTS.md` | Normativo | Active |
-| Diretrizes EKM | `docs/governance/EKM-GUIDELINES.md` | Normativo | Active v1.2; baseline e reconciliação obrigatórias em `EKM-CHG-0005` |
-| Mapa de conhecimento | `docs/governance/KNOWLEDGE-MAP.md` | Normativo | Active |
-| Histórico de mudanças EKM | `docs/governance/EKM-CHANGELOG.md` | Operacional | Active |
+| Diretrizes EKM | `docs/rfc/EKM-GUIDELINES.md` | Normativo | Active v1.3; ciclo de vida das especificações definido em `EKM-CHG-0006` |
+| Mapa de conhecimento | `docs/rfc/KNOWLEDGE-MAP.md` | Normativo | Active |
+| Histórico de mudanças EKM | `docs/rfc/EKM-CHANGELOG.md` | Operacional | Active |
+| Manual da IA Executora | `docs/rfc/MAN-0001.md` | Normativo complementar | Active |
 | Instruções do Copilot | `.github/copilot-instructions.md` | Adaptador | Active |
 
 Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferença,
@@ -34,20 +35,18 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 
 ---
 
-## 3. ISSP client e IEEE 802.15.4
+## 3. Especificações ISSP e IEEE 802.15.4
 
-| Área | Fonte normativa | Implementação principal | Evidência atual | Estado |
-|---|---|---|---|---|
-| Arquitetura ISSP | `client_154/docs/ISSP-Architecture.md` | `components/issp_*` e `client_154/main/main.cpp` | Builds, validação em hardware, consumidor mínimo e auditoria documental | Active; reutilização concluída e reauditada em `EKM-CHG-0004` |
-| Commissioning | `client_154/docs/ISSP-Commissioning.md` | `Issp154NetworkManager`, transporte e coordenador | Cenários registrados na própria especificação e testes em hardware | Implemented and validated |
-| Consolidação | `client_154/docs/ISSP-Consolidation.md` | Client e coordenador | Relatório de execução e auditoria posterior | Implemented; correções de conformidade pendentes |
-| Componentes reutilizáveis | `client_154/docs/ISSP-Reusable-Components.md` | `components/issp_*` | Dois consumidores compilando; equivalência das cinco alterações preexistentes comprovada | Implemented and validated; `EKM-CHG-0004` Closed |
-| Protocolo ISSP | Arquitetura e contratos em `issp_core` | `issp_protocol.*` | Build e testes existentes | Necessita especificação wire dedicada para reconstruibilidade completa |
-| Transporte IEEE 802.15.4 | Arquitetura e commissioning | `issp_transport_154` | Build e testes em hardware | Implemented |
-| Behaviors | Arquitetura ISSP | `issp_behaviors` | Build e comportamento em hardware | Implemented |
-| Factory reset | Commissioning e arquitetura ISSP | `client_154/main/reset/` | Teste de pressão por 10 segundos e redescoberta | Implemented and validated |
-| Fluxo de comandos | Arquitetura ISSP e comportamento validado | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE e ACK em hardware | Implemented and validated |
-| Reports confirmados | Arquitetura ISSP | `IsspDevice`, `Issp154ReportExecutor` e coordenador | Report inicial, ACK e retries em hardware | Implemented and validated |
+| Área | Fonte normativa | Estado normativo | Estado da implementação | Implementação principal | Evidência atual |
+|---|---|---|---|---|---|
+| Arquitetura ISSP | `docs/specs/ISSP-Architecture.md` | Active | Validated | `components/issp_*` e `client_154/main/main.cpp` | Builds, hardware, consumidor mínimo e auditoria documental |
+| Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
+| Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
+| Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
+| Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | `issp_protocol.*` | Lacuna `EKM-GAP-0002` |
+| Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `client_154/main/reset/` | Pressão por 10 segundos e redescoberta em hardware |
+| Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE e ACK em hardware |
+| Reports confirmados | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, executor e coordenador | Report inicial, ACK e retries em hardware |
 
 ---
 
@@ -56,7 +55,7 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 | Documento | Tipo | Autoridade atual |
 |---|---|---|
 | `client_154/docs/ai-assisted-engineering/PILOT-ISSP.md` | Histórico/experimental | Registra o piloto; não substitui especificações técnicas |
-| `client_154/docs/rfc/MAN-0001.md` | Conforme metadados internos | Consultar antes de alterar o método correspondente |
+| `docs/rfc/MAN-0001.md` | Normativo complementar | Consultar antes de alterar o método correspondente |
 
 Documentos históricos não devem ser atualizados para simular que decisões
 passadas já refletiam o estado atual.
@@ -87,5 +86,6 @@ Atualizar este mapa quando:
 - uma nova evidência se tornar obrigatória;
 - uma lacuna de conhecimento for identificada ou encerrada.
 - uma mudança EKM alterar o estado ou a autoridade de uma fonte.
+- uma especificação mudar de estado normativo ou de estado da implementação.
 
 Não remover uma entrada sem indicar o destino do conhecimento correspondente.

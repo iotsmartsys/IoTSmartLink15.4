@@ -2,7 +2,7 @@
 
 **Tipo:** Operacional
 **Status:** Active
-**Versão:** 1.1
+**Versão:** 1.2
 **Responsável:** Marcelo Miranda
 **Última atualização:** 22/07/2026
 **Escopo:** Todo o repositório
@@ -259,5 +259,59 @@ escopo reforçou que toda alteração final deve ser reconciliada e relatada.
 - Knowledge Map v1.2;
 - instruções de assistentes atualizadas;
 - revisão cruzada das novas obrigações;
+- `git diff --check` aprovado;
+- nenhum código ou comportamento de produto alterado.
+
+---
+
+## EKM-CHG-0006 — Organização e ciclo de vida das especificações
+
+**Status:** `Closed`
+**Tipo:** Evolução da governança e organização documental
+**Aberta em:** 22/07/2026
+**Encerrada em:** 22/07/2026
+
+### Motivação
+
+Permitir que o sistema evolua por especificações funcionais independentes e
+graduais, sem confundir a autoridade do documento com a situação atual de sua
+implementação. Também reduzir a dispersão das fontes normativas no repositório.
+
+### Ativos afetados
+
+- `AGENTS.md` e `.github/copilot-instructions.md`;
+- `docs/rfc/EKM-GUIDELINES.md`;
+- `docs/rfc/KNOWLEDGE-MAP.md`;
+- `docs/rfc/EKM-CHANGELOG.md`;
+- `docs/rfc/MAN-0001.md`;
+- especificações movidas para `docs/specs/`;
+- referências documentais dependentes.
+
+### Decisões
+
+- `AGENTS.md` permanece na raiz para descoberta automática;
+- regras, mapa, histórico e manuais ficam centralizados em `docs/rfc/`;
+- especificações funcionais e técnicas ficam centralizadas em `docs/specs/`;
+- toda especificação possui estado normativo e estado da implementação
+  independentes;
+- `Open` e `Closed` continuam reservados a transações e lacunas EKM;
+- comportamento que precise ser preservado ou reconstruído deve estar
+  representado em especificação normativa.
+
+### Critérios de encerramento
+
+- estrutura documental aplicada sem perda de conteúdo;
+- referências ativas atualizadas para os novos caminhos;
+- estados e transições formalizados nas diretrizes;
+- especificações ativas com os dois estados explícitos;
+- mapa atualizado com autoridade, implementação e evidência;
+- inventário final reconciliado e `git diff --check` aprovado.
+
+### Evidências
+
+- EKM Guidelines v1.3;
+- Knowledge Map v1.3;
+- quatro especificações ISSP sob `docs/specs/`;
+- buscas por referências antigas e revisão dos diffs documentais;
 - `git diff --check` aprovado;
 - nenhum código ou comportamento de produto alterado.

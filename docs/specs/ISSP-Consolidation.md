@@ -1,9 +1,12 @@
 # ISSP — Especificação de Consolidação da Refatoração
 
-**Status:** Aprovada para implementação  
+**Tipo:** Normativo
+**Estado normativo:** Active
+**Estado da implementação:** Validated
 **Versão:** 1.0  
 **Responsável arquitetural:** Marcelo Miranda  
 **Última atualização:** 21/07/2026
+**Escopo:** Consolidação do runtime ISSP validado
 
 ---
 

@@ -1,7 +1,8 @@
 # ISSP — Especificação de Componentes Reutilizáveis
 
 **Tipo:** Normativo
-**Status:** Implemented and validated
+**Estado normativo:** Active
+**Estado da implementação:** Validated
 **Versão:** 1.1
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 21/07/2026
@@ -61,8 +62,8 @@ Responsabilidades vigentes:
   quando aplicável, de drivers ESP-IDF.
 
 O runtime, protocolo wire e comportamentos descritos em
-`ISSP-Architecture.md`, `ISSP-Commissioning.md` e
-`ISSP-Consolidation.md` já foram validados e devem ser preservados.
+`docs/specs/ISSP-Architecture.md`, `docs/specs/ISSP-Commissioning.md` e
+`docs/specs/ISSP-Consolidation.md` já foram validados e devem ser preservados.
 
 ---
 
@@ -269,11 +270,11 @@ hardware volta a ser obrigatória para o fluxo afetado.
 
 Esta especificação autoriza atualizar somente o necessário em:
 
-- `client_154/docs/ISSP-Architecture.md`, para registrar a localização
+- `docs/specs/ISSP-Architecture.md`, para registrar a localização
   compartilhada e a prova de consumo;
-- `docs/governance/KNOWLEDGE-MAP.md`, para atualizar fontes, implementação,
+- `docs/rfc/KNOWLEDGE-MAP.md`, para atualizar fontes, implementação,
   evidências e `EKM-GAP-0004`;
-- `docs/governance/EKM-CHANGELOG.md`, para manter `EKM-CHG-0004` e seu estado;
+- `docs/rfc/EKM-CHANGELOG.md`, para manter `EKM-CHG-0004` e seu estado;
 - `components/README.md`, como documento operacional de consumo;
 - esta especificação, exclusivamente para atualizar status e resultado após
   validação.

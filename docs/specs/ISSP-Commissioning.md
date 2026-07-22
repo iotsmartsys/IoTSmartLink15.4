@@ -1,9 +1,12 @@
 # ISSP 802.15.4 — Especificação de Commissioning
 
-**Status:** Implementada e validada
+**Tipo:** Normativo
+**Estado normativo:** Active
+**Estado da implementação:** Validated
 **Versão:** 1.0  
 **Responsável arquitetural:** Marcelo Miranda  
 **Última atualização:** 21/07/2026
+**Escopo:** Commissioning ISSP sobre IEEE 802.15.4
 
 ---
 

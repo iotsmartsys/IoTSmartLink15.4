@@ -2,7 +2,7 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.2
+**Versão:** 1.3
 **Responsável:** Marcelo Miranda
 **Última atualização:** 22/07/2026
 **Escopo:** Todo o repositório
@@ -33,6 +33,10 @@ Define **o que o sistema deve fazer** em um escopo delimitado:
 - limites e itens fora de escopo.
 
 Uma especificação aprovada é a referência da implementação correspondente.
+
+Cada comportamento que precise ser preservado, validado ou reconstruído deve
+estar representado por uma especificação normativa. O código não deve ser a
+origem acidental de um comportamento do sistema.
 
 ### Diretriz de engenharia
 
@@ -178,7 +182,8 @@ referenciar fontes normativas estáveis sem duplicá-las.
 
 Uma especificação deve conter, quando aplicável:
 
-1. metadados: tipo, status, versão, responsável e escopo;
+1. metadados: tipo, estado normativo, estado da implementação, versão,
+   responsável e escopo;
 2. objetivo e problema concreto;
 3. estado de referência;
 4. comportamento esperado;
@@ -215,6 +220,74 @@ explicitamente:
 - como a alteração documental será validada e relatada.
 
 Ausência dessa autorização significa preservar o conteúdo normativo existente.
+
+### 7.1 Estado normativo
+
+O estado normativo informa a autoridade atual da especificação, sem afirmar se
+o código correspondente está pronto.
+
+- `Draft`: conteúdo em elaboração, sem autoridade para implementação.
+- `Proposed`: conteúdo pronto para revisão e decisão.
+- `Approved`: conteúdo aprovado, mas ainda não necessariamente vigente.
+- `Active`: fonte normativa vigente do comportamento descrito.
+- `Superseded`: substituída por outra especificação ou versão explicitamente
+  indicada.
+- `Withdrawn`: cancelada antes de se tornar vigente.
+- `Archived`: preservada apenas para consulta histórica.
+
+Uma especificação `Superseded` deve apontar para sua sucessora. Uma
+especificação `Archived` ou `Withdrawn` não autoriza novas implementações.
+
+### 7.2 Estado da implementação
+
+O estado da implementação informa a relação observada entre a especificação e
+o sistema atual.
+
+- `Not Started`: nenhuma implementação iniciada.
+- `In Progress`: implementação parcial ou validação ainda incompleta.
+- `Implemented`: implementação concluída, mas ainda sem toda a validação
+  exigida.
+- `Validated`: critérios de aceite comprovados com evidência suficiente.
+- `Regressed`: comportamento anteriormente validado deixou de atender à
+  especificação.
+- `Blocked`: implementação ou validação depende de decisão ou condição externa.
+- `Retired`: implementação retirada intencionalmente do sistema.
+
+Estados normativo e de implementação são independentes. Esta combinação é
+válida e importante:
+
+```text
+Estado normativo: Active
+Estado da implementação: Regressed
+```
+
+Ela significa que o comportamento continua obrigatório, mas o produto atual
+não o atende.
+
+### 7.3 Transições e registro
+
+Fluxos usuais, sem impedir transições justificadas, são:
+
+```text
+Draft → Proposed → Approved → Active
+Active → Superseded → Archived
+
+Not Started → In Progress → Implemented → Validated
+Validated → Regressed → In Progress → Implemented → Validated
+```
+
+Toda transição material deve registrar:
+
+- responsável e data;
+- motivo da transição;
+- evidência ou decisão aplicável;
+- especificação sucessora, quando houver;
+- atualização do `KNOWLEDGE-MAP.md`;
+- registro no `EKM-CHANGELOG.md` quando fizer parte de uma transação relevante.
+
+Os estados `Open`, `Closed`, `Blocked` e `Superseded` do histórico EKM são
+estados de transações ou lacunas. `Open` e `Closed` não devem ser usados como
+estado normativo de especificações.
 
 ---
 
@@ -404,7 +477,7 @@ evidência do bug
 
 ### Histórico de mudanças de conhecimento
 
-`docs/governance/EKM-CHANGELOG.md` registra o ciclo das mudanças relevantes de
+`docs/rfc/EKM-CHANGELOG.md` registra o ciclo das mudanças relevantes de
 conhecimento. Ele não substitui Git, especificações, RFCs, ADRs ou o mapa.
 
 Cada registro deve possuir identificador estável `EKM-CHG-NNNN` e um dos

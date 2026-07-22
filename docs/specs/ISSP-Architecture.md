@@ -1,7 +1,8 @@
 # ISSP — Especificação Arquitetural
 
 **Tipo:** Normativo
-**Status:** Active — refatoração, consolidação e empacotamento local concluídos
+**Estado normativo:** Active
+**Estado da implementação:** Validated
 **Versão:** 1.2
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 21/07/2026
@@ -175,7 +176,7 @@ Representa uma saída digital controlável. Deve:
 ## 7. Commissioning, persistência e recuperação
 
 O commissioning está implementado e validado conforme
-`ISSP-Commissioning.md`. Sem descritor válido, o client varre de forma limitada
+`docs/specs/ISSP-Commissioning.md`. Sem descritor válido, o client varre de forma limitada
 os canais 11 a 26, com no máximo três tentativas por canal, usando o PAN curinga
 `0xffff` somente durante a descoberta. Uma resposta válida fornece, pelos
 metadados MAC, o PAN ID e o endereço estendido do coordenador; o canal é o que

@@ -6,17 +6,22 @@ Estas instruções se aplicam a todo o repositório.
 
 Antes de analisar ou alterar o projeto:
 
-1. Leia `docs/governance/EKM-GUIDELINES.md`.
-2. Consulte `docs/governance/KNOWLEDGE-MAP.md` para localizar as fontes de
+1. Leia `docs/rfc/EKM-GUIDELINES.md`.
+2. Consulte `docs/rfc/KNOWLEDGE-MAP.md` para localizar as fontes de
    verdade do escopo afetado.
 3. Leia integralmente as especificações, documentos arquiteturais, contratos e
    decisões normativas apontados pelo mapa.
-4. Consulte `docs/governance/EKM-CHANGELOG.md` para verificar mudanças de
+4. Consulte `docs/rfc/EKM-CHANGELOG.md` para verificar mudanças de
    conhecimento abertas relacionadas ao escopo.
 
 ## Regras fundamentais
 
 - Especificações definem **o que o sistema deve fazer**.
+- Toda funcionalidade ou comportamento que precise ser preservado ou
+  reconstruído deve possuir representação em uma especificação normativa.
+- Verifique separadamente o estado normativo da especificação e o estado de
+  sua implementação. Não interprete `Active` como evidência de implementação
+  validada.
 - As diretrizes EKM definem **como implementar, validar e preservar o
   conhecimento do projeto**.
 - Não trate o código atual como autoridade absoluta quando ele divergir de uma
