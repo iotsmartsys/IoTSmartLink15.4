@@ -2,9 +2,9 @@
 
 **Tipo:** Operacional
 **Status:** Active
-**Versão:** 1.2
+**Versão:** 1.3
 **Responsável:** Marcelo Miranda
-**Última atualização:** 22/07/2026
+**Última atualização:** 23/07/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -315,3 +315,59 @@ implementação. Também reduzir a dispersão das fontes normativas no repositó
 - buscas por referências antigas e revisão dos diffs documentais;
 - `git diff --check` aprovado;
 - nenhum código ou comportamento de produto alterado.
+
+---
+
+## EKM-CHG-0007 — Bootstrap configurável do client ISSP
+
+**Status:** `Open`
+**Tipo:** Especificação e evolução arquitetural
+**Aberta em:** 23/07/2026
+
+### Motivação
+
+Substituir, em uma implementação futura, a orquestração repetível concentrada
+em `client_154/main/main.cpp` por uma fachada configurável e compartilhada,
+inspirada no modelo de configuração antes de `setup()` da `IoTSmartSysCore`,
+sem importar suas dependências nem reimplementar factory reset ou report
+inicial.
+
+### Ativos afetados nesta etapa
+
+- nova `docs/specs/ISSP-Configurable-Bootstrap.md`;
+- `docs/rfc/KNOWLEDGE-MAP.md`;
+- este histórico.
+
+### Decisões
+
+- a especificação é criada como `Proposed` e a implementação como
+  `Not Started`;
+- o componente planejado é `components/issp_app_154`;
+- `Issp154ClientApp` será a fachada dona da infraestrutura do runtime;
+- behaviors continuam pertencendo à aplicação e são registrados antes de
+  `setup()`;
+- NVS e obtenção do endereço IEEE permanecem na fronteira de plataforma;
+- factory reset reutiliza o serviço existente por delegação de
+  `clearPersistedNetwork()`;
+- o report inicial continua pertencendo ao behavior e ao executor existentes;
+- falhas possuem estado, etapa, resultado e rollback explícitos.
+
+### Critérios de encerramento
+
+- especificação aprovada pelo responsável arquitetural;
+- componente e migração implementados conforme todos os requisitos;
+- factory reset, report inicial, wire e persistência preservados;
+- testes automatizados, três builds e checklist de hardware aprovados;
+- arquitetura, componentes reutilizáveis, mapa e evidências reconciliados;
+- Definition of Done EKM respondida integralmente.
+
+### Evidências atuais
+
+- inspeção da composição funcional em `client_154/main/main.cpp` e dos
+  componentes `issp_*`;
+- inspeção do modelo de `SmartSysApp`, `ConnectivityBootstrap` e
+  `CORE-RUNTIME-LIFECYCLE.md` na `IoTSmartSysCore`;
+- especificação normativa com contratos, fluxo, falhas, observabilidade,
+  compatibilidade, migração e critérios de aceite;
+- nenhuma implementação, factory reset, report inicial, wire ou persistência
+  alterados nesta etapa.
