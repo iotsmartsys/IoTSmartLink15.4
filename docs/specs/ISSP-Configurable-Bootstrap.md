@@ -2,8 +2,8 @@
 
 **Tipo:** Normativo
 **Estado normativo:** Proposed
-**Estado da implementação:** Not Started
-**Prontidão:** Not Ready
+**Estado da implementação:** In Progress
+**Prontidão:** Not Ready (validação de hardware pendente)
 **Revisão de implementabilidade:** Implementable
 **Versão:** 1.3
 **Responsável arquitetural:** Marcelo Miranda
@@ -35,10 +35,11 @@ classes cujo nome e responsabilidade pertencem ao protocolo ISSP ou ao
 transporte IEEE 802.15.4.
 
 O componente `components/issp_app_154`, a fachada `SmartSysApp` e a composição
-descrita nesta especificação ainda não existem no repositório. As seções
-seguintes definem contratos normativos para uma implementação futura, cujo
-estado permanece `Not Started`; formulações no presente indicam obrigações da
-solução proposta, não evidência de implementação existente.
+descrita nesta especificação foram implementados nesta etapa (seção 22); o
+estado da implementação é `In Progress` porque a validação em hardware
+(`SMARTAPP-AC-022`) permanece pendente. Formulações no presente nas seções 1 a
+21 descrevem o contrato normativo da solução, não necessariamente o texto
+exato do código-fonte resultante.
 
 A `IoTSmartSysCore` é o precedente arquitetural desta etapa. Nela, o firmware
 declara capabilities e serviços de produto por meio de `SmartSysApp` antes de
@@ -879,3 +880,146 @@ O relatório futuro deve informar:
 13. estado de `EKM-CHG-0007`;
 14. Definition of Done EKM;
 15. reconciliação integral do inventário final.
+
+## 22. Registro de implementação (2026-07-30)
+
+**Papel:** Engenheiro Implementador. **Ordem:** aprovação explícita do
+Arquiteto para iniciar a implementação desta especificação (versão 1.3,
+revisão `Implementable`), com recorte e requisitos descritos nesta seção.
+
+### 22.1 Resultado executivo
+
+`iotsmartsys::SmartSysApp` foi implementada em `components/issp_app_154`,
+compondo por delegação `issp_core`, `issp_behaviors` e `issp_transport_154`, e
+possuindo o factory reset local realocado de `client_154/main/reset`.
+`client_154/main.cpp` e `examples/issp_minimal_client/main/main.cpp` foram
+migrados para consumir a fachada. Três builds obrigatórios (`client_154`,
+`examples/issp_minimal_client`, `coordinator_154`) compilam sem warnings.
+Testes automatizados de configuração foram escritos e compilam para o alvo,
+mas sua **execução** depende de hardware ou de um modelo QEMU com rádio
+IEEE 802.15.4, indisponíveis neste ambiente; por isso permanecem não
+executados, no mesmo status pendente de `SMARTAPP-AC-022`.
+
+### 22.2 Baseline e aprovação aplicável
+
+Baseline: `client_154/main.cpp` e `client_154/main/reset/` antes desta etapa
+(seção 6.2). Aprovação: instrução do Arquiteto nesta conversa, autorizando o
+início da implementação e o registro da decisão em `EKM-CHG-0007` sem
+promover estados não sustentados pela evidência produzida.
+
+### 22.3 Matrizes de requisitos e aceite
+
+| Objetivo | Estado |
+|---|---|
+| SMARTAPP-001 a 008 | Implementado |
+
+| Critério | Estado |
+|---|---|
+| AC-001 a AC-005 | Implementado (código e build) |
+| AC-004A, AC-004B | Implementado (destruição só permitida em `Configuring`; exemplo e `client_154` usam duração estática) |
+| AC-004C | Não executado (depende de instrumentação em hardware) |
+| AC-006 a AC-013 | Implementado no código; não exercitado por execução automatizada (depende de rádio/NVS reais) |
+| AC-014 a AC-019 | Preservado por inspeção do diff; não há mudança de wire, persistência, endpoint, event type, GPIO, tempos ou lógica de factory reset |
+| AC-020 | Parcial: testes de configuração escritos e compilados (`components/issp_app_154/test_apps/smart_sys_app_test`); execução pendente (sem hardware/QEMU) |
+| AC-021 | Satisfeito: os três builds compilam sem warnings (seção 22.6) |
+| AC-022 | Pendente (hardware), conforme instrução do Arquiteto |
+| AC-023 | Satisfeito por este registro e pela revisão do diff resultante |
+| AC-024 | `git diff --check` executado (seção 22.6); reconciliação nesta seção |
+
+### 22.4 API pública resultante
+
+Igual à seção 8 desta especificação, sem alteração de nomes ou campos
+normativos. Um ajuste sintático indispensável foi necessário: o exemplo
+normativo da seção 9 declara `static SmartSysApp app(...)` junto de
+`using namespace iotsmartsys::app;`; isso torna o identificador `app`
+ambíguo entre a variável e o namespace `iotsmartsys::app` (erro de
+compilação `reference to 'app' is ambiguous`). A implementação usa o nome de
+instância `smartSysApp` em `client_154/main.cpp` e não importa
+`iotsmartsys::app` via `using namespace`, preservando a intenção do exemplo.
+
+### 22.5 Ordem efetiva de setup, propriedade e duração, falhas e rollback
+
+Implementados conforme as seções 10 a 12: NVS não abortam mais o processo
+(`ESP_ERROR_CHECK` foi substituído por verificação explícita, mapeando falha
+para `Failed`/`InitializePlatform`, exigido por `SMARTAPP-005`); a rede é
+inicializada preservando a política de commissioning vigente; capabilities
+são registradas na ordem de adição; rollback do transporte ocorre sempre que
+`initializeNetwork()` não retorna `Ok`, e em falha de registro de capability,
+início do device ou início do executor, preservando o erro primário. Os
+objetos internos (`Issp154Transport`, `Issp154NetworkManager`, `IsspDevice`,
+`Issp154ReportExecutor`, `FactoryResetService`, `ResetButtonMonitor`) são
+armazenados por valor em `std::optional` dentro de `SmartSysApp`, com
+armazenamento fixo (sem alocação dinâmica) e construídos apenas dentro de
+`setup()`.
+
+### 22.6 Preservação de wire, persistência, report e factory reset; arquivos alterados; dependências revisadas; testes, builds e hardware
+
+Nenhuma constante ou lógica de protocolo, persistência, ACK, retry, timeout,
+delay ou commissioning foi alterada; `DigitalOutputBehavior`,
+`Issp154Transport`, `Issp154NetworkManager`, `Issp154ReportExecutor` e
+`IsspDevice` não foram modificados.
+
+Arquivos criados: `components/issp_app_154/` (CMakeLists, `include/SmartSysApp.h`,
+`include/reset/*`, `src/smart_sys_app.cpp`, `src/reset/*`,
+`test_apps/smart_sys_app_test/*`). Arquivos realocados sem mudança funcional:
+`client_154/main/reset/*.hpp/.cpp` para `components/issp_app_154/{include,src}/reset/`.
+Arquivos alterados: `client_154/main/main.cpp`, `client_154/main/CMakeLists.txt`,
+`examples/issp_minimal_client/main/main.cpp`,
+`examples/issp_minimal_client/main/CMakeLists.txt`, `components/README.md`.
+Nenhum arquivo de `client_154/main`, `coordinator_154` ou
+`examples/issp_minimal_client` fora do recorte autorizado foi tocado.
+
+Builds executados (ESP-IDF v6.0.1-dirty, alvo `esp32h2`, sem warnings):
+
+| Projeto | Binário | Tamanho | SHA-256 |
+|---|---|---|---|
+| `client_154` | `sensor_154.bin` | 246960 bytes | `8603c4c7955ec39d53df8fb832bdc0407ca5d12b4f3b51d4e39f5f08825ceec9` |
+| `examples/issp_minimal_client` | `issp_minimal_client.bin` | 210304 bytes | `1ab925d54efb2cbfeaebd612e14129e0326d870b82ca411252c157a6fa8c3f9e` |
+| `coordinator_154` | `central_154.bin` | 252816 bytes | `fe04ae3e57286d359fb33a481353fc4c36171aa033573165a9e0d355ee1a1254` |
+| `components/issp_app_154/test_apps/smart_sys_app_test` (evidência adicional) | `smart_sys_app_test.bin` | 213920 bytes | `5dccb6f7cbc49fd3b4f7da844239e9868d65270b74580ac3e3a942fc3194aa82` |
+
+`coordinator_154` não depende de `components/`; o build comprova apenas
+ausência de regressão fora do recorte. `git diff --check` não reportou
+espaços em branco inválidos.
+
+Hardware: não executado, por instrução explícita do Arquiteto
+("Operações não autorizadas: flash ou teste em hardware"). `SMARTAPP-AC-022`
+permanece pendente.
+
+### 22.7 Warnings, desvios, riscos e pendências
+
+- Warnings: nenhum nos quatro builds acima (`-Wall -Wextra`, `-Werror` com as
+  exceções já padrão do projeto).
+- Desvio registrado: nome da instância no exemplo de consumo (seção 22.4).
+- Risco/lacuna conhecida: os testes automatizados de `SMARTAPP-AC-020`
+  cobrem validação de configuração (`addSwitchPlugCapability`,
+  `configureFactoryResetButton`, `lastConfigurationResult()`, estabilidade de
+  ponteiros, capacidade) porque essas rotas não tocam hardware antes de
+  `setup()`. Os casos que dependem de `setup()` real — rede, device, executor,
+  rollback e `AC-006` (`Busy` em `setup()` repetido) — estão presentes apenas
+  como contrato revisado em código, sem execução automatizada; requerem
+  hardware ou um modelo QEMU com radio 802.15.4, hoje indisponíveis.
+- Pendência: `SMARTAPP-AC-004C`, `SMARTAPP-AC-022` e a execução dos testes
+  acima dependem de hardware, fora do recorte desta etapa.
+
+### 22.8 Estado de `EKM-CHG-0007`
+
+Permanece `Open`, conforme instrução explícita do Arquiteto (fechamento não
+autorizado nesta etapa). Este registro é a evidência de implementação
+associada à decisão já registrada nesse changelog.
+
+### 22.9 Definition of Done EKM
+
+Não concluída integralmente: implementação, build e parte da evidência
+automatizável estão completos; validação humana (Engenheiro Revisor),
+execução de testes e validação em hardware permanecem pendentes e fora do
+papel/recorte desta atuação.
+
+### 22.10 Reconciliação do inventário final
+
+Nenhum runtime duplicado, fonte duplicada ou dependência reversa foi
+introduzida: `client_154/main` e `examples/issp_minimal_client/main` não são
+dependidos por `components/issp_app_154`; `issp_app_154` não depende de
+`client_154/main`, `coordinator_154` ou `examples/issp_minimal_client`. O
+inventário de `components/` passa a ter quatro componentes (seção 15 desta
+especificação e `components/README.md`).

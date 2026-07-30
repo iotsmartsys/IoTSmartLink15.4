@@ -2,9 +2,9 @@
 
 **Tipo:** Operacional
 **Status:** Active
-**Versão:** 1.3
+**Versão:** 1.4
 **Responsável:** Marcelo Miranda
-**Última atualização:** 23/07/2026
+**Última atualização:** 30/07/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -423,4 +423,34 @@ inicial.
   deve preservar a ausência de efeitos colaterais de rádio/NVS já
   deliberada nesse exemplo, comprovando apenas compilação e link da fachada;
 - nenhuma implementação, factory reset, report inicial, wire ou persistência
-  alterados nesta etapa; esta atuação não autoriza início de implementação.
+  alterados nesta etapa; esta atuação não autoriza início de implementação;
+- 30/07/2026: Arquiteto autoriza explicitamente o início da implementação da
+  especificação v1.3 (`Implementable`), com resultado, recorte e requisitos
+  descritos na ordem, mantendo hardware (`SMARTAPP-AC-022`) fora do recorte;
+- Engenheiro Implementador cria `components/issp_app_154`
+  (`iotsmartsys::SmartSysApp`), compondo por delegação `issp_core`,
+  `issp_behaviors` e `issp_transport_154`, e possuindo o factory reset
+  realocado de `client_154/main/reset/`; `client_154/main.cpp`,
+  `client_154/main/CMakeLists.txt` e
+  `examples/issp_minimal_client/main/{main.cpp,CMakeLists.txt}` migrados
+  conforme a seção 8/9 da especificação; `client_154/main/reset/` removido
+  (relocação sem mudança funcional); `components/README.md` atualizado;
+- três builds obrigatórios (`client_154`, `examples/issp_minimal_client`,
+  `coordinator_154`) compilam sem warnings em ESP-IDF v6.0.1-dirty,
+  alvo `esp32h2`; tamanhos e SHA-256 registrados na especificação (seção 22.6);
+- testes automatizados de configuração escritos e compilados em
+  `components/issp_app_154/test_apps/smart_sys_app_test`; execução requer
+  hardware ou QEMU com rádio IEEE 802.15.4, indisponíveis neste ambiente —
+  permanecem não executados, evidência registrada como limitação real, não
+  como validação aprovada;
+- desvio sintático registrado: o exemplo normativo da seção 9 (`static
+  SmartSysApp app(...)` com `using namespace iotsmartsys::app;`) não compila
+  por ambiguidade entre a variável `app` e o namespace `iotsmartsys::app`; a
+  implementação usa `smartSysApp` como nome de instância e não importa o
+  namespace `app` via `using namespace`, preservando a intenção;
+- `SMARTAPP-AC-004C` e `SMARTAPP-AC-022` permanecem pendentes, dependentes de
+  hardware, conforme instrução explícita do Arquiteto (sem flash nem teste em
+  hardware nesta etapa);
+- estado da implementação da especificação atualizado para `In Progress`;
+  `EKM-CHG-0007` permanece `Open` — fechamento, promoção a `Validated`/`Done`
+  e validação em hardware não foram executados nem autorizados nesta etapa.

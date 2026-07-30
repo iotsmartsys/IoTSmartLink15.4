@@ -11,7 +11,12 @@ Este diretório contém os componentes reutilizáveis do runtime ISSP:
 - `issp_transport_154`: transporte IEEE 802.15.4, commissioning, NVS e executor
   de reports; depende de `issp_core`, `ieee802154` e `nvs_flash`;
 - `issp_behaviors`: behaviors reutilizáveis; atualmente expõe
-  `DigitalOutputBehavior` e depende de `issp_core` e `esp_driver_gpio`.
+  `DigitalOutputBehavior` e depende de `issp_core` e `esp_driver_gpio`;
+- `issp_app_154`: fachada pública `iotsmartsys::SmartSysApp`; compõe por
+  delegação `issp_core`, `issp_behaviors` e `issp_transport_154`, além de
+  possuir o factory reset local (`FactoryResetService`,
+  `ResetButtonMonitor`, realocados de `client_154/main/reset`); não expõe
+  identificadores `Issp` ou `154` em nomes públicos.
 
 ## Consumo por uma aplicação ESP-IDF
 
@@ -22,7 +27,18 @@ set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/../../components")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 ```
 
-No componente consumidor, declare apenas os nomes públicos necessários:
+No componente consumidor, declare apenas os nomes públicos necessários. Uma
+aplicação de produto normalmente só precisa da fachada:
+
+```cmake
+idf_component_register(
+    SRCS "main.cpp"
+    REQUIRES issp_app_154
+)
+```
+
+Um consumidor avançado pode continuar compondo os componentes técnicos
+diretamente:
 
 ```cmake
 idf_component_register(
@@ -38,6 +54,7 @@ As dependências CMake são:
 | `issp_core` | nenhuma | nenhuma |
 | `issp_transport_154` | `ieee802154`, `issp_core`, `nvs_flash` | nenhuma |
 | `issp_behaviors` | `issp_core`, `esp_driver_gpio` | nenhuma |
+| `issp_app_154` | `esp_driver_gpio`, `issp_core`, `issp_behaviors`, `issp_transport_154`, `nvs_flash` | `esp_timer`, `esp_hw_support` |
 
 As dependências são públicas porque seus tipos ou headers aparecem nos
 contratos em `include/`; não há dependências CMake exclusivamente privadas
@@ -46,11 +63,17 @@ nesta versão. Seus diretórios `src/` são privados. Em
 `issp154_transport.hpp` o inclui e expõe tipos do ESP-IDF usados pelas
 assinaturas privadas da classe; os consumidores diretos atuais são a própria
 implementação C e o wrapper C++. Os headers de frame MAC e rádio permanecem
-privados em `src/`.
+privados em `src/`. Em `issp_app_154`, os headers de `reset/` permanecem
+públicos pelo mesmo motivo: `SmartSysApp.h` os inclui e expõe seus tipos como
+membros privados da fachada; `ieee802154` não é uma dependência direta porque
+nenhuma fonte de `issp_app_154` inclui seus cabeçalhos, apenas chega
+transitivamente via `issp_transport_154`; `esp_timer` é privada porque é usada
+apenas por `reset_button_monitor.cpp`.
 
 As APIs públicas, as restrições de contexto, concorrência e ciclo de vida estão
 nos headers em `include/`. O exemplo `examples/issp_minimal_client` prova
-compilação e link sem iniciar rádio, transmitir frames ou alterar NVS.
+compilação e link sem iniciar rádio, transmitir frames ou alterar NVS, tanto
+pela composição direta quanto pela fachada `SmartSysApp`.
 
 Limitações desta etapa: suporte e prova restritos a ESP-IDF 6.0.1 e ESP32-H2;
 sem publicação em registry, Arduino, PlatformIO, outros transports ou garantia

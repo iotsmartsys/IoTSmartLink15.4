@@ -2,9 +2,9 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.5
+**Versão:** 1.6
 **Responsável:** Marcelo Miranda
-**Última atualização:** 29/07/2026
+**Última atualização:** 30/07/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -43,9 +43,9 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 | Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
-| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed | Not Started | Componente futuro `issp_app_154`, ainda inexistente, e futura migração de `client_154/main/main.cpp` | Revisão de implementabilidade `Implementable`; aguarda autorização humana para implementar |
+| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed | In Progress | `components/issp_app_154`; `client_154/main.cpp` e `examples/issp_minimal_client` migrados | Três builds sem warnings (seção 22.6 da especificação); testes de configuração escritos e compilados, execução e hardware (`SMARTAPP-AC-022`) pendentes |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | `issp_protocol.*` | Lacuna `EKM-GAP-0002` |
-| Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `client_154/main/reset/` | Pressão por 10 segundos e redescoberta em hardware |
+| Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE e ACK em hardware |
 | Reports confirmados | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, executor e coordenador | Report inicial, ACK e retries em hardware |
 

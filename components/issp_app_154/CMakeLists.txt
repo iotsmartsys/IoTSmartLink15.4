@@ -1,0 +1,17 @@
+idf_component_register(
+    SRCS
+        "src/smart_sys_app.cpp"
+        "src/reset/factory_reset_service.cpp"
+        "src/reset/reset_button_monitor.cpp"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        esp_driver_gpio
+        issp_core
+        issp_behaviors
+        issp_transport_154
+        nvs_flash
+    PRIV_REQUIRES
+        esp_timer
+        esp_hw_support
+)

@@ -1,4 +1,4 @@
-#include "factory_reset_service.hpp"
+#include "reset/factory_reset_service.hpp"
 
 #include "esp_log.h"
 #include "esp_system.h"
