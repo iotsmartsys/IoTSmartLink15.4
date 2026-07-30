@@ -340,8 +340,9 @@ inicial.
 
 ### Decisões
 
-- a especificação permanece `Proposed`, `Not Started`, `Not Ready` e
-  `Pending Review`;
+- a especificação permanece `Proposed` e `Not Started`; a revisão de
+  implementabilidade avança de `Pending Review` para `Implementable` e a
+  prontidão permanece `Not Ready` até autorização humana para implementar;
 - o componente futuro, ainda inexistente, permanece planejado como
   `components/issp_app_154`, mas seu entrypoint público será
   `iotsmartsys::SmartSysApp`;
@@ -390,4 +391,36 @@ inicial.
 - decisões futuras de identidade, short address, endereçamento de capabilities
   e multiprotocolo preservadas fora do recorte;
 - nenhuma implementação, factory reset, report inicial, wire ou persistência
-  alterados nesta etapa.
+  alterados nesta etapa;
+- Engenheiro Analista confrontou a especificação v1.2 com o estado atual do
+  repositório: `components/issp_app_154` continua inexistente;
+  `client_154/main/main.cpp`, `client_154/main/CMakeLists.txt`,
+  `client_154/main/reset/*`, `components/issp_core`,
+  `components/issp_behaviors`, `components/issp_transport_154`,
+  `examples/issp_minimal_client` e `coordinator_154` foram inspecionados
+  diretamente; nenhuma dependência reversa preexistente foi encontrada em
+  `coordinator_154` ou `examples/issp_minimal_client`;
+- a classificação pública/privada da seção 15 foi confirmada como correta
+  contra os headers e `CMakeLists.txt` reais; `esp_driver_gpio` é o único
+  requisito público, coerente com o precedente já aplicado em
+  `components/issp_behaviors`; a ausência de `ieee802154` na tabela foi
+  validada como correta, pois nenhuma fonte da fachada o inclui diretamente;
+- o mapeamento `IsspResult → AppResult` da seção 8.6 foi confirmado como
+  completo contra os cinco valores existentes em
+  `components/issp_core/include/issp_types.hpp`;
+- a decisão de criar `components/issp_app_154` como nova camada está
+  fundamentada por decisão explícita do Arquiteto na seção 2, identificando o
+  padrão atual (composição direta em `main.cpp`), a mudança (fachada
+  compartilhada), o alcance (somente configuração e composição, sem novo
+  protocolo ou lifecycle) e a justificativa (reuso sem repetir composição
+  técnica), satisfazendo a exceção de preservação arquitetural das regras
+  comuns;
+- nenhuma decisão normativa, de produto ou de arquitetura ausente foi
+  encontrada no recorte analisado; a especificação v1.3 é promovida para
+  `Implementable`, preservando `Not Started` e `Not Ready`;
+- observação não bloqueante registrada para a implementação futura: a
+  atualização mínima de `examples/issp_minimal_client` (item 6 da seção 16)
+  deve preservar a ausência de efeitos colaterais de rádio/NVS já
+  deliberada nesse exemplo, comprovando apenas compilação e link da fachada;
+- nenhuma implementação, factory reset, report inicial, wire ou persistência
+  alterados nesta etapa; esta atuação não autoriza início de implementação.

@@ -4,10 +4,10 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** Not Started
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Pending Review
-**Versão:** 1.2
+**Revisão de implementabilidade:** Implementable
+**Versão:** 1.3
 **Responsável arquitetural:** Marcelo Miranda
-**Última atualização:** 29/07/2026
+**Última atualização:** 30/07/2026
 **Escopo:** API pública de configuração e composição do firmware `client_154`
 
 ---
@@ -698,22 +698,31 @@ tempos, limpeza do vínculo, logs materiais ou reboot após sucesso.
 ## 15. Dependências e estrutura
 
 O componente futuro `issp_app_154`, ainda inexistente, deverá declarar as
-dependências necessárias à composição. O Autor propõe a seguinte classificação
-para validação independente pelo Engenheiro Analista:
+dependências necessárias à composição. A tabela abaixo foi confirmada pelo
+Engenheiro Analista contra o estado atual do repositório (`client_154/main`,
+`components/issp_core`, `components/issp_behaviors` e
+`components/issp_transport_154`):
 
-| Classificação proposta | Dependência | Fundamentação |
+| Classificação confirmada | Dependência | Fundamentação |
 |---|---|---|
-| pública | `esp_driver_gpio` | `gpio_num_t` aparece nos tipos públicos `SwitchConfig` e `PushButtonConfig` |
-| privada | `issp_core` | usada somente pela composição interna proposta |
+| pública | `esp_driver_gpio` | `gpio_num_t` aparece nos tipos públicos `SwitchConfig` e `PushButtonConfig`; mesmo precedente já usado em `components/issp_behaviors/CMakeLists.txt` |
+| privada | `issp_core` | usada somente pela composição interna proposta, sem tipo `Issp*` exposto em header público da fachada |
 | privada | `issp_behaviors` | usada somente pela composição interna proposta |
 | privada | `issp_transport_154` | usada somente pela composição interna proposta |
-| privada | `nvs_flash` | usada somente pela inicialização interna de plataforma |
-| privada | `esp_timer` | usada somente pelos serviços internos propostos |
-| privada | `esp_hw_support` | usada somente pela leitura interna do endereço IEEE |
+| privada | `nvs_flash` | usada somente pela inicialização interna de plataforma, como hoje em `client_154/main/main.cpp` |
+| privada | `esp_timer` | necessária porque `reset_button_monitor.cpp`, ao ser realocado para o componente, inclui `esp_timer.h` diretamente |
+| privada | `esp_hw_support` | usada somente pela leitura interna do endereço IEEE via `esp_read_mac` |
 
-Essa classificação é uma proposta do Autor e não constitui validação de
-implementabilidade. A revisão deve confirmar os requisitos `REQUIRES` e
-`PRIV_REQUIRES` contra o header e a composição que serão implementados.
+`ieee802154` não precisa constar nessa tabela: nenhuma fonte que compõe
+`issp_app_154` inclui diretamente cabeçalhos do driver `ieee802154`; os tipos
+`esp_ieee802154_frame_info_t` e `esp_ieee802154_tx_error_t` chegam apenas por
+`issp154_transport.hpp`, cujo próprio componente já declara `ieee802154` como
+`REQUIRES` público. A presença de `PRIV_REQUIRES ieee802154` no
+`client_154/main/CMakeLists.txt` vigente não decorre de uso direto em
+`main.cpp` e não constitui precedente obrigatório para a fachada. Caso a
+implementação futura constate necessidade real de declará-la, trata-se de
+ajuste sintático de build a registrar na entrega, não de lacuna de
+implementabilidade.
 
 O componente não pode depender de:
 
