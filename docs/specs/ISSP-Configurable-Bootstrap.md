@@ -4,8 +4,8 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** Not Started
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Implementable
-**Versão:** 1.1
+**Revisão de implementabilidade:** Pending Review
+**Versão:** 1.2
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 29/07/2026
 **Escopo:** API pública de configuração e composição do firmware `client_154`
@@ -33,6 +33,12 @@ Esse fluxo é funcional e validado, mas não oferece uma API orientada ao produt
 Cada novo firmware precisaria repetir a composição e conhecer diretamente
 classes cujo nome e responsabilidade pertencem ao protocolo ISSP ou ao
 transporte IEEE 802.15.4.
+
+O componente `components/issp_app_154`, a fachada `SmartSysApp` e a composição
+descrita nesta especificação ainda não existem no repositório. As seções
+seguintes definem contratos normativos para uma implementação futura, cujo
+estado permanece `Not Started`; formulações no presente indicam obrigações da
+solução proposta, não evidência de implementação existente.
 
 A `IoTSmartSysCore` é o precedente arquitetural desta etapa. Nela, o firmware
 declara capabilities e serviços de produto por meio de `SmartSysApp` antes de
@@ -127,7 +133,8 @@ Continuam responsáveis pelo runtime:
 - `DigitalOutputBehavior`: saída digital e report de estado;
 - `FactoryResetService` e `ResetButtonMonitor`: factory reset local.
 
-`SmartSysApp` compõe esses objetos, mas não absorve suas regras internas.
+Na implementação futura, `SmartSysApp` deverá compor esses objetos sem absorver
+suas regras internas.
 
 ### 6.2 Baseline do produto
 
@@ -214,7 +221,7 @@ Configuração tardia deve ser rejeitada. `setup()` repetido não constitui retr
 
 ### SMARTAPP-DEC-004 — Propriedade
 
-`SmartSysApp` deve possuir durante toda a sua vida:
+Na implementação futura, `SmartSysApp` deve possuir durante toda a sua vida:
 
 - cópia da configuração da aplicação;
 - armazenamento das capabilities criadas por seus métodos `add*`;
@@ -229,6 +236,34 @@ permanecer estáveis enquanto `SmartSysApp` existir.
 Esta decisão não transfere ownership quando uma API técnica interna receber
 referências. O ownership público desta versão decorre somente dos métodos
 tipados da própria fachada.
+
+### SMARTAPP-DEC-004A — Lifetime da fachada
+
+`Issp154ReportExecutor` e `ResetButtonMonitor` iniciam tasks que conservam
+referências a objetos possuídos por `SmartSysApp`. Como esta versão não possui
+um `stop()` operacional capaz de encerrar e aguardar essas tasks, toda instância
+destinada a receber uma chamada a `setup()` deve ter duração de armazenamento
+estática.
+
+São normativos os seguintes limites:
+
+- antes de qualquer chamada a `setup()`, a destruição da fachada em
+  `Configuring` é permitida, pois nenhum método de configuração pode iniciar
+  tasks ou recursos assíncronos;
+- a partir do início da primeira chamada a `setup()`, a fachada e todos os
+  objetos que ela possui devem permanecer vivos até o reboot;
+- destruir, desalocar ou deixar sair de escopo uma fachada depois que
+  `setup()` começou não é permitido, independentemente de o resultado ser
+  `Running`, `NotReady` ou `Failed`;
+- ponteiros retornados por `add*Capability()` não podem ser usados depois da
+  destruição permitida antes de `setup()`;
+- a implementação não pode destacar tasks dos objetos possuídos nem usar
+  referências a uma fachada com duração automática ou dinâmica que possa
+  terminar antes do reboot.
+
+Esse contrato de duração não introduz `stop()`, retry ou novo estado. Uma
+evolução que permita destruição depois de `setup()` exigirá contrato explícito
+de parada e sincronização das tasks.
 
 ### SMARTAPP-DEC-005 — Plataforma
 
@@ -483,6 +518,8 @@ public:
 
 Contratos:
 
+- toda instância destinada a receber uma chamada a `setup()` deve ter duração de
+  armazenamento estática, conforme `SMARTAPP-DEC-004A`;
 - `addSwitchPlugCapability()` é permitido somente em `Configuring`;
 - configuração inválida, duplicada ou excesso de capacidade retorna `nullptr`;
 - a primeira falha de configuração deve ser preservada em
@@ -543,10 +580,14 @@ O firmware não deve precisar incluir headers `issp_*`, construir transport,
 network manager, device, behavior, report executor ou adaptar manualmente o
 factory reset.
 
+A duração estática de `app` é parte do exemplo normativo e não apenas uma
+escolha ilustrativa.
+
 ## 10. Fluxo de setup
 
 ```text
 validar configuração acumulada
+   └── inválida: Configuring → Failed
 → AppState::Starting
 → inicializar NVS com a política vigente
 → obter endereço IEEE
@@ -572,6 +613,7 @@ Transições permitidas:
 ```text
 construção → Configuring
 Configuring → Starting
+Configuring → Failed
 Starting → Running
 Starting → NotReady
 Starting → Failed
@@ -579,6 +621,12 @@ Starting → Failed
 
 Não há transição de saída dos estados terminais nesta versão. Factory reset
 termina por reboot e não representa transição local.
+
+A validação da configuração acumulada ocorre enquanto o estado ainda é
+`Configuring`. Se ela falhar, `setup()` deve realizar a transição direta
+`Configuring → Failed`, retornar a etapa `ValidateConfiguration` e não passar
+por `Starting`. Somente configuração válida permite a transição
+`Configuring → Starting` e o início da plataforma.
 
 Interpretação:
 
@@ -613,8 +661,8 @@ possui contrato de `stop()`.
 
 ## 13. Observabilidade
 
-Cada primeira tentativa válida de setup deve produzir exatamente um evento
-terminal:
+Cada primeira invocação de `setup()`, inclusive quando a configuração acumulada
+for inválida, deve produzir exatamente um evento terminal:
 
 ```text
 app_setup begin capabilities=<n> factory_reset=<configured|disabled>
@@ -649,20 +697,23 @@ tempos, limpeza do vínculo, logs materiais ou reboot após sucesso.
 
 ## 15. Dependências e estrutura
 
-`issp_app_154` deve declarar as dependências necessárias para compor:
+O componente futuro `issp_app_154`, ainda inexistente, deverá declarar as
+dependências necessárias à composição. O Autor propõe a seguinte classificação
+para validação independente pelo Engenheiro Analista:
 
-```text
-issp_core
-issp_behaviors
-issp_transport_154
-nvs_flash
-esp_driver_gpio
-esp_timer
-esp_hw_support
-```
+| Classificação proposta | Dependência | Fundamentação |
+|---|---|---|
+| pública | `esp_driver_gpio` | `gpio_num_t` aparece nos tipos públicos `SwitchConfig` e `PushButtonConfig` |
+| privada | `issp_core` | usada somente pela composição interna proposta |
+| privada | `issp_behaviors` | usada somente pela composição interna proposta |
+| privada | `issp_transport_154` | usada somente pela composição interna proposta |
+| privada | `nvs_flash` | usada somente pela inicialização interna de plataforma |
+| privada | `esp_timer` | usada somente pelos serviços internos propostos |
+| privada | `esp_hw_support` | usada somente pela leitura interna do endereço IEEE |
 
-A análise de implementabilidade deve classificar cada dependência como pública
-ou privada conforme os tipos realmente expostos por `SmartSysApp.h`.
+Essa classificação é uma proposta do Autor e não constitui validação de
+implementabilidade. A revisão deve confirmar os requisitos `REQUIRES` e
+`PRIV_REQUIRES` contra o header e a composição que serão implementados.
 
 O componente não pode depender de:
 
@@ -674,7 +725,7 @@ examples/issp_minimal_client
 
 ## 16. Migração
 
-1. criar `components/issp_app_154`;
+1. criar o componente ainda inexistente `components/issp_app_154`;
 2. implementar o header público `SmartSysApp.h`;
 3. reutilizar os componentes funcionais existentes por composição;
 4. realocar o reset somente se necessário para eliminar dependência reversa;
@@ -698,6 +749,12 @@ dependência reversa.
 - **SMARTAPP-AC-003:** `SmartSysApp` possui infraestrutura e capabilities
   criadas por seus métodos tipados.
 - **SMARTAPP-AC-004:** ponteiros de capabilities permanecem estáveis.
+- **SMARTAPP-AC-004A:** uma fachada destruída em `Configuring`, antes de
+  `setup()`, não iniciou tasks nem recursos assíncronos.
+- **SMARTAPP-AC-004B:** a API, o exemplo e os consumidores garantem duração
+  estática até reboot para toda fachada em que `setup()` é chamado.
+- **SMARTAPP-AC-004C:** testes ou instrumentação comprovam que as tasks do
+  executor de reports e do monitor de reset nunca observam objetos destruídos.
 - **SMARTAPP-AC-005:** configuração inválida, duplicada, tardia e excesso de
   capacidade são rejeitados conforme a seção 8.
 - **SMARTAPP-AC-006:** `setup()` repetido retorna `Busy`.
@@ -729,7 +786,7 @@ dependência reversa.
 ### Evidência
 
 - **SMARTAPP-AC-020:** testes automatizados cobrem configuração, ownership,
-  capacidade, estados, ordem, falhas e rollback.
+  lifetime da fachada, capacidade, estados, ordem, falhas e rollback.
 - **SMARTAPP-AC-021:** `client_154`, `examples/issp_minimal_client` e
   `coordinator_154` compilam nos targets e ESP-IDF definidos pela especificação
   de componentes reutilizáveis.
@@ -745,7 +802,7 @@ A implementação deve registrar:
 
 - matriz `SMARTAPP-001` a `SMARTAPP-008`;
 - matriz `SMARTAPP-AC-001` a `SMARTAPP-AC-024`;
-- testes de configuração e lifetime das capabilities;
+- testes de configuração, lifetime da fachada e lifetime das capabilities;
 - falhas injetadas em cada etapa;
 - inspeção da ordem de chamadas;
 - comparação dos valores da seção 6.2 antes e depois;

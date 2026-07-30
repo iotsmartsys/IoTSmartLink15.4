@@ -342,8 +342,9 @@ inicial.
 
 - a especificação permanece `Proposed`, `Not Started`, `Not Ready` e
   `Pending Review`;
-- o componente planejado permanece `components/issp_app_154`, mas seu
-  entrypoint público passa a ser `iotsmartsys::SmartSysApp`;
+- o componente futuro, ainda inexistente, permanece planejado como
+  `components/issp_app_154`, mas seu entrypoint público será
+  `iotsmartsys::SmartSysApp`;
 - a API comum configura firmware e capabilities sem expor nomes ISSP ou
   IEEE 802.15.4 em seus tipos de entrada;
 - a primeira capability pública é `SwitchPlugCapability`, criada e possuída
@@ -374,12 +375,18 @@ inicial.
   componentes `issp_*`;
 - inspeção do modelo de `SmartSysApp`, `ConnectivityBootstrap` e
   `CORE-RUNTIME-LIFECYCLE.md` na `IoTSmartSysCore`;
-- especificação v1.1 com API pública neutra, ownership de capabilities,
-  configuração, fluxo, falhas, observabilidade, compatibilidade, migração e
-  critérios de aceite;
-- análise de implementabilidade conduzida pelo Engenheiro Analista declarou a
-  especificação `Implementable` em 29/07/2026 (contratos completos, sem
-  decisões ou dependências ausentes);
+- a validação arquitetural posterior identificou lacunas na máquina de estados,
+  no lifetime da fachada, na classificação das dependências e na distinção
+  entre solução proposta e implementação existente;
+- especificação v1.2 corrigida pelo Autor com transição direta
+  `Configuring → Failed`, duração estática obrigatória para toda fachada em que
+  `setup()` seja chamado e contratos explícitos de destruição;
+- classificação de `esp_driver_gpio` como dependência pública e das demais
+  dependências como privadas registrada somente como proposta, pendente de
+  validação independente pelo Engenheiro Analista;
+- especificação novamente deixada como `Proposed`, `Not Started`, `Not Ready`
+  e `Pending Review`; a implementação de `components/issp_app_154` permanece
+  inexistente;
 - decisões futuras de identidade, short address, endereçamento de capabilities
   e multiprotocolo preservadas fora do recorte;
 - nenhuma implementação, factory reset, report inicial, wire ou persistência
