@@ -377,6 +377,9 @@ inicial.
 - especificação v1.1 com API pública neutra, ownership de capabilities,
   configuração, fluxo, falhas, observabilidade, compatibilidade, migração e
   critérios de aceite;
+- análise de implementabilidade conduzida pelo Engenheiro Analista declarou a
+  especificação `Implementable` em 29/07/2026 (contratos completos, sem
+  decisões ou dependências ausentes);
 - decisões futuras de identidade, short address, endereçamento de capabilities
   e multiprotocolo preservadas fora do recorte;
 - nenhuma implementação, factory reset, report inicial, wire ou persistência

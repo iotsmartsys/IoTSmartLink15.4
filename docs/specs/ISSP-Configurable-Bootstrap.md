@@ -4,7 +4,7 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** Not Started
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Pending Review
+**Revisão de implementabilidade:** Implementable
 **Versão:** 1.1
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 29/07/2026
