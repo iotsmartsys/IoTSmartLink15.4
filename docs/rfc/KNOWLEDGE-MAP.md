@@ -2,9 +2,9 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.4
+**Versão:** 1.5
 **Responsável:** Marcelo Miranda
-**Última atualização:** 23/07/2026
+**Última atualização:** 29/07/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -43,7 +43,7 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 | Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
-| Bootstrap configurável do client | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed | Not Started | Componente planejado `issp_app_154` e futura migração de `client_154/main/main.cpp` | Contratos e critérios definidos; implementação depende de aprovação |
+| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed | Not Started | Componente planejado `issp_app_154` e futura migração de `client_154/main/main.cpp` | API v1.1 em `Pending Review` e `Not Ready`; implementação depende de análise e aprovação |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | `issp_protocol.*` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `client_154/main/reset/` | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE e ACK em hardware |

@@ -1,12 +1,14 @@
-# ISSP — Especificação de Bootstrap Configurável
+# IoTSmartSys — Especificação da API pública `SmartSysApp`
 
 **Tipo:** Normativo
 **Estado normativo:** Proposed
 **Estado da implementação:** Not Started
-**Versão:** 1.0
+**Prontidão:** Not Ready
+**Revisão de implementabilidade:** Pending Review
+**Versão:** 1.1
 **Responsável arquitetural:** Marcelo Miranda
-**Última atualização:** 23/07/2026
-**Escopo:** Composição e inicialização configuráveis do runtime ISSP no client IEEE 802.15.4
+**Última atualização:** 29/07/2026
+**Escopo:** API pública de configuração e composição do firmware `client_154`
 
 ---
 
@@ -14,241 +16,329 @@
 
 O runtime funcional do `client_154` já separa protocolo, transporte,
 commissioning, behaviors, reports e factory reset em componentes com
-responsabilidades próprias. A aplicação, porém, ainda realiza diretamente em
+responsabilidades próprias. A aplicação ainda executa diretamente em
 `main.cpp` toda a composição:
 
 ```text
 configuração fixa do produto
+→ inicialização da NVS e leitura do endereço IEEE
 → construção do transporte e do network manager
-→ construção do device, behaviors e report executor
+→ construção do device, behavior e report executor
 → adaptação do factory reset
 → inicialização sequencial
-→ tratamento local das falhas de cada etapa
-→ espera permanente
+→ tratamento local das falhas
 ```
 
-Esse arranjo é funcional e validado, mas faz do firmware de exemplo a única
-descrição executável da ordem de inicialização. Cada novo produto que utilize os
-componentes compartilhados precisaria repetir a composição, a ordem, o
-tratamento de rollback e parte da observabilidade.
+Esse fluxo é funcional e validado, mas não oferece uma API orientada ao produto.
+Cada novo firmware precisaria repetir a composição e conhecer diretamente
+classes cujo nome e responsabilidade pertencem ao protocolo ISSP ou ao
+transporte IEEE 802.15.4.
 
-A `IoTSmartSysCore` utiliza como referência um modelo no qual a aplicação
-configura hardware e capabilities antes de uma operação única de `setup()`. A
-fachada é dona da composição do runtime e o bootstrap seleciona e executa um
-fluxo explícito. O modelo desta especificação adota esses princípios, não suas
-dependências de Wi-Fi, MQTT, provisioning, Arduino ou OTA.
+A `IoTSmartSysCore` é o precedente arquitetural desta etapa. Nela, o firmware
+declara capabilities e serviços de produto por meio de `SmartSysApp` antes de
+uma chamada única a `setup()`. Esta especificação adota inicialmente apenas
+essa experiência de configuração. Não importa Wi-Fi, MQTT, provisioning,
+Arduino, OTA nem o restante da implementação da `IoTSmartSysCore`.
 
-## 2. Problema concreto
+## 2. Intenção e decisões confirmadas
 
-O repositório não possui um contrato único que:
+O Arquiteto confirmou:
 
-- receba a identidade e os parâmetros específicos de um produto;
-- aceite seus behaviors antes da inicialização;
-- componha os serviços de infraestrutura ISSP;
-- preserve uma ordem segura de inicialização;
-- informe de modo estruturado em qual etapa uma falha ocorreu;
-- desfaça somente os recursos iniciados pela tentativa corrente;
-- impeça configuração tardia ou inicialização duplicada;
-- possa ser reutilizado por outro firmware sem copiar `client_154/main.cpp`.
+- o entrypoint público deve usar `iotsmartsys::SmartSysApp`;
+- nomes públicos de uso comum não devem ser acoplados a ISSP ou IEEE 802.15.4;
+- esta versão deve introduzir uma interface para configurar firmware e
+  capabilities sem reformular o runtime existente;
+- somente a capability correspondente à saída digital vigente será exposta
+  inicialmente como `SwitchPlugCapability`;
+- `deviceId` permanece configurável nesta versão;
+- o endereço curto IEEE 802.15.4 não pertence à API comum e deve preservar
+  internamente o valor vigente `0x1001`;
+- `endpointId` e `eventType` permanecem configuráveis e com a semântica atual;
+- protocolo wire, commissioning, persistência, reports, ACKs, retries,
+  factory reset e demais comportamentos validados não devem mudar;
+- identidade automática, atribuição de endereço curto e abstração completa do
+  protocolo serão tratadas futuramente.
 
-Sem esse contrato, a criação de um segundo client funcional pode produzir
-ordens de boot incompatíveis, tratamentos diferentes para a mesma falha e
-dependência acidental dos detalhes internos do primeiro firmware.
+## 3. Problema
 
-## 3. Objetivos
+O repositório não possui um contrato público único que:
 
-- **ISSP-BOOT-001:** fornecer uma fachada configurável e reutilizável para o
-  runtime ISSP sobre IEEE 802.15.4.
-- **ISSP-BOOT-002:** separar configuração de produto, composição do runtime e
-  execução das etapas de inicialização.
-- **ISSP-BOOT-003:** tornar explícitos o estado, a etapa e o resultado do
-  bootstrap.
-- **ISSP-BOOT-004:** centralizar a ordem de inicialização e o rollback dos
-  recursos iniciados pelo bootstrap.
-- **ISSP-BOOT-005:** preservar os componentes, contratos wire, persistência,
-  factory reset e report inicial já implementados e validados.
-- **ISSP-BOOT-006:** permitir que `client_154` e futuros clients configurem
-  identidade, transporte e behaviors sem replicar a orquestração.
-- **ISSP-BOOT-007:** manter configuração e execução determinísticas, sem
-  alocação dinâmica obrigatória durante o boot.
+- represente a aplicação como um produto IoTSmartSys;
+- receba a identidade do dispositivo;
+- crie e registre capabilities a partir de configurações de produto;
+- configure o factory reset existente;
+- componha os serviços internos do runtime;
+- preserve a ordem de inicialização e rollback;
+- informe estado, etapa e resultado sem expor tipos ISSP na API comum;
+- possa ser reutilizado sem copiar `client_154/main.cpp`.
 
-## 4. Não objetivos
+## 4. Objetivos
 
-Não fazem parte deste recorte:
+- **SMARTAPP-001:** fornecer `iotsmartsys::SmartSysApp` como fachada pública do
+  firmware.
+- **SMARTAPP-002:** permitir configuração antes de `setup()` no padrão da
+  `IoTSmartSysCore`.
+- **SMARTAPP-003:** fornecer `addSwitchPlugCapability()` para a capability
+  funcional já existente.
+- **SMARTAPP-004:** fornecer `configureFactoryResetButton()` reutilizando o
+  fluxo atual.
+- **SMARTAPP-005:** tornar explícitos estado, etapa e resultado do setup com
+  tipos públicos neutros em relação ao protocolo.
+- **SMARTAPP-006:** centralizar composição, ordem de inicialização e rollback
+  sem alterar os componentes funcionais existentes.
+- **SMARTAPP-007:** preservar integralmente contratos wire, persistência,
+  commissioning, comandos, reports e factory reset.
+- **SMARTAPP-008:** manter configuração e execução determinísticas, com
+  armazenamento limitado e sem alocação dinâmica obrigatória durante o setup.
 
-- reimplementar, mover ou alterar `FactoryResetService`,
-  `ResetButtonMonitor` ou a pressão contínua de 10 segundos;
-- criar um novo report inicial ou alterar quando
-  `DigitalOutputBehavior::begin()` o publica;
-- modificar payload, protocolo wire, checksum, endianness, ACKs, retries,
-  timeouts ou delays funcionais;
-- alterar commissioning, layout NVS, schema do descritor de rede ou política de
-  persistência;
-- adicionar Wi-Fi, MQTT, provisioning por portal, OTA ou dependências da
-  `IoTSmartSysCore`;
-- criar builders para cada tipo de behavior;
-- permitir registro tardio de behaviors;
-- suportar múltiplos devices ou transports no mesmo bootstrap;
-- implementar `stop()` público como novo ciclo de vida operacional;
+## 5. Fora de escopo
+
+Não fazem parte desta versão:
+
+- alterar ou gerar automaticamente `deviceId`;
+- expor ou definir atribuição dinâmica do endereço curto IEEE 802.15.4;
+- suportar vários endereços curtos ou provar operação simultânea de múltiplos
+  clients no mesmo PAN;
+- gerar, persistir ou traduzir automaticamente `endpointId` e `eventType`;
+- criar identidade por nome para capabilities;
+- adicionar `toggle()`, `setState()` ou nova atuação local à saída digital;
+- adicionar outras capabilities;
+- criar uma abstração genérica para múltiplos protocolos ou transports;
+- renomear classes internas `Issp*`;
+- alterar `DigitalOutputBehavior`, exceto por adaptação estritamente necessária
+  para ser possuído pela fachada sem mudança funcional;
+- alterar payload, checksum, endianness, ACKs, retries, timeouts ou delays;
+- alterar commissioning, layout NVS, schema do descritor ou persistência;
+- criar novo ciclo de vida com `stop()` ou retry de `setup()`;
 - alterar coordenador, rádio de baixo nível ou regras de negócio;
-- publicar componentes em registry ou movê-los para outro repositório;
-- inferir uma política nova de recuperação quando o coordenador não for
-  encontrado.
+- adicionar Wi-Fi, MQTT, provisioning, Arduino ou OTA;
+- publicar componentes em registry ou separá-los deste repositório.
 
-## 5. Estado de referência
+## 6. Estado de referência preservado
 
-### 5.1 Componentes funcionais
+### 6.1 Componentes
 
-O runtime atual é composto por:
+Continuam responsáveis pelo runtime:
 
-- `Issp154Transport`, dono do rádio e do transporte IEEE 802.15.4;
-- `Issp154NetworkManager`, dono do descritor persistente e do commissioning;
-- `IsspDevice`, dono do despacho, behaviors e fila lógica de reports;
-- `Issp154ReportExecutor`, dono da task de transmissão de reports;
-- behaviors registrados pela aplicação, atualmente
-  `DigitalOutputBehavior`;
-- `FactoryResetService` e `ResetButtonMonitor`, pertencentes à composição
-  específica do firmware.
+- `Issp154Transport`: rádio e transporte IEEE 802.15.4;
+- `Issp154NetworkManager`: descritor persistente e commissioning;
+- `IsspDevice`: despacho, behaviors e reports pendentes;
+- `Issp154ReportExecutor`: transmissão assíncrona de reports;
+- `DigitalOutputBehavior`: saída digital e report de estado;
+- `FactoryResetService` e `ResetButtonMonitor`: factory reset local.
 
-### 5.2 Ordem vigente
+`SmartSysApp` compõe esses objetos, mas não absorve suas regras internas.
 
-`client_154/main/main.cpp` executa:
+### 6.2 Baseline do produto
+
+A migração do `client_154` deve preservar:
+
+| Configuração | Valor vigente |
+|---|---|
+| `deviceId` | `0x15400001` |
+| short address interno | `0x1001` |
+| relay GPIO | `GPIO_NUM_13` |
+| endpoint | `1` |
+| event type | `2` |
+| active level | `1` |
+| estado inicial | `false` |
+| report inicial | habilitado |
+| factory reset GPIO | `GPIO_NUM_9` |
+| botão | active low |
+| polling | `20 ms` |
+| hold | `10000 ms` |
+
+### 6.3 Ordem vigente
 
 ```text
-inicialização da NVS
-→ obtenção do endereço IEEE 802.15.4
-→ construção dos componentes
-→ início do monitor de factory reset
-→ inicialização ou descoberta da rede
-→ registro do behavior
-→ início do device
-→ início do executor de reports
-→ espera permanente
+inicializar NVS
+→ obter endereço IEEE 802.15.4
+→ iniciar monitor de factory reset
+→ inicializar ou descobrir rede
+→ registrar behavior
+→ iniciar device
+→ iniciar executor de reports
 ```
 
-Uma falha após o início do transporte solicita `transport.end()` e encerra
-`app_main`. O report inicial é produzido pelo behavior durante
-`IsspDevice::start()` e fica pendente até que o executor seja iniciado.
+O report inicial continua sendo criado pelo behavior durante o início do
+device e transmitido posteriormente pelo executor.
 
-### 5.3 Limites já normativos
+## 7. Arquitetura proposta
 
-Continuam autoritativas:
+### SMARTAPP-DEC-001 — Fachada pública neutra
 
-- `docs/specs/ISSP-Architecture.md`;
-- `docs/specs/ISSP-Commissioning.md`;
-- `docs/specs/ISSP-Reusable-Components.md`;
-- as APIs públicas classificadas em `components/README.md`.
-
-Esta especificação adiciona uma camada de composição. Ela não transfere ao
-bootstrap as responsabilidades internas desses componentes.
-
-## 6. Decisões arquiteturais
-
-### ISSP-BOOT-DEC-001 — Fachada compartilhada
-
-O bootstrap deve ser exposto por um novo componente compartilhado
-`issp_app_154`, localizado em:
+O componente compartilhado planejado permanece localizado em:
 
 ```text
 components/issp_app_154
 ```
 
-Sua API principal deve ser `issp::Issp154ClientApp`. O componente pode conhecer
-as APIs públicas de `issp_core` e `issp_transport_154`, mas não pode depender de
-`client_154/main`, `client_154/main/reset`, coordenador ou exemplos.
-
-### ISSP-BOOT-DEC-002 — Configuração antes de `setup()`
-
-A aplicação deve:
-
-1. construir `Issp154ClientApp` com uma configuração completa;
-2. registrar de zero a `kMaxDeviceBehaviors` behaviors;
-3. integrar serviços específicos do produto, como o monitor já existente de
-   factory reset;
-4. chamar `setup()` uma única vez.
-
-Configuração e registro após o primeiro `setup()` devem ser rejeitados. Não
-deve existir configuração implícita por variáveis globais mutáveis.
-
-### ISSP-BOOT-DEC-003 — Propriedade dos objetos
-
-`Issp154ClientApp` deve possuir, com armazenamento de duração igual à fachada:
-
-- uma cópia validada da configuração;
-- uma cópia do endereço estendido;
-- `Issp154Transport`;
-- `Issp154NetworkManager`;
-- `IsspDevice`;
-- `Issp154ReportExecutor`;
-- a tabela de referências para behaviors registrados;
-- estado e último resultado do bootstrap.
-
-Os behaviors permanecem pertencentes à aplicação. A aplicação deve garantir
-que eles sobrevivam à fachada e ao runtime. A fachada não deve executar
-`delete`, tomar propriedade por ponteiro bruto nem alocar behaviors.
-
-### ISSP-BOOT-DEC-004 — Fronteira de plataforma
-
-Inicialização da NVS e obtenção do endereço IEEE por `esp_read_mac` permanecem
-responsabilidades da composição de plataforma. A fachada recebe o endereço
-estendido já resolvido e exige que a NVS esteja pronta antes de `setup()`.
-
-Essa fronteira evita que uma camada de composição ISSP apague toda a NVS ao
-tratar `ESP_ERR_NVS_NO_FREE_PAGES` ou `ESP_ERR_NVS_NEW_VERSION_FOUND`. A política
-de recuperação global da NVS não pertence ao ISSP.
-
-### ISSP-BOOT-DEC-005 — Factory reset por delegação
-
-A fachada deve expor `clearPersistedNetwork()` como delegação direta para
-`Issp154NetworkManager::clearPersistedNetwork()`. O `client_154` deve conectar
-essa operação ao `FactoryResetService` existente por um adaptador mínimo.
-
-A fachada não deve:
-
-- monitorar GPIO;
-- medir os 10 segundos;
-- reiniciar o dispositivo;
-- apagar namespaces adicionais;
-- executar factory reset dentro de `setup()`.
-
-### ISSP-BOOT-DEC-006 — Setup síncrono e resultado explícito
-
-`setup()` deve ser síncrono e retornar `Issp154BootstrapResult`. O retorno deve
-identificar sucesso, estado terminal controlado ou falha, sem exigir parsing de
-logs. A chamada não deve criar uma task adicional somente para orquestrar o
-bootstrap.
-
-As tasks internas já pertencentes ao transporte, ao executor e ao monitor de
-reset permanecem inalteradas.
-
-### ISSP-BOOT-DEC-007 — Sem política nova de retry
-
-`setup()` deve executar uma única tentativa do fluxo já definido. As tentativas
-internas de commissioning e reports permanecem sob seus donos atuais. Repetir
-`setup()` após falha não é um mecanismo de retry e deve ser rejeitado.
-
-Uma futura política de reinicialização sem reboot exige nova especificação,
-incluindo ciclo de vida completo e capacidade real de reiniciar todos os
-componentes.
-
-## 7. Contratos e configuração
-
-Os nomes e campos abaixo são normativos. Ajustes puramente sintáticos exigidos
-pelo compilador são permitidos somente se preservarem o contrato e forem
-relatados.
-
-### 7.1 Configuração
+O nome do componente é interno ao empacotamento desta versão. Seu header
+público de uso comum deve ser:
 
 ```cpp
-namespace issp
+#include "SmartSysApp.h"
+```
+
+A classe principal deve ser:
+
+```cpp
+namespace iotsmartsys
+{
+class SmartSysApp;
+}
+```
+
+Não devem aparecer na API comum nomes como `Issp154ClientApp`,
+`Issp154BootstrapResult`, `IsspTransportState` ou `IsspResult`.
+
+### SMARTAPP-DEC-002 — Fachada fina
+
+`SmartSysApp` deve compor as classes existentes por delegação. Ela não deve
+reimplementar protocolo, transporte, commissioning, reports, behavior ou
+factory reset.
+
+Classes e namespaces `issp::*` podem permanecer na implementação privada do
+componente e em suas APIs técnicas já existentes.
+
+### SMARTAPP-DEC-003 — Configuração antes de setup
+
+O firmware deve:
+
+1. construir `SmartSysApp`;
+2. adicionar capabilities;
+3. configurar opcionalmente o botão de factory reset;
+4. chamar `setup()` uma única vez.
+
+Configuração tardia deve ser rejeitada. `setup()` repetido não constitui retry.
+
+### SMARTAPP-DEC-004 — Propriedade
+
+`SmartSysApp` deve possuir durante toda a sua vida:
+
+- cópia da configuração da aplicação;
+- armazenamento das capabilities criadas por seus métodos `add*`;
+- transporte, network manager, device e report executor;
+- serviço e monitor de factory reset, quando configurados;
+- estado e último resultado do setup.
+
+A fachada deve usar armazenamento de capacidade fixa compatível com
+`kMaxDeviceBehaviors`. Os ponteiros retornados por `add*Capability()` devem
+permanecer estáveis enquanto `SmartSysApp` existir.
+
+Esta decisão não transfere ownership quando uma API técnica interna receber
+referências. O ownership público desta versão decorre somente dos métodos
+tipados da própria fachada.
+
+### SMARTAPP-DEC-005 — Plataforma
+
+`setup()` deve:
+
+- executar a mesma inicialização de NVS atualmente presente em `main.cpp`;
+- preservar a recuperação vigente com `nvs_flash_erase()` para
+  `ESP_ERR_NVS_NO_FREE_PAGES` e `ESP_ERR_NVS_NEW_VERSION_FOUND`;
+- obter o endereço IEEE 802.15.4 por `esp_read_mac`;
+- manter o endereço estendido em armazenamento pertencente à fachada.
+
+Essa política é preservação explícita do baseline, não uma política genérica
+recomendada para produtos futuros. Sua revisão exige nova decisão.
+
+### SMARTAPP-DEC-006 — Endereço curto
+
+O endereço curto deve permanecer `0x1001` na configuração interna do transporte
+e não deve aparecer em `SmartSysAppConfig`.
+
+Esta versão não afirma que `0x1001` possa ser compartilhado por vários
+dispositivos. A atribuição de endereço curto permanece uma limitação conhecida
+e deve ser especificada antes de validar múltiplos clients no mesmo PAN.
+
+### SMARTAPP-DEC-007 — Capability inicial
+
+`addSwitchPlugCapability()` deve criar uma capability pública
+`SwitchPlugCapability` apoiada pelo `DigitalOutputBehavior` vigente.
+
+Nesta versão:
+
+- `endpointId` e `eventType` continuam explícitos em `SwitchConfig`;
+- comandos `ON`, `OFF` e `TOGGLE` mantêm a semântica atual;
+- `state()` pode expor o estado já consultável no behavior;
+- nenhuma nova operação local de atuação é adicionada.
+
+### SMARTAPP-DEC-008 — Factory reset
+
+`configureFactoryResetButton()` deve reutilizar, sem duplicação funcional,
+`FactoryResetService` e `ResetButtonMonitor`.
+
+Para permitir uso compartilhado pela fachada, a implementação futura pode
+realocar esses arquivos de `client_154/main/reset` para
+`components/issp_app_154`, preservando sua lógica. O componente não pode
+depender de `client_154/main`.
+
+O monitor deve iniciar antes da inicialização da rede e permanecer disponível
+quando o setup terminar em `NotReady`.
+
+### SMARTAPP-DEC-009 — Resultado neutro
+
+Os tipos públicos de estado, etapa e erro devem pertencer ao vocabulário da
+aplicação. A implementação deve mapear resultados internos sem converter falha
+em sucesso nem exigir parsing de logs.
+
+## 8. Contratos públicos
+
+Os nomes e campos desta seção são normativos. Ajustes sintáticos indispensáveis
+devem preservar a intenção e ser relatados na análise de implementabilidade.
+
+### 8.1 Namespaces
+
+```cpp
+namespace iotsmartsys
+{
+class SmartSysApp;
+}
+
+namespace iotsmartsys::app
+{
+struct SmartSysAppConfig;
+struct SwitchConfig;
+struct PushButtonConfig;
+}
+
+namespace iotsmartsys::core
+{
+class SwitchPlugCapability;
+}
+```
+
+### 8.2 Configuração da aplicação
+
+```cpp
+namespace iotsmartsys::app
 {
 
-struct Issp154ClientAppConfig
+struct SmartSysAppConfig
 {
     std::uint32_t deviceId;
-    std::uint16_t shortAddress;
-    std::array<std::uint8_t, kIssp154ExtendedAddressSize> extendedAddress;
-    bool cca;
+};
+
+}
+```
+
+`deviceId` não pode ser zero. A configuração deve ser copiada pela fachada.
+
+### 8.3 Configuração da saída
+
+```cpp
+namespace iotsmartsys::app
+{
+
+struct SwitchConfig
+{
+    gpio_num_t pin;
+    bool activeHigh;
+    bool initialState;
+    bool reportOnStart;
+    std::uint8_t endpointId;
+    std::uint8_t eventType;
 };
 
 }
@@ -256,22 +346,64 @@ struct Issp154ClientAppConfig
 
 Regras:
 
-- `deviceId` não pode ser zero;
-- `shortAddress` não pode ser `0xffff`;
-- `extendedAddress` não pode ser todo zero nem todo `0xff`;
-- `cca` deve ser encaminhado sem alteração ao transporte;
-- canal e PAN ID iniciais devem ser zero, pois a rede operacional pertence ao
-  descritor carregado ou descoberto;
-- `coordinator` deve ser `false`;
-- `promiscuous` operacional deve ser `false`; o network manager pode habilitá-lo
-  temporariamente durante commissioning conforme contrato vigente;
-- a configuração deve ser copiada; a fachada não pode depender da duração de
-  buffers fornecidos pelo chamador.
+- `pin` deve ser um GPIO de saída válido;
+- `activeHigh=true` deve mapear para `activeLevel=1`;
+- `activeHigh=false` deve mapear para `activeLevel=0`;
+- estado inicial, report inicial, endpoint e event type devem ser encaminhados
+  sem alteração semântica ao behavior;
+- pares duplicados de `endpointId` e `eventType` devem ser rejeitados;
+- não deve haver inicialização de GPIO antes de `setup()`.
 
-### 7.2 Estados
+### 8.4 Configuração do factory reset
 
 ```cpp
-enum class Issp154ClientAppState : std::uint8_t
+namespace iotsmartsys::app
+{
+
+struct PushButtonConfig
+{
+    gpio_num_t pin;
+    bool activeLow;
+    std::uint32_t holdTimeMs;
+    std::uint32_t pollIntervalMs;
+};
+
+}
+```
+
+Regras:
+
+- `pin` deve ser GPIO válido;
+- `holdTimeMs` e `pollIntervalMs` devem ser maiores que zero;
+- somente uma configuração de factory reset pode ser aceita;
+- ausência de configuração é válida;
+- configuração duplicada ou tardia deve ser rejeitada.
+
+### 8.5 Capability pública
+
+```cpp
+namespace iotsmartsys::core
+{
+
+class SwitchPlugCapability
+{
+public:
+    bool state() const;
+};
+
+}
+```
+
+O ponteiro retornado pela fachada não transfere ownership ao chamador.
+`SwitchPlugCapability` não deve expor tipos ISSP em sua API pública.
+
+### 8.6 Estados e resultado
+
+```cpp
+namespace iotsmartsys
+{
+
+enum class AppState : std::uint8_t
 {
     Configuring,
     Starting,
@@ -279,7 +411,161 @@ enum class Issp154ClientAppState : std::uint8_t
     NotReady,
     Failed
 };
+
+enum class SetupStage : std::uint8_t
+{
+    None,
+    InitializePlatform,
+    ValidateConfiguration,
+    InitializeNetwork,
+    RegisterCapabilities,
+    StartDevice,
+    StartReportExecutor,
+    Completed
+};
+
+enum class AppResult : std::uint8_t
+{
+    Ok,
+    InvalidArgument,
+    NotReady,
+    Busy,
+    Failed
+};
+
+struct SetupResult
+{
+    AppState state;
+    SetupStage stage;
+    AppResult result;
+};
+
+}
 ```
+
+Mapeamento mínimo:
+
+| Resultado interno | Resultado público |
+|---|---|
+| `IsspResult::Ok` | `AppResult::Ok` |
+| `IsspResult::InvalidArgument` | `AppResult::InvalidArgument` |
+| `IsspResult::NotReady` | `AppResult::NotReady` |
+| `IsspResult::Busy` | `AppResult::Busy` |
+| `IsspResult::Failed` | `AppResult::Failed` |
+
+### 8.7 API de `SmartSysApp`
+
+```cpp
+namespace iotsmartsys
+{
+
+class SmartSysApp
+{
+public:
+    explicit SmartSysApp(const app::SmartSysAppConfig &config);
+
+    core::SwitchPlugCapability *
+    addSwitchPlugCapability(const app::SwitchConfig &config);
+
+    AppResult
+    configureFactoryResetButton(const app::PushButtonConfig &config);
+
+    SetupResult setup();
+
+    AppState state() const;
+    SetupResult lastSetupResult() const;
+    AppResult lastConfigurationResult() const;
+    std::uint32_t deviceId() const;
+};
+
+}
+```
+
+Contratos:
+
+- `addSwitchPlugCapability()` é permitido somente em `Configuring`;
+- configuração inválida, duplicada ou excesso de capacidade retorna `nullptr`;
+- a primeira falha de configuração deve ser preservada em
+  `lastConfigurationResult()`;
+- uma falha de configuração anterior deve fazer `setup()` falhar em
+  `ValidateConfiguration` antes de iniciar plataforma ou rede;
+- `configureFactoryResetButton()` deve retornar resultado explícito;
+- zero capabilities é válido para a fachada;
+- `setup()` é síncrono e realiza uma única tentativa;
+- consultas devem ser não bloqueantes;
+- configuração e setup devem ocorrer no mesmo contexto serial;
+- thread safety não é garantida nesta versão.
+
+## 9. Exemplo normativo de consumo
+
+```cpp
+#include "SmartSysApp.h"
+
+using namespace iotsmartsys;
+using namespace iotsmartsys::app;
+
+namespace
+{
+constexpr std::uint32_t kDeviceId = 0x15400001;
+}
+
+static SmartSysApp app({
+    .deviceId = kDeviceId,
+});
+
+extern "C" void app_main()
+{
+    app.addSwitchPlugCapability({
+        .pin = GPIO_NUM_13,
+        .activeHigh = true,
+        .initialState = false,
+        .reportOnStart = true,
+        .endpointId = 1,
+        .eventType = 2,
+    });
+
+    app.configureFactoryResetButton({
+        .pin = GPIO_NUM_9,
+        .activeLow = true,
+        .holdTimeMs = 10000,
+        .pollIntervalMs = 20,
+    });
+
+    const SetupResult result = app.setup();
+    if (result.state != AppState::Running)
+    {
+        return;
+    }
+}
+```
+
+O firmware não deve precisar incluir headers `issp_*`, construir transport,
+network manager, device, behavior, report executor ou adaptar manualmente o
+factory reset.
+
+## 10. Fluxo de setup
+
+```text
+validar configuração acumulada
+→ AppState::Starting
+→ inicializar NVS com a política vigente
+→ obter endereço IEEE
+→ construir/conectar infraestrutura interna
+→ iniciar monitor de factory reset, quando configurado
+→ initializeNetwork()
+   ├── descritor válido: ativar rede
+   ├── sem descritor: commissioning vigente
+   └── rede ausente: NotReady
+→ registrar capabilities/behaviors na ordem de adição
+→ IsspDevice::start()
+→ Issp154ReportExecutor::start()
+→ Running
+```
+
+`setup()` não deve aguardar ACK do report inicial. A aplicação decide o que
+fazer após `Running`, `NotReady` ou `Failed`.
+
+## 11. Estados
 
 Transições permitidas:
 
@@ -291,384 +577,239 @@ Starting → NotReady
 Starting → Failed
 ```
 
-Não existem transições de saída de `Running`, `NotReady` ou `Failed` neste
-recorte. Factory reset conclui por reboot e não constitui uma transição local.
-
-### 7.3 Etapas e resultado
-
-```cpp
-enum class Issp154BootstrapStage : std::uint8_t
-{
-    None,
-    ValidateConfiguration,
-    InitializeNetwork,
-    RegisterBehaviors,
-    StartDevice,
-    StartReportExecutor,
-    Completed
-};
-
-struct Issp154BootstrapResult
-{
-    Issp154ClientAppState state;
-    Issp154BootstrapStage stage;
-    IsspResult result;
-};
-```
+Não há transição de saída dos estados terminais nesta versão. Factory reset
+termina por reboot e não representa transição local.
 
 Interpretação:
 
-- sucesso: `Running`, `Completed`, `IsspResult::Ok`;
-- rede não encontrada no commissioning:
-  `NotReady`, `InitializeNetwork`, `IsspResult::NotReady`;
-- configuração inválida:
-  `Failed`, `ValidateConfiguration`, `IsspResult::InvalidArgument`;
-- qualquer outra falha: `Failed`, etapa que falhou e resultado original sempre
-  que ele puder ser preservado;
-- chamada repetida de `setup()`: estado terminal vigente, `None` e
-  `IsspResult::Busy`.
+- sucesso: `Running`, `Completed`, `Ok`;
+- rede não encontrada: `NotReady`, `InitializeNetwork`, `NotReady`;
+- configuração inválida: `Failed`, `ValidateConfiguration`,
+  `InvalidArgument`;
+- falha de NVS ou leitura de MAC: `Failed`, `InitializePlatform`, resultado
+  público correspondente;
+- setup repetido: estado terminal vigente, `None`, `Busy`;
+- demais falhas: `Failed`, etapa correspondente e erro mapeado.
 
-### 7.4 API pública mínima
+## 12. Falhas e rollback
 
-```cpp
-class Issp154ClientApp
-{
-public:
-    explicit Issp154ClientApp(const Issp154ClientAppConfig &config);
+O primeiro erro determina etapa, resultado e estado. Rollback não pode apagar o
+descritor persistido nem substituir o erro primário.
 
-    IsspResult addBehavior(IDeviceBehavior &behavior);
-    Issp154BootstrapResult setup();
-
-    Issp154ClientAppState state() const;
-    Issp154BootstrapResult lastBootstrapResult() const;
-    std::uint32_t deviceId() const;
-    IsspTransportState transportState() const;
-
-    IsspResult clearPersistedNetwork() const;
-};
-```
-
-Contratos:
-
-- `addBehavior()` é permitido somente em `Configuring`;
-- referências duplicadas ao mesmo behavior devem retornar
-  `IsspResult::InvalidArgument`;
-- exceder `kMaxDeviceBehaviors` deve retornar
-  `IsspResult::InvalidArgument`, preservando o enum público vigente;
-- zero behaviors é configuração válida para o bootstrap; o produto pode impor
-  exigência mais forte em sua própria composição;
-- `setup()` deve registrar todos os behaviors aceitos ou falhar;
-- `state()` e `lastBootstrapResult()` devem ser consultas não bloqueantes;
-- `clearPersistedNetwork()` deve preservar exatamente o resultado do network
-  manager e não deve depender de `setup()` ter sido executado;
-- nenhuma dessas APIs é garantida como thread-safe neste recorte;
-- configuração, registro e `setup()` devem ocorrer no mesmo contexto serial;
-- `clearPersistedNetwork()` somente pode ser chamado conforme as restrições de
-  concorrência já válidas para NVS e para o serviço de factory reset.
-
-### 7.5 Dependências CMake
-
-`issp_app_154` deve declarar:
-
-```text
-REQUIRES: issp_core, issp_transport_154
-PRIV_REQUIRES: nenhuma, salvo necessidade demonstrada pela implementação
-```
-
-O componente não deve depender de `issp_behaviors`: recebe behaviors pela
-interface pública `IDeviceBehavior`.
-
-## 8. Fluxo de inicialização
-
-### 8.1 Composição da aplicação
-
-```text
-plataforma inicializa NVS
-→ plataforma obtém endereço IEEE 802.15.4
-→ aplicação cria Issp154ClientAppConfig
-→ aplicação cria Issp154ClientApp
-→ aplicação cria e registra behaviors
-→ aplicação conecta FactoryResetService existente a clearPersistedNetwork()
-→ aplicação inicia ResetButtonMonitor existente
-→ aplicação chama Issp154ClientApp::setup()
-```
-
-O monitor de reset deve continuar disponível mesmo quando commissioning terminar
-em `NotReady`, preservando a recuperação local já implementada.
-
-### 8.2 Execução de `setup()`
-
-```text
-validar configuração
-→ mudar estado para Starting
-→ initializeNetwork()
-   ├── descritor válido: ativar rede
-   ├── sem descritor: commissioning vigente
-   └── rede não encontrada: NotReady
-→ registrar behaviors no IsspDevice, na ordem de adição
-→ IsspDevice::start()
-   └── behaviors podem publicar o report inicial já existente
-→ Issp154ReportExecutor::start()
-   └── executor percebe reports pendentes
-→ Running
-```
-
-`setup()` não deve aguardar ACK do report inicial. A entrega e os retries
-continuam assíncronos sob `Issp154ReportExecutor`.
-
-## 9. Responsabilidades
-
-### `Issp154ClientApp`
-
-Deve:
-
-- copiar e validar a configuração;
-- possuir e conectar os componentes de infraestrutura;
-- aceitar e preservar a ordem de registro dos behaviors;
-- executar o fluxo normativo de `setup()`;
-- manter estado e resultado consultáveis;
-- executar rollback limitado quando a tentativa falhar;
-- delegar a limpeza do descritor persistido.
-
-Não deve:
-
-- interpretar protocolo wire;
-- operar GPIO de produto;
-- decidir regras de behavior;
-- implementar commissioning, report ou factory reset;
-- esconder ou converter uma falha em sucesso;
-- reiniciar o dispositivo.
-
-### Aplicação do produto
-
-Deve:
-
-- inicializar pré-requisitos de plataforma;
-- fornecer identidade e endereço válidos;
-- construir e manter vivos os behaviors;
-- configurar hardware antes de `setup()`;
-- integrar factory reset e outras funções específicas;
-- decidir o comportamento do processo após `Running`, `NotReady` ou `Failed`;
-- não acessar os componentes internos da fachada.
-
-### Componentes existentes
-
-`Issp154Transport`, `Issp154NetworkManager`, `IsspDevice`,
-`Issp154ReportExecutor` e os behaviors preservam integralmente as
-responsabilidades definidas em `ISSP-Architecture.md`.
-
-## 10. Falhas e rollback
-
-### 10.1 Princípios
-
-- O primeiro erro deve determinar etapa, resultado e estado terminal.
-- O rollback não pode apagar o descritor persistido.
-- Falha de boot não pode disparar factory reset nem reboot automático.
-- O rollback deve afetar somente recursos iniciados pela tentativa corrente.
-- Erro de rollback deve ser registrado, mas não deve substituir o erro
-  primário no retorno.
-
-### 10.2 Matriz
-
-| Falha | Estado | Ação obrigatória |
+| Falha | Estado | Ação |
 |---|---|---|
-| Configuração inválida | `Failed` | Não iniciar rede nem registrar behaviors |
-| Rede não encontrada | `NotReady` | Garantir transporte encerrado; preservar NVS e monitor de reset |
-| Erro ao carregar, persistir ou ativar rede | `Failed` | Encerrar transporte se iniciado; preservar descritor conforme regras vigentes |
-| Registro de behavior falha | `Failed` | Encerrar transporte; não iniciar device nem executor |
-| `IsspDevice::start()` falha | `Failed` | Encerrar transporte; não iniciar executor |
-| Executor falha ao iniciar | `Failed` | Encerrar transporte; preservar reports e erro primário |
-| `transport.end()` falha no rollback | estado da falha primária | Registrar `rollback_failed` com o resultado do encerramento |
+| configuração acumulada inválida | `Failed` | não iniciar plataforma ou rede |
+| inicialização da NVS falha | `Failed` | não iniciar rádio |
+| leitura do endereço IEEE falha | `Failed` | não iniciar rádio |
+| rede não encontrada | `NotReady` | encerrar transporte; preservar NVS e reset |
+| ativação ou persistência da rede falha | `Failed` | encerrar transporte se iniciado |
+| registro de capability falha | `Failed` | não iniciar device ou executor |
+| início do device falha | `Failed` | encerrar transporte; não iniciar executor |
+| início do executor falha | `Failed` | encerrar transporte; preservar erro primário |
+| rollback do transporte falha | estado primário | registrar falha sem substituir retorno |
 
-O estado interno criado por `IsspDevice::start()` não possui atualmente um
-contrato de `stop()`. Por isso, falha posterior ao início do device é terminal
-até reboot. A especificação não deve simular reinicialização segura.
+Falha posterior ao início do device é terminal até reboot, pois o device não
+possui contrato de `stop()`.
 
-## 11. Observabilidade
+## 13. Observabilidade
 
-Cada tentativa deve produzir eventos estruturados, sem endereços completos,
-payloads ou dados sensíveis:
+Cada primeira tentativa válida de setup deve produzir exatamente um evento
+terminal:
 
 ```text
-bootstrap begin behaviors=<n>
-bootstrap stage=<stage>
-bootstrap completed state=running
-bootstrap completed state=not_ready stage=<stage> result=<result>
-bootstrap failed stage=<stage> result=<result>
-bootstrap rollback transport=<result>
+app_setup begin capabilities=<n> factory_reset=<configured|disabled>
+app_setup stage=<stage>
+app_setup completed state=running
+app_setup completed state=not_ready stage=<stage> result=<result>
+app_setup failed stage=<stage> result=<result>
+app_setup rollback transport=<result>
 ```
 
-Requisitos:
+Logs da fachada devem usar o vocabulário público. Logs internos vigentes podem
+continuar usando seus nomes técnicos. Endereços completos e payloads não devem
+ser registrados.
 
-- **ISSP-BOOT-008:** os nomes de etapa dos logs devem corresponder a
-  `Issp154BootstrapStage`;
-- **ISSP-BOOT-009:** deve existir exatamente um evento terminal por chamada
-  inicial válida de `setup()`;
-- **ISSP-BOOT-010:** logs não substituem `Issp154BootstrapResult`;
-- **ISSP-BOOT-011:** logs vigentes de commissioning, report executor, behavior
-  e factory reset devem ser preservados;
-- **ISSP-BOOT-012:** nível de log deve distinguir progresso (`INFO`), ausência
-  controlada de rede (`WARN`) e falha (`ERROR`).
+## 14. Compatibilidade
 
-## 12. Compatibilidade
+### 14.1 API
 
-### 12.1 Comportamento preservado
+A fachada é aditiva. APIs públicas técnicas existentes não devem ser removidas
+nem alteradas. Consumidores avançados podem continuar compondo os componentes
+diretamente.
 
-A migração deve preservar:
+### 14.2 Wire e persistência
 
-- os valores configurados atualmente pelo `client_154`;
-- a ordem observável do boot, exceto pela centralização dos logs;
-- scan, descritor NVS e ativação da rede;
-- registro do relay antes do início do device;
-- publicação e entrega do report inicial;
-- ACKs, comandos `ON`, `OFF`, `TOGGLE` e deduplicação;
-- task e política do executor de reports;
-- monitor de GPIO 9, pressão de 10 segundos e reboot do factory reset;
-- encerramento controlado quando não há rede.
+Não há mudança de payload, versão, checksum, endianness, sequência, endpoint,
+event type, comandos, ACKs, report, schema NVS ou descritor de rede.
 
-### 12.2 API
+### 14.3 Factory reset
 
-As APIs públicas existentes não devem ser removidas nem alteradas. A fachada é
-aditiva. Consumidores podem continuar compondo os componentes diretamente,
-embora clients funcionais novos devam preferir a fachada após sua validação.
+A realocação autorizada dos arquivos de reset não pode alterar GPIO, polaridade,
+tempos, limpeza do vínculo, logs materiais ou reboot após sucesso.
 
-### 12.3 Persistência e wire
+## 15. Dependências e estrutura
 
-Não há mudança de contrato persistente ou wire. Nenhuma migração de NVS é
-necessária. Binários anteriores e posteriores devem reconhecer o mesmo
-descritor de rede.
+`issp_app_154` deve declarar as dependências necessárias para compor:
 
-## 13. Migração do `client_154`
+```text
+issp_core
+issp_behaviors
+issp_transport_154
+nvs_flash
+esp_driver_gpio
+esp_timer
+esp_hw_support
+```
 
-A implementação futura deve ocorrer em etapas verificáveis:
+A análise de implementabilidade deve classificar cada dependência como pública
+ou privada conforme os tipos realmente expostos por `SmartSysApp.h`.
 
-1. criar `issp_app_154` e testes de unidade/host para validação, estados,
-   registro, ordem e falhas com doubles dos componentes quando necessário;
-2. adicionar o componente ao diretório compartilhado e documentar sua API;
-3. migrar `client_154/main.cpp` para construir a configuração, os behaviors e
-   os serviços específicos do produto;
-4. substituir a composição direta de transporte, network manager, device e
-   executor por `Issp154ClientApp`;
-5. manter a inicialização de NVS, leitura do MAC, relay e factory reset no
-   composition root do produto;
-6. validar equivalência de constantes e contratos;
-7. construir e validar `client_154`, consumidor mínimo e coordenador;
-8. executar validação em hardware dos fluxos afetados.
+O componente não pode depender de:
 
-Não deve existir período final com dois runtimes ativos nem cópia dos
-componentes. O exemplo mínimo pode continuar exercitando APIs de baixo nível,
-mas deve também comprovar compilação e link da nova fachada.
+```text
+client_154/main
+coordinator_154
+examples/issp_minimal_client
+```
 
-## 14. Critérios de aceitação
+## 16. Migração
 
-### Contrato e estrutura
+1. criar `components/issp_app_154`;
+2. implementar o header público `SmartSysApp.h`;
+3. reutilizar os componentes funcionais existentes por composição;
+4. realocar o reset somente se necessário para eliminar dependência reversa;
+5. migrar `client_154/main.cpp` para a API da seção 8;
+6. atualizar o consumidor mínimo para comprovar compilação e link da fachada;
+7. remover do `main.cpp` a composição técnica substituída;
+8. validar equivalência integral do baseline;
+9. executar testes, builds e hardware definidos nesta especificação.
 
-- **ISSP-BOOT-AC-001:** `issp_app_154` existe em `components/`, sem dependência
-  reversa para aplicações.
-- **ISSP-BOOT-AC-002:** a API pública atende integralmente à seção 7.
-- **ISSP-BOOT-AC-003:** configuração inválida não inicia qualquer componente.
-- **ISSP-BOOT-AC-004:** behaviors são registrados uma vez, na ordem declarada,
-  antes de `IsspDevice::start()`.
-- **ISSP-BOOT-AC-005:** configuração tardia, duplicação, excesso de capacidade e
-  `setup()` repetido retornam os resultados especificados.
+Não pode existir no resultado final dois runtimes ativos, fonte duplicada ou
+dependência reversa.
 
-### Fluxo e falhas
+## 17. Critérios de aceitação
 
-- **ISSP-BOOT-AC-006:** o caminho com descritor válido termina em `Running`.
-- **ISSP-BOOT-AC-007:** o caminho de commissioning bem-sucedido termina em
-  `Running`.
-- **ISSP-BOOT-AC-008:** rede não encontrada termina em `NotReady`, sem reboot,
-  loop de scan adicional ou remoção de NVS.
-- **ISSP-BOOT-AC-009:** cada falha injetada nas etapas da seção 10 produz etapa,
-  estado, resultado e rollback correspondentes.
-- **ISSP-BOOT-AC-010:** falha de rollback não oculta a falha primária.
+### API e estrutura
 
-### Preservação funcional
+- **SMARTAPP-AC-001:** `SmartSysApp.h` não expõe identificadores `Issp` ou
+  `154` em nomes públicos.
+- **SMARTAPP-AC-002:** o firmware funcional inclui apenas a fachada e tipos
+  públicos necessários para sua configuração.
+- **SMARTAPP-AC-003:** `SmartSysApp` possui infraestrutura e capabilities
+  criadas por seus métodos tipados.
+- **SMARTAPP-AC-004:** ponteiros de capabilities permanecem estáveis.
+- **SMARTAPP-AC-005:** configuração inválida, duplicada, tardia e excesso de
+  capacidade são rejeitados conforme a seção 8.
+- **SMARTAPP-AC-006:** `setup()` repetido retorna `Busy`.
+- **SMARTAPP-AC-007:** não existe dependência reversa para aplicações.
 
-- **ISSP-BOOT-AC-011:** o relay mantém GPIO 13, endpoint 1, event type 2,
-  active high, estado inicial `false` e `reportOnStart=true`.
-- **ISSP-BOOT-AC-012:** o client mantém short address `0x1001` e device ID
-  `0x15400001`.
-- **ISSP-BOOT-AC-013:** factory reset mantém GPIO 9, active low, polling de
-  20 ms e hold de 10 segundos, limpando somente o vínculo de rede e reiniciando
-  após sucesso.
-- **ISSP-BOOT-AC-014:** o report inicial continua sendo criado pelo behavior e
-  transmitido pelo executor existente.
-- **ISSP-BOOT-AC-015:** nenhuma constante de protocolo, retry, timeout, delay,
-  frame, persistência ou commissioning muda.
+### Fluxo
+
+- **SMARTAPP-AC-008:** configuração inválida não inicializa NVS nem rádio.
+- **SMARTAPP-AC-009:** descritor válido termina em `Running`.
+- **SMARTAPP-AC-010:** commissioning bem-sucedido termina em `Running`.
+- **SMARTAPP-AC-011:** rede ausente termina em `NotReady`, sem reboot, novo
+  loop de scan ou remoção do descritor.
+- **SMARTAPP-AC-012:** cada falha injetada produz estado, etapa, resultado e
+  rollback correspondentes.
+- **SMARTAPP-AC-013:** falha de rollback não oculta a falha primária.
+
+### Preservação
+
+- **SMARTAPP-AC-014:** todos os valores da seção 6.2 permanecem idênticos.
+- **SMARTAPP-AC-015:** report inicial continua criado pelo behavior vigente.
+- **SMARTAPP-AC-016:** comandos `ON`, `OFF` e `TOGGLE` e seus ACKs permanecem
+  equivalentes.
+- **SMARTAPP-AC-017:** factory reset preserva limpeza exclusiva do vínculo e
+  reboot após sucesso.
+- **SMARTAPP-AC-018:** nenhuma constante funcional de protocolo, transporte,
+  retry, timeout, delay, persistência ou commissioning muda.
+- **SMARTAPP-AC-019:** arquivos de reset e behavior não são duplicados.
 
 ### Evidência
 
-- **ISSP-BOOT-AC-016:** testes automatizados cobrem configuração, estados,
-  capacidade, ordem, todos os ramos de falha e rollback.
-- **ISSP-BOOT-AC-017:** `client_154`, `examples/issp_minimal_client` e
-  `coordinator_154` compilam para os targets e a versão ESP-IDF definidos em
-  `ISSP-Reusable-Components.md`.
-- **ISSP-BOOT-AC-018:** hardware comprova boot por descritor, commissioning,
+- **SMARTAPP-AC-020:** testes automatizados cobrem configuração, ownership,
+  capacidade, estados, ordem, falhas e rollback.
+- **SMARTAPP-AC-021:** `client_154`, `examples/issp_minimal_client` e
+  `coordinator_154` compilam nos targets e ESP-IDF definidos pela especificação
+  de componentes reutilizáveis.
+- **SMARTAPP-AC-022:** hardware comprova boot por descritor, commissioning,
   ausência de rede, comandos, ACK, report inicial e factory reset.
-- **ISSP-BOOT-AC-019:** buscas e revisão do diff comprovam ausência de
-  reimplementação do factory reset e do report inicial.
-- **ISSP-BOOT-AC-020:** `git diff --check` e a reconciliação EKM são aprovados.
+- **SMARTAPP-AC-023:** revisão do diff comprova migração sem reimplementação
+  funcional.
+- **SMARTAPP-AC-024:** `git diff --check` e reconciliação EKM são aprovados.
 
-## 15. Validações obrigatórias
+## 18. Validações obrigatórias
 
-A execução de implementação deve registrar:
+A implementação deve registrar:
 
-- matriz `ISSP-BOOT-001` a `ISSP-BOOT-012` e
-  `ISSP-BOOT-AC-001` a `ISSP-BOOT-AC-020`;
-- testes de unidade com falhas injetadas em cada etapa;
+- matriz `SMARTAPP-001` a `SMARTAPP-008`;
+- matriz `SMARTAPP-AC-001` a `SMARTAPP-AC-024`;
+- testes de configuração e lifetime das capabilities;
+- falhas injetadas em cada etapa;
 - inspeção da ordem de chamadas;
-- comparação das configurações antes e depois da migração;
-- prova de que `FactoryResetService`, `ResetButtonMonitor`,
-  `DigitalOutputBehavior::begin()` e `Issp154ReportExecutor` não foram
-  duplicados;
-- builds, target, versão do ESP-IDF, warnings, tamanho e SHA-256 dos binários;
+- comparação dos valores da seção 6.2 antes e depois;
+- prova de ausência de duplicação e dependência reversa;
+- revisão separada de código, build e conhecimento;
+- três builds com target, versão do ESP-IDF, warnings, tamanho e SHA-256;
 - checklist e resultados de hardware;
-- revisão separada dos diffs de código, build e conhecimento;
 - `git diff --check`;
 - baseline inicial e reconciliação do inventário final.
 
-## 16. Ativos de conhecimento e autorização
+## 19. Ativos autorizados para implementação futura
 
-A implementação desta especificação, depois de aprovação humana explícita, pode
-alterar somente o necessário em:
+Depois de aprovação humana e seleção do papel formal aplicável, a implementação
+pode alterar somente o necessário em:
 
 - `components/issp_app_154/`;
-- `client_154/main/main.cpp` e seu `CMakeLists.txt`;
-- `examples/issp_minimal_client/`, para prova de consumo;
+- `client_154/main/main.cpp` e `client_154/main/CMakeLists.txt`;
+- `client_154/main/reset/`, somente para realocação sem mudança funcional;
+- `examples/issp_minimal_client/`;
 - `components/README.md`;
-- `docs/specs/ISSP-Architecture.md`, para registrar a camada implementada;
-- `docs/specs/ISSP-Reusable-Components.md`, somente para adicionar o novo
-  componente e suas evidências sem reescrever decisões anteriores;
+- `docs/specs/ISSP-Architecture.md`;
+- `docs/specs/ISSP-Reusable-Components.md`;
 - `docs/rfc/KNOWLEDGE-MAP.md`;
 - `docs/rfc/EKM-CHANGELOG.md`;
-- esta especificação, para transições de estado e resultado.
+- esta especificação, somente para transições e resultado.
 
-Não está autorizada a remoção ou condensação de decisões normativas. Necessidade
-de alterar qualquer contrato wire, persistente, de factory reset ou report
-inicial exige interrupção e decisão humana.
+Alterar wire, persistência, identidade, endereço curto, factory reset, reports
+ou comportamento da saída exige interrupção e decisão humana.
 
-`EKM-CHG-0007` deve permanecer `Open` enquanto a especificação não estiver
-aprovada e a implementação não possuir todas as evidências. A criação desta
-especificação não autoriza sua implementação.
+`EKM-CHG-0007` permanece `Open`. Esta especificação não autoriza implementação
+antes da revisão de implementabilidade e aprovação humana correspondentes.
 
-## 17. Formato obrigatório do relatório
+## 20. Decisões futuras registradas
 
-Além do relatório exigido por `EKM-GUIDELINES.md`, informar:
+Permanecem fora desta versão:
+
+- origem e estabilidade de `deviceId`;
+- atribuição e persistência do endereço curto;
+- operação de vários clients no mesmo PAN;
+- identidade lógica e nomes de capabilities;
+- tradução automática de capabilities para endpoints e event types;
+- API de atuação local;
+- expansão do catálogo de capabilities;
+- fronteira multiprotocolo.
+
+Esses itens não bloqueiam a fachada inicial e não podem ser inferidos pela
+implementação.
+
+## 21. Relatório obrigatório da implementação
+
+O relatório futuro deve informar:
 
 1. resultado executivo;
-2. baseline e aprovação humana aplicável;
-3. matriz de requisitos e critérios de aceitação;
-4. configuração e API públicas resultantes;
-5. ordem efetiva de boot;
+2. baseline e aprovação aplicável;
+3. matrizes de requisitos e aceite;
+4. API pública resultante;
+5. ordem efetiva de setup;
 6. propriedade e duração dos objetos;
-7. falhas e rollback validados;
-8. preservação de factory reset e report inicial;
-9. contratos wire, persistentes e públicos alterados ou preservados;
-10. arquivos de código, build e conhecimento alterados;
-11. fontes dependentes revisadas;
-12. testes, builds e hardware;
-13. warnings, desvios, riscos e pendências;
-14. estado de `EKM-CHG-0007`;
-15. resposta à Definition of Done EKM;
-16. reconciliação integral do inventário final.
+7. falhas e rollback;
+8. preservação de wire, persistência, report e factory reset;
+9. arquivos alterados e realocados;
+10. fontes dependentes revisadas;
+11. testes, builds e hardware;
+12. warnings, desvios, riscos e pendências;
+13. estado de `EKM-CHG-0007`;
+14. Definition of Done EKM;
+15. reconciliação integral do inventário final.

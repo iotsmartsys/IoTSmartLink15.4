@@ -340,17 +340,24 @@ inicial.
 
 ### Decisões
 
-- a especificação é criada como `Proposed` e a implementação como
-  `Not Started`;
-- o componente planejado é `components/issp_app_154`;
-- `Issp154ClientApp` será a fachada dona da infraestrutura do runtime;
-- behaviors continuam pertencendo à aplicação e são registrados antes de
-  `setup()`;
-- NVS e obtenção do endereço IEEE permanecem na fronteira de plataforma;
-- factory reset reutiliza o serviço existente por delegação de
-  `clearPersistedNetwork()`;
+- a especificação permanece `Proposed`, `Not Started`, `Not Ready` e
+  `Pending Review`;
+- o componente planejado permanece `components/issp_app_154`, mas seu
+  entrypoint público passa a ser `iotsmartsys::SmartSysApp`;
+- a API comum configura firmware e capabilities sem expor nomes ISSP ou
+  IEEE 802.15.4 em seus tipos de entrada;
+- a primeira capability pública é `SwitchPlugCapability`, criada e possuída
+  pela fachada a partir de `SwitchConfig`;
+- `deviceId`, `endpointId` e `eventType` permanecem configuráveis;
+- o short address `0x1001`, a leitura do endereço IEEE e a política NVS vigente
+  ficam internos à fachada nesta versão;
+- factory reset reutiliza os serviços existentes, com realocação permitida
+  somente para eliminar dependência reversa;
 - o report inicial continua pertencendo ao behavior e ao executor existentes;
-- falhas possuem estado, etapa, resultado e rollback explícitos.
+- protocolo, persistência, commissioning e comportamento funcional permanecem
+  inalterados;
+- identidade automática, atribuição de short address e abstração integral do
+  protocolo ficam explicitamente adiadas.
 
 ### Critérios de encerramento
 
@@ -367,7 +374,10 @@ inicial.
   componentes `issp_*`;
 - inspeção do modelo de `SmartSysApp`, `ConnectivityBootstrap` e
   `CORE-RUNTIME-LIFECYCLE.md` na `IoTSmartSysCore`;
-- especificação normativa com contratos, fluxo, falhas, observabilidade,
-  compatibilidade, migração e critérios de aceite;
+- especificação v1.1 com API pública neutra, ownership de capabilities,
+  configuração, fluxo, falhas, observabilidade, compatibilidade, migração e
+  critérios de aceite;
+- decisões futuras de identidade, short address, endereçamento de capabilities
+  e multiprotocolo preservadas fora do recorte;
 - nenhuma implementação, factory reset, report inicial, wire ou persistência
   alterados nesta etapa.

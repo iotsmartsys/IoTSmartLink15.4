@@ -46,21 +46,6 @@ governança ou apoio fora desse ciclo.
 - decisões, evidências e transações: `docs/rfc/EKM-CHANGELOG.md`;
 - mapa de conhecimento: `docs/rfc/KNOWLEDGE-MAP.md`;
 - visão e navegação do sistema: `docs/specs/SYSTEM-DOSSIER.md`;
-- bootstrap e composição da API: `src/Api/Program.cs`;
-- superfície HTTP: `src/Api/Controllers/`;
-- domínio e contratos de persistência: `src/Core/`;
-- persistência MySQL: `src/Data.Repositories/` e
-  `scripts/sql/OAuth.Database.Schemes.sql`;
-- portal administrativo: `src/UI/`;
-- testes da API: `src/Api.Tests/`;
-- build e publicação: `Makefile`, `.github/workflows/` e Dockerfiles.
-
-## Comandos canônicos
-
-- build da API: `dotnet build src/Api/Api.csproj`;
-- testes automatizados da API:
-  `dotnet test src/Api.Tests/Api.Tests.csproj`;
-- build do portal: `npm run build --prefix src/UI`.
 
 Validações adicionais pertencem à especificação aplicável. Build de imagem,
 push de pacote, webhook, deploy e scripts que publicam artefatos exigem ordem
