@@ -79,6 +79,10 @@ static esp_ieee802154_tx_error_t s_radio_tx_error;
 static uint8_t s_central_ext_addr[IOT154_EXT_ADDR_LEN];
 static const char *s_tx_type = "ACK";
 static bool s_radio_tx_busy;
+static volatile int64_t s_radio_tx_callback_us;
+static int64_t s_radio_tx_started_us;
+static volatile uint32_t s_rx_total_count;
+static volatile uint32_t s_rx_overwrite_count;
 static volatile bool s_tx_is_report_ack;
 static volatile bool s_tx_is_command;
 static uint8_t s_report_ack_mac_seq;
@@ -117,6 +121,29 @@ typedef struct
 static device_seq_state_t s_devices[8];
 
 static const char *type_from_event(uint8_t event_type);
+
+static const char *radio_tx_error_name(esp_ieee802154_tx_error_t error)
+{
+    switch (error)
+    {
+    case ESP_IEEE802154_TX_ERR_NONE:
+        return "none";
+    case ESP_IEEE802154_TX_ERR_CCA_BUSY:
+        return "cca_busy";
+    case ESP_IEEE802154_TX_ERR_ABORT:
+        return "abort";
+    case ESP_IEEE802154_TX_ERR_NO_ACK:
+        return "no_mac_ack";
+    case ESP_IEEE802154_TX_ERR_INVALID_ACK:
+        return "invalid_mac_ack";
+    case ESP_IEEE802154_TX_ERR_COEXIST:
+        return "coexist";
+    case ESP_IEEE802154_TX_ERR_SECURITY:
+        return "security";
+    default:
+        return "unknown";
+    }
+}
 
 /// @brief Initialize NVS before RF calibration data is loaded by the PHY.
 static void init_nvs(void)
@@ -165,12 +192,14 @@ static void IRAM_ATTR on_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *fr
                               (xEventGroupGetBitsFromISR(s_events) & RX_DONE_BIT) != 0;
     if (len <= IOT154_MAX_FRAME_LEN)
     {
+        ++s_rx_total_count;
         memcpy(s_rx_frame, frame, len + 1);
         s_rx_len = len;
         s_rx_info = *frame_info;
         xEventGroupSetBitsFromISR(s_events, RX_DONE_BIT, &task_woken);
         if (pending_slot)
         {
+            ++s_rx_overwrite_count;
             ESP_DRAM_LOGW(DRAM_STR("COORD_RX"), "pending frame overwritten");
         }
     }
@@ -188,6 +217,7 @@ static void IRAM_ATTR on_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *fr
 static void IRAM_ATTR on_tx_done(const uint8_t *frame, const uint8_t *ack, esp_ieee802154_frame_info_t *ack_info)
 {
     BaseType_t task_woken = pdFALSE;
+    s_radio_tx_callback_us = esp_timer_get_time();
     xEventGroupSetBitsFromISR(s_events, TX_DONE_BIT, &task_woken);
     if (ack != NULL)
     {
@@ -199,6 +229,7 @@ static void IRAM_ATTR on_tx_done(const uint8_t *frame, const uint8_t *ack, esp_i
 static void IRAM_ATTR on_tx_failed(const uint8_t *frame, esp_ieee802154_tx_error_t error)
 {
     BaseType_t task_woken = pdFALSE;
+    s_radio_tx_callback_us = esp_timer_get_time();
     s_radio_tx_error = error;
     xEventGroupSetBitsFromISR(s_events, TX_FAILED_BIT, &task_woken);
     portYIELD_FROM_ISR(task_woken);
@@ -826,7 +857,15 @@ static void send_radio_ack(uint32_t device_id, uint16_t seq, uint8_t endpoint_id
     s_report_ack_issp_seq = seq;
     s_report_ack_mac_seq = ack_mac_sequence;
     memcpy(s_report_ack_dst, dst_ext_addr, sizeof(s_report_ack_dst));
+    ESP_LOGI("COORD_RADIO_TRACE",
+             "event=tx_prepare role=report_ack device=0x%08" PRIx32 " issp_seq=%u endpoint=%u mac_seq=%u turnaround_us=%u",
+             device_id,
+             (unsigned)seq,
+             (unsigned)endpoint_id,
+             (unsigned)ack_mac_sequence,
+             (unsigned)REPORT_ACK_TURNAROUND_DELAY_US);
     esp_rom_delay_us(REPORT_ACK_TURNAROUND_DELAY_US);
+    s_radio_tx_started_us = esp_timer_get_time();
     (void)esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
     if (err != ESP_OK)
@@ -870,6 +909,7 @@ static void send_discovery_response(uint32_t device_id, uint16_t seq, const uint
              (unsigned)DISCOVERY_RESPONSE_TURNAROUND_DELAY_US,
              seq);
     esp_rom_delay_us(DISCOVERY_RESPONSE_TURNAROUND_DELAY_US);
+    s_radio_tx_started_us = esp_timer_get_time();
     esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
     if (err != ESP_OK)
@@ -978,6 +1018,14 @@ static bool transmit_pending_command(void)
     s_tx_is_command = true;
     ++s_pending_command.attempts;
     s_pending_command.awaiting_ack = false;
+    ESP_LOGI("COORD_RADIO_TRACE",
+             "event=tx_prepare role=command device=0x%08" PRIx32 " issp_seq=%u endpoint=%u mac_seq=%u attempt=%u cca=off",
+             command.device_id,
+             (unsigned)command.seq,
+             (unsigned)command.endpoint_id,
+             (unsigned)(s_mac_seq - 1U),
+             (unsigned)s_pending_command.attempts);
+    s_radio_tx_started_us = esp_timer_get_time();
     esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
     if (err != ESP_OK)
@@ -1317,7 +1365,10 @@ void app_main(void)
         if ((bits & RX_DONE_BIT) != 0)
         {
             uint8_t frame[IOT154_MAX_FRAME_LEN + 1];
-            memcpy(frame, s_rx_frame, s_rx_len + 1);
+            const uint8_t rx_len = s_rx_len;
+            memcpy(frame, s_rx_frame, rx_len + 1);
+            const esp_ieee802154_frame_info_t rx_info = s_rx_info;
+            const int64_t rx_dispatch_us = esp_timer_get_time();
             iot154_frame_info_t diagnostic_mac = {0};
             iot154_packet_t diagnostic_packet = {0};
             size_t payload_length = 0;
@@ -1427,12 +1478,35 @@ void app_main(void)
                 }
                 ESP_LOGW(TAG, "ignored frame: msg=%u not for this central", packet.msg_type);
             }
+            ESP_LOGI("COORD_RADIO_TRACE",
+                     "event=rx_processed role=%u device=0x%08" PRIx32 " issp_seq=%u endpoint=%u mac_seq=%u phy_len=%u channel=%u rssi=%d lqi=%u sfd_us=%llu sfd_to_dispatch_us=%lld processing_us=%lld rx_total=%lu overwrites=%lu",
+                     (unsigned)packet.msg_type,
+                     packet.device_id,
+                     (unsigned)packet.seq,
+                     (unsigned)packet.endpoint_id,
+                     (unsigned)(rx_len >= 3U ? frame[3] : 0U),
+                     (unsigned)rx_len,
+                     (unsigned)rx_info.channel,
+                     (int)rx_info.rssi,
+                     (unsigned)rx_info.lqi,
+                     (unsigned long long)rx_info.timestamp,
+                     (long long)(rx_dispatch_us - (int64_t)rx_info.timestamp),
+                     (long long)(esp_timer_get_time() - rx_dispatch_us),
+                     (unsigned long)s_rx_total_count,
+                     (unsigned long)s_rx_overwrite_count);
         }
 
         if ((bits & TX_DONE_BIT) != 0)
         {
             const bool command_tx = s_tx_is_command;
             ESP_LOGI(TAG, "%s TX done seq=%u", s_tx_type, s_radio_tx_seq);
+            ESP_LOGI("COORD_RADIO_TRACE",
+                     "event=tx_complete role=%s issp_seq=%u result=ok elapsed_us=%lld callback_us=%lld state=%u",
+                     s_tx_type,
+                     (unsigned)s_radio_tx_seq,
+                     (long long)(s_radio_tx_callback_us - s_radio_tx_started_us),
+                     (long long)s_radio_tx_callback_us,
+                     (unsigned)esp_ieee802154_get_state());
             s_radio_tx_busy = false;
             const esp_err_t restore_result = iot154_radio_start_rx();
             if (command_tx)
@@ -1462,7 +1536,20 @@ void app_main(void)
         if ((bits & TX_FAILED_BIT) != 0)
         {
             const bool command_tx = s_tx_is_command;
-            ESP_LOGW(TAG, "%s TX failed seq=%u error=%d", s_tx_type, s_radio_tx_seq, s_radio_tx_error);
+            ESP_LOGW(TAG, "%s TX failed seq=%u error=%s error_code=%d",
+                     s_tx_type,
+                     s_radio_tx_seq,
+                     radio_tx_error_name(s_radio_tx_error),
+                     (int)s_radio_tx_error);
+            ESP_LOGW("COORD_RADIO_TRACE",
+                     "event=tx_complete role=%s issp_seq=%u result=failed error=%s error_code=%d elapsed_us=%lld callback_us=%lld state=%u",
+                     s_tx_type,
+                     (unsigned)s_radio_tx_seq,
+                     radio_tx_error_name(s_radio_tx_error),
+                     (int)s_radio_tx_error,
+                     (long long)(s_radio_tx_callback_us - s_radio_tx_started_us),
+                     (long long)s_radio_tx_callback_us,
+                     (unsigned)esp_ieee802154_get_state());
             s_radio_tx_busy = false;
             const esp_err_t restore_result = iot154_radio_start_rx();
             if (command_tx)

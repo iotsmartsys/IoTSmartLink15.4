@@ -11,6 +11,7 @@ idf_component_register(
     PRIV_INCLUDE_DIRS
         "src"
     REQUIRES
+        esp_timer
         ieee802154
         issp_core
         nvs_flash
