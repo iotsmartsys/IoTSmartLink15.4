@@ -1,68 +1,70 @@
-# Instruções para assistentes de engenharia
+# Instruções permanentes e roteamento EKM
 
-Estas instruções se aplicam a todo o repositório.
+**Modelo EKM:** 1.14
 
-## Leitura obrigatória
+**Modalidade:** atores com perfis referenciados
 
-Antes de analisar ou alterar o projeto:
+**Estado:** vigente
 
-1. Leia `docs/rfc/EKM-GUIDELINES.md`.
-2. Consulte `docs/rfc/KNOWLEDGE-MAP.md` para localizar as fontes de
-   verdade do escopo afetado.
-3. Leia integralmente as especificações, documentos arquiteturais, contratos e
-   decisões normativas apontados pelo mapa.
-4. Consulte `docs/rfc/EKM-CHANGELOG.md` para verificar mudanças de
-   conhecimento abertas relacionadas ao escopo.
+## Autoridade
 
-## Regras fundamentais
+O Arquiteto humano tem autoridade final sobre intenção, prioridade, escopo,
+arquitetura, risco, autorização, validação e integração. A ordem recebida por
+prompt ou pipeline identifica papel, resultado, recorte e especificação quando
+aplicável.
 
-- Especificações definem **o que o sistema deve fazer**.
-- Toda funcionalidade ou comportamento que precise ser preservado ou
-  reconstruído deve possuir representação em uma especificação normativa.
-- Verifique separadamente o estado normativo da especificação e o estado de
-  sua implementação. Não interprete `Active` como evidência de implementação
-  validada.
-- As diretrizes EKM definem **como implementar, validar e preservar o
-  conhecimento do projeto**.
-- Não trate o código atual como autoridade absoluta quando ele divergir de uma
-  fonte normativa.
-- Não remova, resuma, condense ou reescreva conhecimento normativo sem
-  autorização explícita e específica.
-- Não transforme ambiguidades arquiteturais em decisões locais silenciosas.
-- Quando código, especificação, arquitetura, contrato ou teste divergirem,
-  interrompa a parte afetada e relate a divergência com evidências.
-- Implemente apenas o escopo aprovado. Código morto adjacente não é autorização
-  para ampliar uma tarefa.
-- Preserve alterações preexistentes que não pertençam ao escopo.
-- Não execute commit, push, criação de branch ou PR sem autorização explícita.
-- Antes da primeira alteração, registre a baseline real do worktree: branch,
-  commit, status, diffs e arquivos não rastreados relevantes. O `HEAD` isolado
-  não substitui essa baseline.
-- Preserve e reconcilie alterações preexistentes. Todo diff final, inclusive
-  formatação, deve possuir requisito, autorização ou justificativa explícita.
-- Identifique a natureza e o algoritmo de hashes usados como evidência, por
-  exemplo: objeto Git SHA-1, arquivo SHA-256 ou binário SHA-256.
-- Trate alterações normativas como uma transação de conhecimento: revise fontes
-  dependentes, mapa, lacunas e histórico antes de declarar conclusão.
-- Uma implementação pronta não encerra uma mudança EKM enquanto existirem
-  documentos, referências, lacunas ou evidências inconsistentes.
+## Fonte dos perfis
 
-## Relatório obrigatório
+**Raiz local da EKM:**
+`/Users/marcelocostamiranda/source/EKM-guidelines`
 
-Toda entrega deve distinguir:
+Antes de qualquer atuação EKM:
 
-- código e comportamento alterados;
-- contratos alterados;
-- ativos de conhecimento alterados;
-- decisões adicionadas, modificadas ou removidas;
-- desvios da especificação;
-- validações executadas e pendentes.
+1. leia integralmente
+   `/Users/marcelocostamiranda/source/EKM-guidelines/roles/REGRAS-COMUNS.md`;
+2. leia integralmente somente o perfil correspondente ao papel recebido;
+3. leia a especificação indicada, quando aplicável;
+4. leia apenas as fontes técnicas pertinentes ao recorte.
 
-O relatório também deve declarar se a transação EKM está completa, quais fontes
-dependentes foram revisadas e quais registros `Open`, `Closed`, `Blocked` ou
-`Superseded` foram criados ou atualizados.
+| Papel recebido | Perfil |
+|---|---|
+| Autor da Especificação | `roles/AUTOR-DA-ESPECIFICACAO.md` |
+| Engenheiro Analista | `roles/ENGENHEIRO-ANALISTA.md` |
+| Engenheiro Implementador | `roles/ENGENHEIRO-IMPLEMENTADOR.md` |
+| Engenheiro Revisor | `roles/ENGENHEIRO-REVISOR.md` |
+| Consultor de Arquitetura | `roles/CONSULTOR-DE-ARQUITETURA.md` |
 
-Inclua a reconciliação entre os inventários inicial e final. Uma alteração não
-explicada impede declarar a execução conforme ou encerrada.
+Não carregue perfis de outros papéis nem a metodologia EKM completa. Se a
+ordem não identificar papel, resultado e recorte, ou se a fonte não estiver
+acessível, não inicie a tarefa. A especificação é obrigatória no ciclo
+funcional; o Consultor pode receber Não se aplica [`Not Applicable`] em
+governança ou apoio fora desse ciclo.
 
-Uma lista de arquivos modificados não substitui essa análise.
+## Fontes locais do projeto
+
+- especificações: `docs/specs/`;
+- decisões, evidências e transações: `docs/rfc/EKM-CHANGELOG.md`;
+- mapa de conhecimento: `docs/rfc/KNOWLEDGE-MAP.md`;
+- visão e navegação do sistema: `docs/specs/SYSTEM-DOSSIER.md`;
+
+Validações adicionais pertencem à especificação aplicável. Build de imagem,
+push de pacote, webhook, deploy e scripts que publicam artefatos exigem ordem
+explícita do Arquiteto.
+
+## Invariantes locais
+
+- nunca registre nem exponha senha, token, authorization code, client secret,
+  chave de assinatura, header de autorização ou connection string;
+- diferencie clientes públicos de confidenciais; segredo distribuído em
+  cliente público não constitui autenticação do cliente;
+- alterações em autorização, emissão, validação, renovação, revogação,
+  consentimento ou identidade exigem especificação e evidência proporcional ao
+  risco;
+- preserve alterações preexistentes e não execute migração, rotação,
+  reescrita de histórico, publicação ou deploy sem autorização específica;
+- código e testes comprovam o estado implementado, mas não criam intenção nem
+  contrato normativo por inferência.
+
+As regras comuns e o perfil selecionado definem condições de entrada, promoção
+de estados, evidência, Git e encerramento. Regras específicas da tarefa
+pertencem à especificação ou à ordem do Arquiteto.

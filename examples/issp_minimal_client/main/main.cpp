@@ -1,5 +1,6 @@
 #include <cstdint>
 
+#include "SmartSysApp.h"
 #include "digital_output_behavior.hpp"
 #include "issp_device.hpp"
 #include "issp154_network_manager.hpp"
@@ -12,6 +13,13 @@ constexpr std::uint32_t kExampleDeviceId = 0x15400002;
 constexpr std::uint8_t kExampleEndpointId = 1;
 constexpr std::uint8_t kExampleEventType = 2;
 }
+
+// Constructing and configuring the facade proves compile and link
+// integration for issp_app_154. setup() is deliberately not called, so this
+// has no radio or NVS side effects.
+static iotsmartsys::SmartSysApp facadeApp({
+    .deviceId = kExampleDeviceId,
+});
 
 extern "C" void app_main()
 {
@@ -50,4 +58,19 @@ extern "C" void app_main()
     (void)networkManager;
     (void)behavior;
     (void)reportExecutor;
+
+    facadeApp.addSwitchPlugCapability({
+        .pin = GPIO_NUM_NC,
+        .activeHigh = true,
+        .initialState = false,
+        .reportOnStart = false,
+        .endpointId = kExampleEndpointId,
+        .eventType = kExampleEventType,
+    });
+    facadeApp.configureFactoryResetButton({
+        .pin = GPIO_NUM_NC,
+        .activeLow = true,
+        .holdTimeMs = 10000,
+        .pollIntervalMs = 20,
+    });
 }

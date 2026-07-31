@@ -1,163 +1,55 @@
-#include <stdint.h>
+#include <cstdint>
 
-#include "esp_check.h"
+#include "SmartSysApp.h"
 #include "esp_log.h"
-#include "esp_mac.h"
-#include "nvs_flash.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-
-#include "digital_output_behavior.hpp"
-#include "issp_device.hpp"
-#include "issp154_network_manager.hpp"
-#include "issp154_report_executor.hpp"
-#include "issp154_transport.hpp"
-#include "factory_reset_service.hpp"
-#include "reset_button_monitor.hpp"
 
 static const char *TAG = "iot154_switch";
+
+// The instance below is named "smartSysApp", not "app": with
+// "using namespace iotsmartsys;" in scope, an "app" identifier would be
+// ambiguous with the nested "iotsmartsys::app" namespace.
+using namespace iotsmartsys;
 
 namespace
 {
 constexpr gpio_num_t kRelayGpio = GPIO_NUM_13;
 constexpr gpio_num_t kResetButtonGpio = GPIO_NUM_9;
-constexpr std::uint16_t kClientShortAddress = 0x1001;
 constexpr std::uint32_t kDeviceId = 0x15400001;
 constexpr std::uint8_t kRelayEndpointId = 1;
 constexpr std::uint8_t kPowerEventType = 2;
 }
 
-static void initialize_nvs()
-{
-    esp_err_t result = nvs_flash_init();
-    if (result == ESP_ERR_NVS_NO_FREE_PAGES ||
-        result == ESP_ERR_NVS_NEW_VERSION_FOUND)
-    {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        result = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(result);
-}
-
-static esp_err_t clear_network_configuration(void *context)
-{
-    if (context == nullptr)
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
-    const issp::IsspResult result =
-        static_cast<issp::Issp154NetworkManager *>(context)
-            ->clearPersistedNetwork();
-    return result == issp::IsspResult::Ok ? ESP_OK : ESP_FAIL;
-}
-
-static void shutdown_transport_after_failure(issp::Issp154Transport &transport)
-{
-    const issp::IsspResult result = transport.end();
-    if (result != issp::IsspResult::Ok)
-    {
-        ESP_LOGE(TAG, "ISSP transport shutdown failed: %u",
-                 static_cast<unsigned>(result));
-    }
-}
+static SmartSysApp smartSysApp({
+    .deviceId = kDeviceId,
+});
 
 extern "C" void app_main()
 {
-    initialize_nvs();
-
-    static uint8_t switch_ext_addr[issp::kIssp154ExtendedAddressSize];
-    ESP_ERROR_CHECK(esp_read_mac(switch_ext_addr, ESP_MAC_IEEE802154));
-
-    static const issp::Issp154TransportConfig transport_config = {
-        .channel = 0,
-        .panId = 0,
-        .shortAddress = kClientShortAddress,
-        .coordinator = false,
-        .extendedAddress = switch_ext_addr,
-        .cca = true,
-        .promiscuous = false,
-    };
-    static const issp::IsspDeviceConfig device_config = {
-        .deviceId = kDeviceId,
-    };
-    static const issp::DigitalOutputConfig relay_config = {
-        .endpointId = kRelayEndpointId,
-        .eventType = kPowerEventType,
+    smartSysApp.addSwitchPlugCapability({
         .pin = kRelayGpio,
-        .activeLevel = 1,
+        .activeHigh = true,
         .initialState = false,
         .reportOnStart = true,
-    };
+        .endpointId = kRelayEndpointId,
+        .eventType = kPowerEventType,
+    });
 
-    static issp::Issp154Transport transport(transport_config);
-    static issp::Issp154NetworkManager network_manager(
-        transport,
-        kDeviceId);
-    static issp::IsspDevice device(device_config, transport);
-    static issp::DigitalOutputBehavior relay_behavior(relay_config);
-    static issp::Issp154ReportExecutor report_executor(device, transport);
-    static FactoryResetService factory_reset_service(
-        clear_network_configuration,
-        &network_manager);
-    static const ResetButtonConfig reset_button_config = {
-        .gpio = kResetButtonGpio,
+    smartSysApp.configureFactoryResetButton({
+        .pin = kResetButtonGpio,
+        .activeLow = true,
         .holdTimeMs = 10000,
         .pollIntervalMs = 20,
-        .activeLow = true,
-    };
-    static ResetButtonMonitor reset_button_monitor(
-        reset_button_config,
-        factory_reset_service);
+    });
 
-    const esp_err_t reset_button_result = reset_button_monitor.start();
-    if (reset_button_result != ESP_OK)
+    const SetupResult result = smartSysApp.setup();
+    if (result.state != AppState::Running)
     {
-        ESP_LOGE(TAG, "Factory reset button initialization failed: %s",
-                 esp_err_to_name(reset_button_result));
-        return;
-    }
-
-    const issp::IsspResult network_result = network_manager.initializeNetwork();
-    if (network_result != issp::IsspResult::Ok)
-    {
-        ESP_LOGE(TAG, "ISSP network initialization failed: %u",
-                 static_cast<unsigned>(network_result));
-        shutdown_transport_after_failure(transport);
-        return;
-    }
-    ESP_LOGI(TAG, "ISSP network initialized");
-
-    const issp::IsspResult add_behavior_result =
-        device.addBehavior(relay_behavior);
-    if (add_behavior_result != issp::IsspResult::Ok)
-    {
-        ESP_LOGE(TAG, "ISSP behavior registration failed: %u",
-                 static_cast<unsigned>(add_behavior_result));
-        shutdown_transport_after_failure(transport);
-        return;
-    }
-
-    const issp::IsspResult device_result = device.start();
-    if (device_result != issp::IsspResult::Ok)
-    {
-        ESP_LOGE(TAG, "ISSP device initialization failed: %u",
-                 static_cast<unsigned>(device_result));
-        shutdown_transport_after_failure(transport);
-        return;
-    }
-
-    const issp::IsspResult executor_result = report_executor.start();
-    if (executor_result != issp::IsspResult::Ok)
-    {
-        ESP_LOGE(TAG, "ISSP report executor initialization failed: %u",
-                 static_cast<unsigned>(executor_result));
-        shutdown_transport_after_failure(transport);
+        ESP_LOGE(TAG, "ISSP runtime did not start: state=%u stage=%u result=%u",
+                 static_cast<unsigned>(result.state),
+                 static_cast<unsigned>(result.stage),
+                 static_cast<unsigned>(result.result));
         return;
     }
 
     ESP_LOGI(TAG, "ISSP runtime started");
-    for (;;)
-    {
-        vTaskDelay(portMAX_DELAY);
-    }
 }
