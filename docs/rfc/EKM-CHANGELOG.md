@@ -2,7 +2,7 @@
 
 **Tipo:** Operacional
 **Status:** Active
-**Versão:** 1.4
+**Versão:** 1.5
 **Responsável:** Marcelo Miranda
 **Última atualização:** 30/07/2026
 **Escopo:** Todo o repositório
@@ -453,4 +453,51 @@ inicial.
   hardware nesta etapa);
 - estado da implementação da especificação atualizado para `In Progress`;
   `EKM-CHG-0007` permanece `Open` — fechamento, promoção a `Validated`/`Done`
-  e validação em hardware não foram executados nem autorizados nesta etapa.
+  e validação em hardware não foram executados nem autorizados nesta etapa;
+- 30/07/2026 (mesmo dia, correção): Arquiteto determina remover toda
+  exposição de tipos/headers `issp::*` de `SmartSysApp.h`, tornar privadas as
+  dependências ISSP/NVS/reset, implementar e executar testes automatizados de
+  estados/ordem/`setup()` repetido/falhas/rollback sem classificá-los como
+  dependentes de hardware, e adicionar build de `coordinator_154` em
+  ESP32-C6;
+- `SmartSysApp.h` reescrito: passa a incluir somente `<cstddef>`,
+  `<cstdint>` e `driver/gpio.h`; `SmartSysApp` guarda todo o estado atrás de
+  `struct Impl` incompleto, materializado por placement-new num buffer fixo
+  (`SmartSysApp::kImplStorageBytes`, sem alocação dinâmica);
+  `core::SwitchPlugCapability::state()` passa a usar um par
+  função-ponteiro/contexto opaco, mesmo padrão já usado por
+  `IsspDevice::CommandHandler`;
+- `Impl` dividido em `src/smart_sys_app.cpp` (máquina de estados de
+  `setup()`, sem dependência de rádio) e `src/smart_sys_app_hardware.cpp`
+  (NVS, transporte, network manager, device, executor e reset reais),
+  compartilhando `src/smart_sys_app_impl.hpp` (privado);
+  `components/issp_app_154/CMakeLists.txt` só compila
+  `smart_sys_app_hardware.cpp`/`src/reset/*.cpp` e só requer
+  `issp_transport_154`/`nvs_flash`/`esp_timer`/`esp_hw_support` quando o alvo
+  é `esp32h2` ou `esp32c6`; em outros alvos `issp_app_154` só oferece o
+  construtor de dois argumentos com `SmartSysApp::SetupHooks` (seam de
+  teste, aditivo e não normativo);
+- 19 testes automatizados (configuração, estados, ordem de inicialização,
+  `setup()` repetido, falhas injetadas em cada etapa e rollback) escritos em
+  `components/issp_app_154/test_apps/smart_sys_app_test`, usando apenas
+  `SmartSysApp::SetupHooks` com fakes — nenhum toca NVS, GPIO real ou
+  rádio — e **executados** sob QEMU (`qemu-riscv32`
+  `esp_develop_9.2.2_20250817`, alvo `esp32c3`, instalado via
+  `idf_tools.py install qemu-riscv32`; dependências de biblioteca dinâmica
+  do macOS instaladas via Homebrew neste ambiente de desenvolvimento):
+  **19/19 `PASS`, 0 `FAIL`**;
+- quatro builds sem warnings: `client_154` (esp32h2),
+  `examples/issp_minimal_client` (esp32h2), `coordinator_154` (esp32c6, novo
+  nesta correção), app de teste (esp32c3); nenhum sdkconfig versionado de
+  `client_154`/`coordinator_154` foi alterado (builds isolados via
+  `-DSDKCONFIG`); tamanhos e SHA-256 registrados na especificação
+  (seção 22.6);
+- `SMARTAPP-AC-001` agora satisfeito por inspeção direta do header público;
+  `SMARTAPP-AC-006` a `AC-013` e a parte hardware-independente de
+  `SMARTAPP-AC-020` passam de "não executado" para "executado, 19/19 PASS";
+- `SMARTAPP-AC-004C` e `SMARTAPP-AC-022` permanecem pendentes (hardware
+  físico), conforme instrução explícita do Arquiteto ("não execute testes em
+  hardware");
+- `EKM-CHG-0007` permanece `Open` — fechamento, promoção a `Validated`/`Done`
+  e validação em hardware físico não foram executados nem autorizados nesta
+  etapa.

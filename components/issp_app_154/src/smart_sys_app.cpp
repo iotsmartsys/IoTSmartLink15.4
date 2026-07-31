@@ -1,8 +1,18 @@
-#include "SmartSysApp.h"
+// Target-agnostic core of iotsmartsys::SmartSysApp: configuration
+// validation and the setup() state machine. It never calls NVS, GPIO
+// drivers or radio APIs directly -- every hardware-touching step goes
+// through SmartSysApp::SetupHooks, wired to the real implementations in
+// smart_sys_app_hardware.cpp (compiled only for targets with an
+// IEEE 802.15.4 radio) or to fakes supplied by automated tests. This file
+// only needs issp_core/issp_behaviors (GPIO, no radio), so it builds and
+// its logic can be exercised on any target, including one hosted by QEMU.
+
+#include "smart_sys_app_impl.hpp"
+
+#include <new>
 
 #include "esp_log.h"
-#include "esp_mac.h"
-#include "nvs_flash.h"
+#include "sdkconfig.h"
 
 namespace iotsmartsys
 {
@@ -12,38 +22,9 @@ namespace
 
 constexpr char kTag[] = "SmartSysApp";
 
-AppResult mapIsspResult(issp::IsspResult result)
+bool switchStateThunk(void *context)
 {
-    switch (result)
-    {
-    case issp::IsspResult::Ok:
-        return AppResult::Ok;
-    case issp::IsspResult::InvalidArgument:
-        return AppResult::InvalidArgument;
-    case issp::IsspResult::NotReady:
-        return AppResult::NotReady;
-    case issp::IsspResult::Busy:
-        return AppResult::Busy;
-    case issp::IsspResult::Failed:
-        return AppResult::Failed;
-    }
-    return AppResult::Failed;
-}
-
-esp_err_t initializeNvs()
-{
-    esp_err_t result = nvs_flash_init();
-    if (result == ESP_ERR_NVS_NO_FREE_PAGES ||
-        result == ESP_ERR_NVS_NEW_VERSION_FOUND)
-    {
-        const esp_err_t eraseResult = nvs_flash_erase();
-        if (eraseResult != ESP_OK)
-        {
-            return eraseResult;
-        }
-        result = nvs_flash_init();
-    }
-    return result;
+    return static_cast<issp::DigitalOutputBehavior *>(context)->state();
 }
 
 } // namespace
@@ -51,38 +32,60 @@ esp_err_t initializeNvs()
 namespace core
 {
 
-SwitchPlugCapability::SwitchPlugCapability(issp::DigitalOutputBehavior &behavior)
-    : behavior_(&behavior)
+SwitchPlugCapability::SwitchPlugCapability(StateFn stateFn, void *context)
+    : stateFn_(stateFn), context_(context)
 {
 }
 
 bool SwitchPlugCapability::state() const
 {
-    return behavior_->state();
+    return stateFn_(context_);
 }
 
 } // namespace core
 
-SmartSysApp::SmartSysApp(const app::SmartSysAppConfig &config)
-    : config_(config),
+SmartSysApp::Impl::Impl(const app::SmartSysAppConfig &config,
+                        const SetupHooks *hooksOverride)
+    : hardwareStorage_{},
+      config_(config),
       state_(AppState::Configuring),
       lastSetupResult_{AppState::Configuring, SetupStage::None, AppResult::Ok},
       lastConfigurationResult_(AppResult::Ok),
+      hooks_{},
       switchConfigs_{},
       switchBehaviors_{},
       switchCapabilities_{},
       switchCount_(0),
       factoryResetConfigured_(false),
-      factoryResetConfig_{},
-      extendedAddress_{}
+      factoryResetConfig_{}
 {
+    if (hooksOverride != nullptr)
+    {
+        hooks_ = *hooksOverride;
+    }
+#if defined(CONFIG_IDF_TARGET_ESP32H2) || defined(CONFIG_IDF_TARGET_ESP32C6)
+    else
+    {
+        // Only SmartSysApp's single-argument constructor
+        // (smart_sys_app_hardware.cpp, compiled solely for these targets)
+        // ever passes hooksOverride == nullptr.
+        hooks_.initializePlatform = &Impl::realInitializePlatform;
+        hooks_.initializeNetwork = &Impl::realInitializeNetwork;
+        hooks_.registerCapability = &Impl::realRegisterCapability;
+        hooks_.startDevice = &Impl::realStartDevice;
+        hooks_.startReportExecutor = &Impl::realStartReportExecutor;
+        hooks_.rollbackTransport = &Impl::realRollbackTransport;
+        hooks_.context = this;
+    }
+#endif
+
     if (config_.deviceId == 0)
     {
         recordConfigurationFailure(AppResult::InvalidArgument);
     }
 }
 
-void SmartSysApp::recordConfigurationFailure(AppResult result)
+void SmartSysApp::Impl::recordConfigurationFailure(AppResult result)
 {
     if (lastConfigurationResult_ == AppResult::Ok)
     {
@@ -90,7 +93,7 @@ void SmartSysApp::recordConfigurationFailure(AppResult result)
     }
 }
 
-bool SmartSysApp::hasDuplicateSwitchEndpoint(const app::SwitchConfig &config) const
+bool SmartSysApp::Impl::hasDuplicateSwitchEndpoint(const app::SwitchConfig &config) const
 {
     for (std::size_t index = 0; index < switchCount_; ++index)
     {
@@ -104,7 +107,7 @@ bool SmartSysApp::hasDuplicateSwitchEndpoint(const app::SwitchConfig &config) co
 }
 
 core::SwitchPlugCapability *
-SmartSysApp::addSwitchPlugCapability(const app::SwitchConfig &config)
+SmartSysApp::Impl::addSwitchPlugCapability(const app::SwitchConfig &config)
 {
     if (state_ != AppState::Configuring)
     {
@@ -138,14 +141,15 @@ SmartSysApp::addSwitchPlugCapability(const app::SwitchConfig &config)
 
     switchConfigs_[switchCount_] = config;
     switchBehaviors_[switchCount_].emplace(behaviorConfig);
-    switchCapabilities_[switchCount_].emplace(*switchBehaviors_[switchCount_]);
+    switchCapabilities_[switchCount_].emplace(
+        &switchStateThunk, static_cast<void *>(&*switchBehaviors_[switchCount_]));
     core::SwitchPlugCapability *capability = &*switchCapabilities_[switchCount_];
     ++switchCount_;
     return capability;
 }
 
 AppResult
-SmartSysApp::configureFactoryResetButton(const app::PushButtonConfig &config)
+SmartSysApp::Impl::configureFactoryResetButton(const app::PushButtonConfig &config)
 {
     if (state_ != AppState::Configuring)
     {
@@ -169,18 +173,7 @@ SmartSysApp::configureFactoryResetButton(const app::PushButtonConfig &config)
     return AppResult::Ok;
 }
 
-esp_err_t SmartSysApp::clearNetworkConfiguration(void *context)
-{
-    if (context == nullptr)
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
-    auto *self = static_cast<SmartSysApp *>(context);
-    const issp::IsspResult result = self->networkManager_->clearPersistedNetwork();
-    return result == issp::IsspResult::Ok ? ESP_OK : ESP_FAIL;
-}
-
-SetupResult SmartSysApp::fail(SetupStage stage, AppResult result)
+SetupResult SmartSysApp::Impl::fail(SetupStage stage, AppResult result)
 {
     state_ = AppState::Failed;
     lastSetupResult_ = {AppState::Failed, stage, result};
@@ -189,18 +182,7 @@ SetupResult SmartSysApp::fail(SetupStage stage, AppResult result)
     return lastSetupResult_;
 }
 
-void SmartSysApp::shutdownTransportAfterFailure()
-{
-    if (!transport_.has_value())
-    {
-        return;
-    }
-    const issp::IsspResult result = transport_->end();
-    ESP_LOGI(kTag, "app_setup rollback transport=%u",
-             static_cast<unsigned>(result));
-}
-
-SetupResult SmartSysApp::setup()
+SetupResult SmartSysApp::Impl::setup()
 {
     if (state_ != AppState::Configuring)
     {
@@ -222,58 +204,19 @@ SetupResult SmartSysApp::setup()
 
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::InitializePlatform));
-
-    const esp_err_t nvsResult = initializeNvs();
-    if (nvsResult != ESP_OK)
+    AppResult result = hooks_.initializePlatform(hooks_.context);
+    if (result != AppResult::Ok)
     {
-        return fail(SetupStage::InitializePlatform, AppResult::Failed);
-    }
-
-    const esp_err_t macResult =
-        esp_read_mac(extendedAddress_.data(), ESP_MAC_IEEE802154);
-    if (macResult != ESP_OK)
-    {
-        return fail(SetupStage::InitializePlatform, AppResult::Failed);
-    }
-
-    const issp::Issp154TransportConfig transportConfig = {
-        .channel = 0,
-        .panId = 0,
-        .shortAddress = kShortAddress,
-        .coordinator = false,
-        .extendedAddress = extendedAddress_.data(),
-        .cca = true,
-        .promiscuous = false,
-    };
-    transport_.emplace(transportConfig);
-    networkManager_.emplace(*transport_, config_.deviceId);
-    device_.emplace(issp::IsspDeviceConfig{config_.deviceId}, *transport_);
-    reportExecutor_.emplace(*device_, *transport_);
-
-    if (factoryResetConfigured_)
-    {
-        factoryResetService_.emplace(&SmartSysApp::clearNetworkConfiguration, this);
-        const ResetButtonConfig resetConfig = {
-            .gpio = factoryResetConfig_.pin,
-            .holdTimeMs = factoryResetConfig_.holdTimeMs,
-            .pollIntervalMs = factoryResetConfig_.pollIntervalMs,
-            .activeLow = factoryResetConfig_.activeLow,
-        };
-        resetButtonMonitor_.emplace(resetConfig, *factoryResetService_);
-        const esp_err_t resetStartResult = resetButtonMonitor_->start();
-        if (resetStartResult != ESP_OK)
-        {
-            return fail(SetupStage::InitializePlatform, AppResult::Failed);
-        }
+        return fail(SetupStage::InitializePlatform, result);
     }
 
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::InitializeNetwork));
-    const issp::IsspResult networkResult = networkManager_->initializeNetwork();
-    if (networkResult != issp::IsspResult::Ok)
+    result = hooks_.initializeNetwork(hooks_.context);
+    if (result != AppResult::Ok)
     {
-        shutdownTransportAfterFailure();
-        if (networkResult == issp::IsspResult::NotReady)
+        hooks_.rollbackTransport(hooks_.context);
+        if (result == AppResult::NotReady)
         {
             state_ = AppState::NotReady;
             lastSetupResult_ = {AppState::NotReady, SetupStage::InitializeNetwork,
@@ -283,38 +226,37 @@ SetupResult SmartSysApp::setup()
                      static_cast<unsigned>(AppResult::NotReady));
             return lastSetupResult_;
         }
-        return fail(SetupStage::InitializeNetwork, mapIsspResult(networkResult));
+        return fail(SetupStage::InitializeNetwork, result);
     }
 
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::RegisterCapabilities));
     for (std::size_t index = 0; index < switchCount_; ++index)
     {
-        const issp::IsspResult addResult =
-            device_->addBehavior(*switchBehaviors_[index]);
-        if (addResult != issp::IsspResult::Ok)
+        result = hooks_.registerCapability(hooks_.context, index);
+        if (result != AppResult::Ok)
         {
-            shutdownTransportAfterFailure();
-            return fail(SetupStage::RegisterCapabilities, mapIsspResult(addResult));
+            hooks_.rollbackTransport(hooks_.context);
+            return fail(SetupStage::RegisterCapabilities, result);
         }
     }
 
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::StartDevice));
-    const issp::IsspResult deviceResult = device_->start();
-    if (deviceResult != issp::IsspResult::Ok)
+    result = hooks_.startDevice(hooks_.context);
+    if (result != AppResult::Ok)
     {
-        shutdownTransportAfterFailure();
-        return fail(SetupStage::StartDevice, mapIsspResult(deviceResult));
+        hooks_.rollbackTransport(hooks_.context);
+        return fail(SetupStage::StartDevice, result);
     }
 
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::StartReportExecutor));
-    const issp::IsspResult executorResult = reportExecutor_->start();
-    if (executorResult != issp::IsspResult::Ok)
+    result = hooks_.startReportExecutor(hooks_.context);
+    if (result != AppResult::Ok)
     {
-        shutdownTransportAfterFailure();
-        return fail(SetupStage::StartReportExecutor, mapIsspResult(executorResult));
+        hooks_.rollbackTransport(hooks_.context);
+        return fail(SetupStage::StartReportExecutor, result);
     }
 
     state_ = AppState::Running;
@@ -323,24 +265,64 @@ SetupResult SmartSysApp::setup()
     return lastSetupResult_;
 }
 
+SmartSysApp::SmartSysApp(const app::SmartSysAppConfig &config, const SetupHooks &hooks)
+{
+    static_assert(sizeof(Impl) <= kImplStorageBytes,
+                 "SmartSysApp::kImplStorageBytes is too small for Impl");
+    static_assert(alignof(Impl) <= alignof(std::max_align_t),
+                 "Impl is overaligned for implStorage_");
+    new (implStorage_) Impl(config, &hooks);
+}
+
+SmartSysApp::~SmartSysApp()
+{
+    impl().~Impl();
+}
+
+SmartSysApp::Impl &SmartSysApp::impl()
+{
+    return *std::launder(reinterpret_cast<Impl *>(implStorage_));
+}
+
+const SmartSysApp::Impl &SmartSysApp::impl() const
+{
+    return *std::launder(reinterpret_cast<const Impl *>(implStorage_));
+}
+
+core::SwitchPlugCapability *
+SmartSysApp::addSwitchPlugCapability(const app::SwitchConfig &config)
+{
+    return impl().addSwitchPlugCapability(config);
+}
+
+AppResult SmartSysApp::configureFactoryResetButton(const app::PushButtonConfig &config)
+{
+    return impl().configureFactoryResetButton(config);
+}
+
+SetupResult SmartSysApp::setup()
+{
+    return impl().setup();
+}
+
 AppState SmartSysApp::state() const
 {
-    return state_;
+    return impl().state();
 }
 
 SetupResult SmartSysApp::lastSetupResult() const
 {
-    return lastSetupResult_;
+    return impl().lastSetupResult();
 }
 
 AppResult SmartSysApp::lastConfigurationResult() const
 {
-    return lastConfigurationResult_;
+    return impl().lastConfigurationResult();
 }
 
 std::uint32_t SmartSysApp::deviceId() const
 {
-    return config_.deviceId;
+    return impl().deviceId();
 }
 
 } // namespace iotsmartsys

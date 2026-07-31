@@ -881,31 +881,75 @@ O relatório futuro deve informar:
 14. Definition of Done EKM;
 15. reconciliação integral do inventário final.
 
-## 22. Registro de implementação (2026-07-30)
+## 22. Registro de implementação (2026-07-30, corrigido)
 
-**Papel:** Engenheiro Implementador. **Ordem:** aprovação explícita do
-Arquiteto para iniciar a implementação desta especificação (versão 1.3,
-revisão `Implementable`), com recorte e requisitos descritos nesta seção.
+**Papel:** Engenheiro Implementador. **Ordem inicial:** aprovação explícita
+do Arquiteto para iniciar a implementação desta especificação (versão 1.3,
+revisão `Implementable`). **Ordem de correção (mesmo dia):** o Arquiteto
+determinou remover toda exposição de tipos/headers `issp::*` de
+`SmartSysApp.h`, tornar privadas as dependências ISSP/NVS/reset, implementar
+e **executar** testes automatizados de estados, ordem de inicialização,
+`setup()` repetido, falhas injetadas e rollback sem classificá-los como
+dependentes de hardware, e adicionar um build de `coordinator_154` em
+ESP32-C6. Esta seção substitui integralmente o registro da rodada inicial;
+o que mudou está descrito em 22.1.
 
 ### 22.1 Resultado executivo
 
-`iotsmartsys::SmartSysApp` foi implementada em `components/issp_app_154`,
-compondo por delegação `issp_core`, `issp_behaviors` e `issp_transport_154`, e
-possuindo o factory reset local realocado de `client_154/main/reset`.
-`client_154/main.cpp` e `examples/issp_minimal_client/main/main.cpp` foram
-migrados para consumir a fachada. Três builds obrigatórios (`client_154`,
-`examples/issp_minimal_client`, `coordinator_154`) compilam sem warnings.
-Testes automatizados de configuração foram escritos e compilam para o alvo,
-mas sua **execução** depende de hardware ou de um modelo QEMU com rádio
-IEEE 802.15.4, indisponíveis neste ambiente; por isso permanecem não
-executados, no mesmo status pendente de `SMARTAPP-AC-022`.
+A rodada inicial armazenava `issp::Issp154Transport`,
+`issp::Issp154NetworkManager`, `issp::IsspDevice`,
+`issp::Issp154ReportExecutor`, `issp::DigitalOutputBehavior` e os serviços
+de reset como membros diretos de `SmartSysApp`, cujo header público incluía
+`digital_output_behavior.hpp`, `issp154_*.hpp`, `issp_device.hpp`,
+`issp_limits.hpp` e `reset/*.hpp` — violando `SMARTAPP-AC-001`. A correção:
+
+- `SmartSysApp.h` agora só inclui `<cstddef>`, `<cstdint>` e
+  `driver/gpio.h` (exigido pelo próprio contrato normativo da seção 8 para
+  `gpio_num_t`); nenhum header `issp_*` ou `reset/*` aparece nele;
+- `core::SwitchPlugCapability::state()` é servido por um par
+  função-ponteiro/contexto opaco (`StateFn`), o mesmo padrão de callback já
+  usado internamente pelo runtime ISSP (`IsspDevice::CommandHandler`), então
+  a fachada não precisa nomear `issp::DigitalOutputBehavior` no header;
+  `SmartSysApp` guarda seu estado inteiro atrás de um `struct Impl`
+  incompleto no header público, materializado por placement-new em um
+  buffer de bytes de tamanho fixo (`SmartSysApp::kImplStorageBytes`, sem
+  alocação dinâmica, verificado por `static_assert(sizeof(Impl) <=
+  kImplStorageBytes)`);
+- `Impl` foi dividido em dois arquivos privados: `src/smart_sys_app.cpp`
+  (máquina de estados de `setup()`, sem nenhuma dependência de rádio) e
+  `src/smart_sys_app_hardware.cpp` (NVS, transporte, network manager,
+  device, executor de reports e serviços de reset reais), unidos por
+  `src/smart_sys_app_impl.hpp` (privado, não publicado em `include/`);
+  `components/issp_app_154/CMakeLists.txt` só compila
+  `smart_sys_app_hardware.cpp`, `src/reset/*.cpp` e requer
+  `issp_transport_154`/`nvs_flash`/`esp_timer`/`esp_hw_support` quando o
+  alvo é `esp32h2` ou `esp32c6` (`idf_build_get_property(... IDF_TARGET)`);
+  em qualquer outro alvo, `issp_app_154` só oferece o construtor de dois
+  argumentos abaixo — o construtor de produto de um argumento é definido
+  apenas em `smart_sys_app_hardware.cpp`;
+- os cinco passos de hardware de `setup()` (inicializar plataforma,
+  inicializar rede, registrar capability, iniciar device, iniciar executor)
+  e o rollback do transporte passaram a ser indireções por ponteiro de
+  função — `SmartSysApp::SetupHooks`, um tipo público novo e aditivo, não
+  normativo (seção 8 não o define), documentado no header como mecanismo de
+  teste. O construtor de produto (`SmartSysApp(config)`) os liga às
+  implementações reais; um segundo construtor
+  (`SmartSysApp(config, hooks)`) permite substituí-los por fakes.
+
+Testes automatizados cobrindo configuração, estados, ordem de inicialização,
+`setup()` repetido e rollback foram escritos usando exclusivamente
+`SmartSysApp::SetupHooks` — nenhum toca NVS, GPIO real ou rádio — e
+**executados** sob QEMU (`qemu-riscv32`, ferramenta oficial do ESP-IDF,
+modelo `esp32c3`), não em hardware físico. Resultado: 19/19 casos `PASS`,
+0 falhas. `coordinator_154` foi adicionalmente compilado para `esp32c6`, sem
+tocar seu `sdkconfig` versionado.
 
 ### 22.2 Baseline e aprovação aplicável
 
-Baseline: `client_154/main.cpp` e `client_154/main/reset/` antes desta etapa
-(seção 6.2). Aprovação: instrução do Arquiteto nesta conversa, autorizando o
-início da implementação e o registro da decisão em `EKM-CHG-0007` sem
-promover estados não sustentados pela evidência produzida.
+Baseline desta correção: o commit `2aba6f9` (rodada inicial). Aprovação:
+instrução do Arquiteto nesta conversa, com as cinco correções obrigatórias
+listadas no cabeçalho desta seção; hardware físico continua fora de
+autorização.
 
 ### 22.3 Matrizes de requisitos e aceite
 
@@ -915,42 +959,54 @@ promover estados não sustentados pela evidência produzida.
 
 | Critério | Estado |
 |---|---|
-| AC-001 a AC-005 | Implementado (código e build) |
+| AC-001 | Satisfeito: `SmartSysApp.h` não inclui nenhum header `issp_*`/`reset/*` nem nomeia tipo `Issp*`/`Issp154*` (verificado por inspeção do header e pelos quatro builds abaixo) |
+| AC-002 a AC-005 | Implementado (código e build) |
 | AC-004A, AC-004B | Implementado (destruição só permitida em `Configuring`; exemplo e `client_154` usam duração estática) |
 | AC-004C | Não executado (depende de instrumentação em hardware) |
-| AC-006 a AC-013 | Implementado no código; não exercitado por execução automatizada (depende de rádio/NVS reais) |
+| AC-006 a AC-013 | Implementado **e executado** sob QEMU via `SmartSysApp::SetupHooks` (seção 22.6); nenhum caso depende de hardware |
 | AC-014 a AC-019 | Preservado por inspeção do diff; não há mudança de wire, persistência, endpoint, event type, GPIO, tempos ou lógica de factory reset |
-| AC-020 | Parcial: testes de configuração escritos e compilados (`components/issp_app_154/test_apps/smart_sys_app_test`); execução pendente (sem hardware/QEMU) |
-| AC-021 | Satisfeito: os três builds compilam sem warnings (seção 22.6) |
-| AC-022 | Pendente (hardware), conforme instrução do Arquiteto |
+| AC-020 | Satisfeito para os casos hardware-independentes: 19 testes de configuração e de `setup()` escritos, compilados e **executados** sob QEMU, todos `PASS` (seção 22.6). Casos que exigem hardware real (rádio, NVS, GPIO físicos) permanecem em `SMARTAPP-AC-022` |
+| AC-021 | Satisfeito: os quatro builds (`client_154` ESP32-H2, `examples/issp_minimal_client` ESP32-H2, `coordinator_154` ESP32-C6, app de teste ESP32-C3) compilam sem warnings (seção 22.6) |
+| AC-022 | Pendente (hardware físico), conforme instrução do Arquiteto |
 | AC-023 | Satisfeito por este registro e pela revisão do diff resultante |
-| AC-024 | `git diff --check` executado (seção 22.6); reconciliação nesta seção |
+| AC-024 | `git diff --check` executado (seção 22.6); reconciliação em 22.10 |
 
 ### 22.4 API pública resultante
 
-Igual à seção 8 desta especificação, sem alteração de nomes ou campos
-normativos. Um ajuste sintático indispensável foi necessário: o exemplo
-normativo da seção 9 declara `static SmartSysApp app(...)` junto de
-`using namespace iotsmartsys::app;`; isso torna o identificador `app`
-ambíguo entre a variável e o namespace `iotsmartsys::app` (erro de
-compilação `reference to 'app' is ambiguous`). A implementação usa o nome de
-instância `smartSysApp` em `client_154/main.cpp` e não importa
-`iotsmartsys::app` via `using namespace`, preservando a intenção do exemplo.
+A API normativa da seção 8 permanece idêntica nos nomes e campos. Dois
+ajustes aditivos, ambos fora do escopo normativo da seção 8 e necessários
+apenas para AC-001 e para a testabilidade sem hardware exigida nesta
+correção:
+
+- `SmartSysApp::SetupHooks` (struct pública, com os seis ponteiros de função
+  dos passos de `setup()` e um `void *context`) e o construtor
+  `SmartSysApp(config, hooks)`, documentados no header como não normativos;
+- `SmartSysApp::kImplStorageBytes` (constante pública que apenas dimensiona
+  um buffer privado; não nomeia nenhum tipo `issp::*`).
+
+Um ajuste sintático indispensável, já registrado na rodada inicial e
+preservado aqui: o exemplo normativo da seção 9 declara
+`static SmartSysApp app(...)` junto de `using namespace iotsmartsys::app;`,
+o que torna `app` ambíguo entre a variável e o namespace
+`iotsmartsys::app`. A implementação usa `smartSysApp` como nome de
+instância em `client_154/main.cpp` e não importa `iotsmartsys::app` via
+`using namespace`.
 
 ### 22.5 Ordem efetiva de setup, propriedade e duração, falhas e rollback
 
-Implementados conforme as seções 10 a 12: NVS não abortam mais o processo
-(`ESP_ERROR_CHECK` foi substituído por verificação explícita, mapeando falha
-para `Failed`/`InitializePlatform`, exigido por `SMARTAPP-005`); a rede é
-inicializada preservando a política de commissioning vigente; capabilities
-são registradas na ordem de adição; rollback do transporte ocorre sempre que
-`initializeNetwork()` não retorna `Ok`, e em falha de registro de capability,
-início do device ou início do executor, preservando o erro primário. Os
-objetos internos (`Issp154Transport`, `Issp154NetworkManager`, `IsspDevice`,
-`Issp154ReportExecutor`, `FactoryResetService`, `ResetButtonMonitor`) são
-armazenados por valor em `std::optional` dentro de `SmartSysApp`, com
-armazenamento fixo (sem alocação dinâmica) e construídos apenas dentro de
-`setup()`.
+Implementados conforme as seções 10 a 12, agora expressos como uma sequência
+de chamadas a `SetupHooks` que a máquina de estados em `smart_sys_app.cpp`
+orquestra: `initializePlatform` → `initializeNetwork` → `registerCapability`
+(uma vez por capability, na ordem de adição) → `startDevice` →
+`startReportExecutor`, com `rollbackTransport` chamado em toda falha após
+`initializeNetwork` ter sido tentado. A implementação real desses passos
+(`smart_sys_app_hardware.cpp`) preserva exatamente a lógica da rodada
+inicial: NVS não aborta mais o processo (falha mapeada para
+`Failed`/`InitializePlatform`, exigido por `SMARTAPP-005`); a rede é
+inicializada preservando a política de commissioning vigente; os objetos
+internos ficam em `HardwareState`, dentro do buffer opaco
+`Impl::hardwareStorage_`, com armazenamento fixo (sem alocação dinâmica) e
+construídos apenas dentro de `setup()`.
 
 ### 22.6 Preservação de wire, persistência, report e factory reset; arquivos alterados; dependências revisadas; testes, builds e hardware
 
@@ -959,61 +1015,82 @@ delay ou commissioning foi alterada; `DigitalOutputBehavior`,
 `Issp154Transport`, `Issp154NetworkManager`, `Issp154ReportExecutor` e
 `IsspDevice` não foram modificados.
 
-Arquivos criados: `components/issp_app_154/` (CMakeLists, `include/SmartSysApp.h`,
-`include/reset/*`, `src/smart_sys_app.cpp`, `src/reset/*`,
-`test_apps/smart_sys_app_test/*`). Arquivos realocados sem mudança funcional:
-`client_154/main/reset/*.hpp/.cpp` para `components/issp_app_154/{include,src}/reset/`.
-Arquivos alterados: `client_154/main/main.cpp`, `client_154/main/CMakeLists.txt`,
-`examples/issp_minimal_client/main/main.cpp`,
-`examples/issp_minimal_client/main/CMakeLists.txt`, `components/README.md`.
-Nenhum arquivo de `client_154/main`, `coordinator_154` ou
-`examples/issp_minimal_client` fora do recorte autorizado foi tocado.
+Arquivos criados nesta correção:
+`components/issp_app_154/src/smart_sys_app_impl.hpp`,
+`components/issp_app_154/src/smart_sys_app_hardware.cpp`. Arquivos
+reescritos: `components/issp_app_154/include/SmartSysApp.h`,
+`components/issp_app_154/src/smart_sys_app.cpp`,
+`components/issp_app_154/CMakeLists.txt`,
+`components/issp_app_154/test_apps/smart_sys_app_test/main/test_smart_sys_app.cpp`
+(e seu `CMakeLists.txt`, para incluir `issp_core`), `components/README.md`.
+Arquivos realocados sem mudança funcional (de `include/reset/` para
+`src/reset/`, agora privados): `factory_reset_service.hpp`,
+`ifactory_reset_requester.hpp`, `reset_button_monitor.hpp`. Nenhum arquivo
+de `client_154/main`, `coordinator_154` ou `examples/issp_minimal_client`
+fora do recorte autorizado foi tocado; `client_154/main.cpp` e
+`examples/issp_minimal_client/main/main.cpp` não precisaram de nova
+alteração (a API pública que consomem não mudou).
 
-Builds executados (ESP-IDF v6.0.1-dirty, alvo `esp32h2`, sem warnings):
+Builds executados (ESP-IDF v6.0.1-dirty, sem warnings, sdkconfig versionado
+de `client_154`/`coordinator_154` preservado intacto via `-DSDKCONFIG` de
+build isolado):
 
-| Projeto | Binário | Tamanho | SHA-256 |
-|---|---|---|---|
-| `client_154` | `sensor_154.bin` | 246960 bytes | `8603c4c7955ec39d53df8fb832bdc0407ca5d12b4f3b51d4e39f5f08825ceec9` |
-| `examples/issp_minimal_client` | `issp_minimal_client.bin` | 210304 bytes | `1ab925d54efb2cbfeaebd612e14129e0326d870b82ca411252c157a6fa8c3f9e` |
-| `coordinator_154` | `central_154.bin` | 252816 bytes | `fe04ae3e57286d359fb33a481353fc4c36171aa033573165a9e0d355ee1a1254` |
-| `components/issp_app_154/test_apps/smart_sys_app_test` (evidência adicional) | `smart_sys_app_test.bin` | 213920 bytes | `5dccb6f7cbc49fd3b4f7da844239e9868d65270b74580ac3e3a942fc3194aa82` |
+| Projeto | Alvo | Binário | Tamanho | SHA-256 |
+|---|---|---|---|---|
+| `client_154` | esp32h2 | `sensor_154.bin` | 247424 bytes | `8707ecc0be796faedf87dd82b5039ce9f6a7a8dfba3f7fa12cd5fa1b8c5d89a0` |
+| `examples/issp_minimal_client` | esp32h2 | `issp_minimal_client.bin` | 247440 bytes | `7260c2667ee0c70bccf3be575cc7f4eadfde08b39581a06c67f2835fbb6e864f` |
+| `coordinator_154` | esp32c6 | `central_154.bin` | 289760 bytes | `ababe6b8cebd7bc07d120f49e4eb2fa212f7d35a335985abcd17069514ec40b8` |
+| `components/issp_app_154/test_apps/smart_sys_app_test` | esp32c3 (QEMU) | `smart_sys_app_test.bin` | 138272 bytes | `973866449120310cc87ddd30d064d822da6924629539cd04a088d5e50bfce6a4` |
 
-`coordinator_154` não depende de `components/`; o build comprova apenas
-ausência de regressão fora do recorte. `git diff --check` não reportou
-espaços em branco inválidos.
+`coordinator_154` não depende de `components/`; o build em ESP32-C6 comprova
+apenas ausência de regressão fora do recorte, num alvo diferente do usado
+antes. `git diff --check` não reportou espaços em branco inválidos.
 
-Hardware: não executado, por instrução explícita do Arquiteto
-("Operações não autorizadas: flash ou teste em hardware"). `SMARTAPP-AC-022`
-permanece pendente.
+Execução automatizada sob QEMU (`idf.py -B build_qemu_c3 qemu`, ferramenta
+`qemu-riscv32` versão `esp_develop_9.2.2_20250817` instalada via
+`idf_tools.py install qemu-riscv32`, dependências de biblioteca dinâmica do
+macOS — `pixman`, `libgcrypt`, `sdl2`/`sdl2-compat`, `glib` e as demais
+dependências de `qemu` — instaladas via Homebrew neste ambiente de
+desenvolvimento): 19 `TEST_CASE` executados, **19 `PASS`, 0 `FAIL`**. Um
+`Guru Meditation Error` (panic) ocorre em QEMU somente depois que
+`app_main()` retorna normalmente e todos os resultados já foram impressos
+(`Returned from app_main()` aparece antes do panic); é um artefato conhecido
+de app de teste mínimo cuja `main_task` termina, não uma falha de
+`SmartSysApp` — nenhuma asserção falhou antes dele. A saída bruta de um dos
+ciclos de execução (com o panic pós-conclusão) está preservada em
+`/tmp/qemu_run3.log` neste ambiente, não versionada.
+
+Hardware físico: não executado, por instrução explícita do Arquiteto
+("Não execute testes em hardware"). `SMARTAPP-AC-022` e `SMARTAPP-AC-004C`
+permanecem pendentes.
 
 ### 22.7 Warnings, desvios, riscos e pendências
 
-- Warnings: nenhum nos quatro builds acima (`-Wall -Wextra`, `-Werror` com as
-  exceções já padrão do projeto).
-- Desvio registrado: nome da instância no exemplo de consumo (seção 22.4).
-- Risco/lacuna conhecida: os testes automatizados de `SMARTAPP-AC-020`
-  cobrem validação de configuração (`addSwitchPlugCapability`,
-  `configureFactoryResetButton`, `lastConfigurationResult()`, estabilidade de
-  ponteiros, capacidade) porque essas rotas não tocam hardware antes de
-  `setup()`. Os casos que dependem de `setup()` real — rede, device, executor,
-  rollback e `AC-006` (`Busy` em `setup()` repetido) — estão presentes apenas
-  como contrato revisado em código, sem execução automatizada; requerem
-  hardware ou um modelo QEMU com radio 802.15.4, hoje indisponíveis.
-- Pendência: `SMARTAPP-AC-004C`, `SMARTAPP-AC-022` e a execução dos testes
-  acima dependem de hardware, fora do recorte desta etapa.
+- Warnings: nenhum nos quatro builds da seção 22.6.
+- Desvios registrados: nome da instância no exemplo de consumo (seção
+  22.4); `SmartSysApp::SetupHooks`, o construtor de dois argumentos e
+  `SmartSysApp::kImplStorageBytes` como API pública aditiva, não normativa
+  (seção 22.4).
+- Ferramenta de ambiente instalada nesta etapa (fora do repositório):
+  `qemu-riscv32` via `idf_tools.py`, e as bibliotecas dinâmicas macOS que
+  ele requer, via Homebrew — nenhuma altera este repositório.
+- Pendência: `SMARTAPP-AC-004C` e `SMARTAPP-AC-022` (validação em hardware
+  físico — rádio, NVS, GPIO, factory reset reais) permanecem fora do
+  recorte desta atuação.
 
 ### 22.8 Estado de `EKM-CHG-0007`
 
 Permanece `Open`, conforme instrução explícita do Arquiteto (fechamento não
-autorizado nesta etapa). Este registro é a evidência de implementação
-associada à decisão já registrada nesse changelog.
+autorizado nesta etapa nem na anterior). Este registro substitui a evidência
+de implementação da rodada inicial, associada à mesma decisão já registrada
+nesse changelog.
 
 ### 22.9 Definition of Done EKM
 
-Não concluída integralmente: implementação, build e parte da evidência
-automatizável estão completos; validação humana (Engenheiro Revisor),
-execução de testes e validação em hardware permanecem pendentes e fora do
-papel/recorte desta atuação.
+Não concluída integralmente: implementação, build e a evidência automatizável
+hardware-independente estão completos e executados; validação humana
+(Engenheiro Revisor), promoção a `Validated`/`Done` e validação em hardware
+físico permanecem pendentes e fora do papel/recorte desta atuação.
 
 ### 22.10 Reconciliação do inventário final
 
@@ -1021,5 +1098,7 @@ Nenhum runtime duplicado, fonte duplicada ou dependência reversa foi
 introduzida: `client_154/main` e `examples/issp_minimal_client/main` não são
 dependidos por `components/issp_app_154`; `issp_app_154` não depende de
 `client_154/main`, `coordinator_154` ou `examples/issp_minimal_client`. O
-inventário de `components/` passa a ter quatro componentes (seção 15 desta
-especificação e `components/README.md`).
+inventário de `components/` permanece com quatro componentes (seção 15 desta
+especificação e `components/README.md`); `issp_app_154` agora tem um app de
+teste adicional (`test_apps/smart_sys_app_test`) que não é consumido por
+nenhum firmware de produto.
