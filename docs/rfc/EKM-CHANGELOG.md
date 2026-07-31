@@ -2,7 +2,7 @@
 
 **Tipo:** Operacional
 **Status:** Active
-**Versão:** 1.5
+**Versão:** 1.6
 **Responsável:** Marcelo Miranda
 **Última atualização:** 30/07/2026
 **Escopo:** Todo o repositório
@@ -320,9 +320,10 @@ implementação. Também reduzir a dispersão das fontes normativas no repositó
 
 ## EKM-CHG-0007 — Bootstrap configurável do client ISSP
 
-**Status:** `Open`
+**Status:** `Closed`
 **Tipo:** Especificação e evolução arquitetural
 **Aberta em:** 23/07/2026
+**Encerrada em:** 30/07/2026
 
 ### Motivação
 
@@ -501,3 +502,17 @@ inicial.
 - `EKM-CHG-0007` permanece `Open` — fechamento, promoção a `Validated`/`Done`
   e validação em hardware físico não foram executados nem autorizados nesta
   etapa.
+- em atuação humana posterior, o Arquiteto validou o firmware em hardware com
+  `client_154` no ESP32-H2 e `coordinator_154` no ESP32-C6, declarou a
+  implementação funcional e autorizou o fechamento da especificação;
+- os logs de hardware comprovam carregamento de rede persistida, transição para
+  `Running`, criação e recepção do report inicial e atuação por comandos;
+- os mesmos logs revelam perda intermitente de ACK nos dois sentidos e criação
+  de nova sequência para retries externos do mesmo report. O Arquiteto aceitou
+  esse risco como preexistente e fora da fachada, sem declará-lo resolvido;
+- a confiabilidade de turnaround, ACK e identidade de retries foi separada em
+  `EKM-GAP-0006`, com critério de encerramento próprio;
+- `ISSP-Configurable-Bootstrap.md` foi promovida para `Active`, `Validated` e
+  `Ready`; o mapa foi reconciliado e a Definition of Done EKM respondida;
+- `EKM-CHG-0007` foi encerrada por decisão do Arquiteto. O encerramento cobre a
+  fachada configurável e não constitui validação de uma correção do transporte.

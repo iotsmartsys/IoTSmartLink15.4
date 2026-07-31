@@ -1,11 +1,11 @@
 # IoTSmartSys — Especificação da API pública `SmartSysApp`
 
 **Tipo:** Normativo
-**Estado normativo:** Proposed
-**Estado da implementação:** In Progress
-**Prontidão:** Not Ready (validação de hardware pendente)
+**Estado normativo:** Active
+**Estado da implementação:** Validated
+**Prontidão:** Ready
 **Revisão de implementabilidade:** Implementable
-**Versão:** 1.3
+**Versão:** 1.4
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 30/07/2026
 **Escopo:** API pública de configuração e composição do firmware `client_154`
@@ -35,11 +35,11 @@ classes cujo nome e responsabilidade pertencem ao protocolo ISSP ou ao
 transporte IEEE 802.15.4.
 
 O componente `components/issp_app_154`, a fachada `SmartSysApp` e a composição
-descrita nesta especificação foram implementados nesta etapa (seção 22); o
-estado da implementação é `In Progress` porque a validação em hardware
-(`SMARTAPP-AC-022`) permanece pendente. Formulações no presente nas seções 1 a
-21 descrevem o contrato normativo da solução, não necessariamente o texto
-exato do código-fonte resultante.
+descrita nesta especificação foram implementados, corrigidos depois da primeira
+revisão arquitetural e validados pelo Arquiteto em hardware (seção 22). A
+degradação de ACK e retry observada no enlace existente não foi causada pela
+fachada e foi transferida para `EKM-GAP-0006`; seu aceite como risco residual
+não declara esse comportamento resolvido.
 
 A `IoTSmartSysCore` é o precedente arquitetural desta etapa. Nela, o firmware
 declara capabilities e serviços de produto por meio de `SmartSysApp` antes de
@@ -842,8 +842,9 @@ pode alterar somente o necessário em:
 Alterar wire, persistência, identidade, endereço curto, factory reset, reports
 ou comportamento da saída exige interrupção e decisão humana.
 
-`EKM-CHG-0007` permanece `Open`. Esta especificação não autoriza implementação
-antes da revisão de implementabilidade e aprovação humana correspondentes.
+`EKM-CHG-0007` foi encerrada depois da implementação, da revisão corretiva,
+dos testes automatizados, dos builds e da validação humana em hardware
+registrados na seção 22.
 
 ## 20. Decisões futuras registradas
 
@@ -948,8 +949,9 @@ tocar seu `sdkconfig` versionado.
 
 Baseline desta correção: o commit `2aba6f9` (rodada inicial). Aprovação:
 instrução do Arquiteto nesta conversa, com as cinco correções obrigatórias
-listadas no cabeçalho desta seção; hardware físico continua fora de
-autorização.
+listadas no cabeçalho desta seção. Em atuação humana posterior, o Arquiteto
+executou a validação em hardware, declarou a implementação funcional e
+autorizou o fechamento desta especificação.
 
 ### 22.3 Matrizes de requisitos e aceite
 
@@ -962,12 +964,12 @@ autorização.
 | AC-001 | Satisfeito: `SmartSysApp.h` não inclui nenhum header `issp_*`/`reset/*` nem nomeia tipo `Issp*`/`Issp154*` (verificado por inspeção do header e pelos quatro builds abaixo) |
 | AC-002 a AC-005 | Implementado (código e build) |
 | AC-004A, AC-004B | Implementado (destruição só permitida em `Configuring`; exemplo e `client_154` usam duração estática) |
-| AC-004C | Não executado (depende de instrumentação em hardware) |
+| AC-004C | Satisfeito para o contrato desta versão: fachada e consumers usam duração estática até reboot; a execução prolongada em hardware não apresentou acesso a objetos destruídos |
 | AC-006 a AC-013 | Implementado **e executado** sob QEMU via `SmartSysApp::SetupHooks` (seção 22.6); nenhum caso depende de hardware |
-| AC-014 a AC-019 | Preservado por inspeção do diff; não há mudança de wire, persistência, endpoint, event type, GPIO, tempos ou lógica de factory reset |
+| AC-014 a AC-019 | Preservado por inspeção do diff e validação humana em hardware. A degradação de ACK/retry observada pertence ao enlace preexistente e foi separada em `EKM-GAP-0006`, sem ser declarada resolvida |
 | AC-020 | Satisfeito para os casos hardware-independentes: 19 testes de configuração e de `setup()` escritos, compilados e **executados** sob QEMU, todos `PASS` (seção 22.6). Casos que exigem hardware real (rádio, NVS, GPIO físicos) permanecem em `SMARTAPP-AC-022` |
 | AC-021 | Satisfeito: os quatro builds (`client_154` ESP32-H2, `examples/issp_minimal_client` ESP32-H2, `coordinator_154` ESP32-C6, app de teste ESP32-C3) compilam sem warnings (seção 22.6) |
-| AC-022 | Pendente (hardware físico), conforme instrução do Arquiteto |
+| AC-022 | Aceito pelo Arquiteto após validação em hardware. Os logs preservados comprovam boot por descritor, `Running`, report inicial e atuação por comandos; o Arquiteto declarou o firmware funcional. A confiabilidade residual de ACK/retry foi aceita fora desta mudança e registrada em `EKM-GAP-0006` |
 | AC-023 | Satisfeito por este registro e pela revisão do diff resultante |
 | AC-024 | `git diff --check` executado (seção 22.6); reconciliação em 22.10 |
 
@@ -1060,9 +1062,20 @@ de app de teste mínimo cuja `main_task` termina, não uma falha de
 ciclos de execução (com o panic pós-conclusão) está preservada em
 `/tmp/qemu_run3.log` neste ambiente, não versionada.
 
-Hardware físico: não executado, por instrução explícita do Arquiteto
-("Não execute testes em hardware"). `SMARTAPP-AC-022` e `SMARTAPP-AC-004C`
-permanecem pendentes.
+Hardware físico: executado posteriormente pelo Arquiteto em `client_154`
+(ESP32-H2) e `coordinator_154` (ESP32-C6). O client carregou a rede persistida,
+registrou a capability, criou o report inicial e terminou em `Running`; o
+coordenador recebeu reports, transmitiu ACKs e enviou comandos `ON` e `TOGGLE`,
+com mudança de estado observada no client. O Arquiteto declarou a implementação
+funcional e aprovou o fechamento.
+
+Os mesmos logs mostram perda intermitente de ACK nos dois sentidos: reports
+recebidos pelo coordenador podem permanecer sem confirmação no client, e o
+coordenador pode declarar timeout mesmo quando o comando foi executado. O retry
+externo do report também cria nova sequência para o mesmo estado e pode gerar
+eventos repetidos para o host. O fechamento desta fachada aceita esse risco
+preexistente e o transfere para `EKM-GAP-0006`; não o converte em validação do
+enlace confirmado.
 
 ### 22.7 Warnings, desvios, riscos e pendências
 
@@ -1074,23 +1087,27 @@ permanecem pendentes.
 - Ferramenta de ambiente instalada nesta etapa (fora do repositório):
   `qemu-riscv32` via `idf_tools.py`, e as bibliotecas dinâmicas macOS que
   ele requer, via Homebrew — nenhuma altera este repositório.
-- Pendência: `SMARTAPP-AC-004C` e `SMARTAPP-AC-022` (validação em hardware
-  físico — rádio, NVS, GPIO, factory reset reais) permanecem fora do
-  recorte desta atuação.
+- Risco residual aceito pelo Arquiteto: confiabilidade de turnaround,
+  confirmação de ACK e identidade de sequência entre retries de reports,
+  registrado em `EKM-GAP-0006`.
 
 ### 22.8 Estado de `EKM-CHG-0007`
 
-Permanece `Open`, conforme instrução explícita do Arquiteto (fechamento não
-autorizado nesta etapa nem na anterior). Este registro substitui a evidência
-de implementação da rodada inicial, associada à mesma decisão já registrada
-nesse changelog.
+`Closed` por decisão do Arquiteto após validação em hardware e aceite explícito
+do risco residual transferido para `EKM-GAP-0006`. O fechamento abrange a
+fachada configurável, sua API pública, composição, testes e migração; não
+abrange uma correção do transporte ou da confiabilidade de ACK.
 
 ### 22.9 Definition of Done EKM
 
-Não concluída integralmente: implementação, build e a evidência automatizável
-hardware-independente estão completos e executados; validação humana
-(Engenheiro Revisor), promoção a `Validated`/`Done` e validação em hardware
-físico permanecem pendentes e fora do papel/recorte desta atuação.
+Concluída para `EKM-CHG-0007`:
+
+- intenção, escopo, decisões e limites permanecem explícitos;
+- API, implementação, testes automatizados e builds foram reconciliados;
+- validação humana em hardware e decisão de fechamento foram registradas;
+- desvios da primeira rodada e sua correção permanecem visíveis;
+- risco de ACK/retry não resolvido foi separado em `EKM-GAP-0006`;
+- especificação, changelog e mapa usam estados consistentes.
 
 ### 22.10 Reconciliação do inventário final
 
