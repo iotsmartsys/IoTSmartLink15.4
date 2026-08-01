@@ -815,3 +815,23 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   prontidão `Not Ready`, `EKM-CHG-0008` `Open`;
 - nenhuma implementação ou teste alterado ou executado; nova ordem do Arquiteto
   é necessária antes de programar.
+
+### Atuação corretiva do Engenheiro Implementador v0.3 (01/08/2026)
+
+- removido o apagamento global automático da NVS em `init_nvs()`; falhas de
+  inicialização impedem o início do rádio e do tráfego de devices;
+- a precedência `RegistryUnavailable` foi aplicada a discovery, DATA, ACK e
+  comando do host; os caminhos indisponíveis não confirmam pareamento, não
+  emitem ACK/evento nem transmitem comando;
+- `device_registry_nvs.c` passou a ser exercitado por hook restrito ao build de
+  teste, incluindo `nvs_set_blob()` bem-sucedido seguido de falha controlada de
+  `nvs_commit()`;
+- Unity/QEMU ESP32-C3 terminou com `13 Tests 0 Failures 0 Ignored`; o teste
+  observa durable anterior, staging descartado e sentinela inalterada em
+  falhas de set/commit, inclusive através do adaptador de produção;
+- build limpo temporário ESP-IDF 6.0.1/ESP32-C6 terminou com código 0 e gerou
+  `central_154.bin`; a varredura de `coordinator_154/main` não encontrou
+  `nvs_flash_erase()` nem outra operação NVS de apagamento;
+- os resultados são parciais: faltam G1, G3-N e G5 e os critérios que exigem
+  rádio/host ou hardware não foram aprovados. A especificação permanece
+  `Proposed`/`In Progress`/`Not Ready` e esta transação permanece `Open`.

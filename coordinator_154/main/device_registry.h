@@ -55,6 +55,23 @@ typedef struct
 /// @brief Production storage backed by NVS, in a namespace private to the coordinator registry.
 const device_registry_storage_t *device_registry_nvs_storage(void);
 
+#ifdef DEVICE_REGISTRY_NVS_TESTING
+#include "nvs.h"
+
+typedef struct
+{
+    esp_err_t (*open)(const char *namespace_name, nvs_open_mode_t open_mode, nvs_handle_t *out_handle);
+    esp_err_t (*get_blob)(nvs_handle_t handle, const char *key, void *out_value, size_t *length);
+    esp_err_t (*set_blob)(nvs_handle_t handle, const char *key, const void *value, size_t length);
+    esp_err_t (*commit)(nvs_handle_t handle);
+    void (*close)(nvs_handle_t handle);
+} device_registry_nvs_ops_t;
+
+/// @brief Replace NVS primitives in test builds while retaining the production adapter control flow.
+void device_registry_nvs_set_ops_for_test(const device_registry_nvs_ops_t *ops);
+void device_registry_nvs_reset_ops_for_test(void);
+#endif
+
 /// @brief Bind the storage implementation and reset in-RAM state. Call once before device_registry_load().
 void device_registry_init(const device_registry_storage_t *storage);
 

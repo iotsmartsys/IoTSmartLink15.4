@@ -159,16 +159,15 @@ static const char *radio_tx_error_name(esp_ieee802154_tx_error_t error)
 }
 
 /// @brief Initialize NVS before RF calibration data is loaded by the PHY.
-static void init_nvs(void)
+static esp_err_t init_nvs(void)
 {
-    esp_err_t err = nvs_flash_init();
+    const esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ESP_ERROR_CHECK(nvs_flash_init());
-        return;
+        ESP_LOGE("DEVICE_REGISTRY", "load result=unavailable reason=%s", esp_err_to_name(err));
+        return err;
     }
-    ESP_ERROR_CHECK(err);
+    return err;
 }
 
 /// @brief Configure the host side UART as JSON-lines transport.
@@ -1293,7 +1292,13 @@ void app_main(void)
 {
     char central_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
 
-    init_nvs();
+    const esp_err_t nvs_result = init_nvs();
+    if (nvs_result != ESP_OK)
+    {
+        ESP_LOGE(TAG, "NVS initialization failed; coordinator device traffic remains disabled: %s",
+                 esp_err_to_name(nvs_result));
+        return;
+    }
     device_registry_init(device_registry_nvs_storage());
     (void)device_registry_load();
     init_host_uart();
@@ -1367,16 +1372,16 @@ void app_main(void)
             {
                 char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
                 format_ext_addr(mac.src_ext, sensor_mac_text, sizeof(sensor_mac_text));
-                if (!s_join_window_open)
-                {
-                    ESP_LOGI("COMMISSIONING",
-                             "discovery ignored reason=join_window_closed dev=0x%08" PRIx32,
-                             packet.device_id);
-                }
-                else if (device_registry_state() != DEVICE_REGISTRY_STATE_READY)
+                if (device_registry_state() != DEVICE_REGISTRY_STATE_READY)
                 {
                     ESP_LOGW("COMMISSIONING",
                              "discovery ignored reason=registry_unavailable dev=0x%08" PRIx32,
+                             packet.device_id);
+                }
+                else if (!s_join_window_open)
+                {
+                    ESP_LOGI("COMMISSIONING",
+                             "discovery ignored reason=join_window_closed dev=0x%08" PRIx32,
                              packet.device_id);
                 }
                 else
@@ -1406,8 +1411,13 @@ void app_main(void)
                      mac.src_mode == IOT154_ADDR_MODE_EXT)
             {
                 size_t registry_index = 0;
-                const bool known = device_registry_find(mac.src_ext, NULL, &registry_index);
-                if (!known)
+                if (device_registry_state() != DEVICE_REGISTRY_STATE_READY)
+                {
+                    ESP_LOGW("DEVICE_REGISTRY",
+                             "frame ignored reason=registry_unavailable dev=0x%08" PRIx32,
+                             packet.device_id);
+                }
+                else if (!device_registry_find(mac.src_ext, NULL, &registry_index))
                 {
                     if (!s_join_window_open)
                     {
@@ -1452,7 +1462,9 @@ void app_main(void)
                      mac.src_mode == IOT154_ADDR_MODE_EXT)
             {
                 uint32_t known_device_id = 0;
-                const bool origin_known = device_registry_find(mac.src_ext, &known_device_id, NULL);
+                const bool registry_ready = device_registry_state() == DEVICE_REGISTRY_STATE_READY;
+                const bool origin_known = registry_ready &&
+                                          device_registry_find(mac.src_ext, &known_device_id, NULL);
                 const bool matches_pending = s_pending_command.active &&
                                              packet.device_id == s_pending_command.device_id &&
                                              packet.seq == s_pending_command.sequence &&
@@ -1468,6 +1480,10 @@ void app_main(void)
                          packet.endpoint_id,
                          packet.value,
                          matches_pending ? "yes" : "no");
+                if (!registry_ready)
+                {
+                    ESP_LOGW("DEVICE_REGISTRY", "frame ignored reason=registry_unavailable");
+                }
                 if (matches_pending)
                 {
                     if (packet.value == IOT154_ACK_STATUS_OK)

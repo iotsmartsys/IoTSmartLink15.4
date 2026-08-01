@@ -1288,3 +1288,40 @@ autoriza programar e não converte gates não executados em evidência. Estados
 preservados: normativo `Proposed`, implementação `In Progress`, prontidão
 `Not Ready` e `EKM-CHG-0008` `Open`. Nenhum código, teste ou configuração de
 implementação foi alterado ou executado nesta análise.
+
+### 16.11 Registro corretivo de implementação v0.3 (Engenheiro Implementador, 01/08/2026)
+
+Esta atuação corrige os dois defeitos de runtime apontados na seção 16.3 e
+amplia evidência automatizada local, sem promover o estado da implementação.
+
+**Correções implementadas:**
+
+- `init_nvs()` não chama mais `nvs_flash_erase()` para
+  `ESP_ERR_NVS_NO_FREE_PAGES` nem `ESP_ERR_NVS_NEW_VERSION_FOUND`; registra a
+  indisponibilidade e encerra controladamente antes de inicializar rádio ou
+  tráfego de devices;
+- `DISCOVERY_REQ`, `DATA`, `ACK` e comando do host agora consideram
+  `RegistryUnavailable` antes de janela ou identidade. `DATA` indisponível é
+  descartado sem evento/ACK, ACK não conclui comando e comandos do host não
+  iniciam transmissão;
+- `device_registry_nvs.c` ganhou uma tabela de primitivas NVS substituível
+  somente em build de teste. O adaptador de produção continua sendo quem abre,
+  chama `nvs_set_blob()`, chama `nvs_commit()` e propaga o resultado;
+- o app Unity passou a representar durable, staging, commit e sentinela
+  separadamente e executa a falha pós-staging de `nvs_commit()` atravessando o
+  adaptador de produção. Também executa corrupções independentes de endereço e
+  `device_id` que mantêm o checksum armazenado.
+
+**Execuções terminais:**
+
+| Critério | Cenário | Gate | Comando/alvo | Casos | Resultado | Classificação |
+|---|---|---|---|---:|---|---|
+| AC-002 | falhas separadas de set e commit com durable/sentinela; falha de commit pós-staging no adaptador | G2, G3-F | `idf.py -B "$TMPDIR/device_registry_test_build_c3" qemu`, ESP32-C3/QEMU | 2 | `13 Tests 0 Failures 0 Ignored` | Partial |
+| AC-007 | checksum divergente após mutar endereço ou `device_id` | G2 | mesmo comando, ESP32-C3/QEMU | 1 | `13 Tests 0 Failures 0 Ignored` | Partial |
+| AC-008 | compilação da composição de produção | G4 | `idf.py -B "$TMPDIR/coordinator_154_registry_build_c6" build`, ESP32-C6 | 1 | código 0, `central_154.bin` gerado | Partial |
+
+As classificações permanecem `Partial`: não há G1 para observar os efeitos
+integrados de `main.c`, G3-N com NVS real, nem a execução G5 em hardware exigida
+por AC-001 e AC-008. AC-003, AC-004 e AC-006 ainda exercitam somente o core,
+portanto não satisfazem os oráculos de rádio/host da seção 13. A implementação
+permanece `In Progress`, a prontidão `Not Ready` e `EKM-CHG-0008` `Open`.

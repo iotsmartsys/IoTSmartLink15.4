@@ -71,22 +71,187 @@ static const device_registry_storage_t s_fake_storage = {
     .ctx = &s_fake,
 };
 
+typedef struct
+{
+    bool durable_present;
+    uint8_t durable[BLOB_CAPACITY];
+    size_t durable_length;
+    bool staging_present;
+    uint8_t staging[BLOB_CAPACITY];
+    size_t staging_length;
+    uint8_t sentinel[16];
+    esp_err_t forced_set_result;
+    esp_err_t forced_commit_result;
+    size_t set_calls;
+    size_t commit_calls;
+} faithful_storage_t;
+
+static faithful_storage_t s_faithful;
+
+static esp_err_t faithful_read(void *ctx, uint8_t *buffer, size_t buffer_size, size_t *out_len)
+{
+    faithful_storage_t *fake = (faithful_storage_t *)ctx;
+    if (!fake->durable_present)
+    {
+        return ESP_ERR_NOT_FOUND;
+    }
+    TEST_ASSERT_TRUE(fake->durable_length <= buffer_size);
+    memcpy(buffer, fake->durable, fake->durable_length);
+    *out_len = fake->durable_length;
+    return ESP_OK;
+}
+
+static esp_err_t faithful_write(void *ctx, const uint8_t *buffer, size_t len)
+{
+    faithful_storage_t *fake = (faithful_storage_t *)ctx;
+    ++fake->set_calls;
+    if (fake->forced_set_result != ESP_OK)
+    {
+        const esp_err_t result = fake->forced_set_result;
+        fake->forced_set_result = ESP_OK;
+        return result;
+    }
+
+    memcpy(fake->staging, buffer, len);
+    fake->staging_length = len;
+    fake->staging_present = true;
+    ++fake->commit_calls;
+    if (fake->forced_commit_result != ESP_OK)
+    {
+        const esp_err_t result = fake->forced_commit_result;
+        fake->forced_commit_result = ESP_OK;
+        fake->staging_present = false;
+        return result;
+    }
+
+    memcpy(fake->durable, fake->staging, fake->staging_length);
+    fake->durable_length = fake->staging_length;
+    fake->durable_present = true;
+    fake->staging_present = false;
+    return ESP_OK;
+}
+
+static const device_registry_storage_t s_faithful_storage = {
+    .read = faithful_read,
+    .write = faithful_write,
+    .ctx = &s_faithful,
+};
+
+static void reset_faithful_fixture(void)
+{
+    memset(&s_faithful, 0, sizeof(s_faithful));
+    memset(s_faithful.sentinel, 0xa5, sizeof(s_faithful.sentinel));
+    device_registry_init(&s_faithful_storage);
+}
+
+static device_registry_state_t reboot_faithful_and_load(void)
+{
+    s_faithful.staging_present = false;
+    device_registry_init(&s_faithful_storage);
+    return device_registry_load();
+}
+
+typedef struct
+{
+    bool durable_present;
+    uint8_t durable[BLOB_CAPACITY];
+    size_t durable_length;
+    bool staging_present;
+    uint8_t staging[BLOB_CAPACITY];
+    size_t staging_length;
+    uint8_t sentinel[16];
+    esp_err_t forced_commit_result;
+    size_t set_calls;
+    size_t commit_calls;
+} nvs_ops_fake_t;
+
+static nvs_ops_fake_t s_nvs_fake;
+
+static esp_err_t nvs_fake_open(const char *namespace_name, nvs_open_mode_t open_mode, nvs_handle_t *out_handle)
+{
+    TEST_ASSERT_EQUAL_STRING("coord_reg", namespace_name);
+    TEST_ASSERT_TRUE(open_mode == NVS_READONLY || open_mode == NVS_READWRITE);
+    *out_handle = 1;
+    return ESP_OK;
+}
+
+static esp_err_t nvs_fake_get_blob(nvs_handle_t handle, const char *key, void *out_value, size_t *length)
+{
+    TEST_ASSERT_EQUAL(1, handle);
+    TEST_ASSERT_EQUAL_STRING("devices", key);
+    if (!s_nvs_fake.durable_present)
+    {
+        return ESP_ERR_NVS_NOT_FOUND;
+    }
+    TEST_ASSERT_TRUE(s_nvs_fake.durable_length <= *length);
+    memcpy(out_value, s_nvs_fake.durable, s_nvs_fake.durable_length);
+    *length = s_nvs_fake.durable_length;
+    return ESP_OK;
+}
+
+static esp_err_t nvs_fake_set_blob(nvs_handle_t handle, const char *key, const void *value, size_t length)
+{
+    TEST_ASSERT_EQUAL(1, handle);
+    TEST_ASSERT_EQUAL_STRING("devices", key);
+    ++s_nvs_fake.set_calls;
+    memcpy(s_nvs_fake.staging, value, length);
+    s_nvs_fake.staging_length = length;
+    s_nvs_fake.staging_present = true;
+    return ESP_OK;
+}
+
+static esp_err_t nvs_fake_commit(nvs_handle_t handle)
+{
+    TEST_ASSERT_EQUAL(1, handle);
+    ++s_nvs_fake.commit_calls;
+    if (s_nvs_fake.forced_commit_result != ESP_OK)
+    {
+        const esp_err_t result = s_nvs_fake.forced_commit_result;
+        s_nvs_fake.forced_commit_result = ESP_OK;
+        return result;
+    }
+    memcpy(s_nvs_fake.durable, s_nvs_fake.staging, s_nvs_fake.staging_length);
+    s_nvs_fake.durable_length = s_nvs_fake.staging_length;
+    s_nvs_fake.durable_present = true;
+    return ESP_OK;
+}
+
+static void nvs_fake_close(nvs_handle_t handle)
+{
+    TEST_ASSERT_EQUAL(1, handle);
+    s_nvs_fake.staging_present = false;
+}
+
+static const device_registry_nvs_ops_t s_nvs_fake_ops = {
+    .open = nvs_fake_open,
+    .get_blob = nvs_fake_get_blob,
+    .set_blob = nvs_fake_set_blob,
+    .commit = nvs_fake_commit,
+    .close = nvs_fake_close,
+};
+
+static void reset_nvs_adapter_fixture(void)
+{
+    memset(&s_nvs_fake, 0, sizeof(s_nvs_fake));
+    memset(s_nvs_fake.sentinel, 0x5a, sizeof(s_nvs_fake.sentinel));
+    device_registry_nvs_set_ops_for_test(&s_nvs_fake_ops);
+    device_registry_init(device_registry_nvs_storage());
+}
+
 static void reset_fixture(void)
 {
     memset(&s_fake, 0, sizeof(s_fake));
     device_registry_init(&s_fake_storage);
 }
 
-/// @brief Reload from whatever the fake currently holds durable, simulating a reboot: a fresh
 /// module instance that only sees what commit() actually persisted.
+static const uint8_t kAddrA[IOT154_EXT_ADDR_LEN] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+static const uint8_t kAddrB[IOT154_EXT_ADDR_LEN] = {0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18};
 static device_registry_state_t reboot_and_load(void)
 {
     device_registry_init(&s_fake_storage);
     return device_registry_load();
 }
-
-static const uint8_t kAddrA[IOT154_EXT_ADDR_LEN] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-static const uint8_t kAddrB[IOT154_EXT_ADDR_LEN] = {0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18};
 
 TEST_CASE("load with no persisted blob starts empty and ready", "[device_registry]")
 {
@@ -131,6 +296,24 @@ TEST_CASE("load with bad checksum is unavailable", "[device_registry]")
     TEST_ASSERT_EQUAL(0, device_registry_count());
 }
 
+TEST_CASE("checksum covers address and device id bytes", "[device_registry][AC-007-partial-schema]")
+{
+    reset_fixture();
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrA, 0x1234));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrB, 0x5678));
+
+    s_fake.buffer[2] ^= 0x80;
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_UNAVAILABLE, reboot_and_load());
+
+    reset_fixture();
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrA, 0x1234));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrB, 0x5678));
+    s_fake.buffer[2 + IOT154_EXT_ADDR_LEN] ^= 0x80;
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_UNAVAILABLE, reboot_and_load());
+}
+
 TEST_CASE("load with a real read error is unavailable", "[device_registry]")
 {
     reset_fixture();
@@ -154,7 +337,6 @@ TEST_CASE("write failure preserves the previous entry across reboot", "[device_r
     reset_fixture();
     TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
     TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrA, 0x1234));
-
     s_fake.forced_write_result = ESP_ERR_INVALID_STATE;
     TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_FAILED, device_registry_pair(kAddrB, 0x5678));
 
@@ -168,6 +350,35 @@ TEST_CASE("write failure preserves the previous entry across reboot", "[device_r
     TEST_ASSERT_EQUAL(1, device_registry_count());
     TEST_ASSERT_TRUE(device_registry_find(kAddrA, &device_id, NULL));
     TEST_ASSERT_EQUAL_HEX32(0x1234, device_id);
+    TEST_ASSERT_FALSE(device_registry_find(kAddrB, NULL, NULL));
+}
+
+TEST_CASE("staging failures preserve durable registry and sentinel", "[device_registry][AC-002-partial-g2]")
+{
+    uint8_t sentinel_before[sizeof(s_faithful.sentinel)];
+    reset_faithful_fixture();
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrA, 0x1234));
+    memcpy(sentinel_before, s_faithful.sentinel, sizeof(sentinel_before));
+
+    s_faithful.forced_set_result = ESP_ERR_INVALID_STATE;
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_FAILED, device_registry_pair(kAddrB, 0x5678));
+    TEST_ASSERT_EQUAL(2, s_faithful.set_calls);
+    TEST_ASSERT_EQUAL(1, s_faithful.commit_calls);
+    TEST_ASSERT_FALSE(s_faithful.staging_present);
+    TEST_ASSERT_EQUAL_MEMORY(sentinel_before, s_faithful.sentinel, sizeof(sentinel_before));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, reboot_faithful_and_load());
+    TEST_ASSERT_TRUE(device_registry_find(kAddrA, NULL, NULL));
+    TEST_ASSERT_FALSE(device_registry_find(kAddrB, NULL, NULL));
+
+    s_faithful.forced_commit_result = ESP_ERR_INVALID_STATE;
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_FAILED, device_registry_pair(kAddrB, 0x5678));
+    TEST_ASSERT_EQUAL(3, s_faithful.set_calls);
+    TEST_ASSERT_EQUAL(2, s_faithful.commit_calls);
+    TEST_ASSERT_FALSE(s_faithful.staging_present);
+    TEST_ASSERT_EQUAL_MEMORY(sentinel_before, s_faithful.sentinel, sizeof(sentinel_before));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, reboot_faithful_and_load());
+    TEST_ASSERT_TRUE(device_registry_find(kAddrA, NULL, NULL));
     TEST_ASSERT_FALSE(device_registry_find(kAddrB, NULL, NULL));
 }
 
@@ -238,6 +449,30 @@ TEST_CASE("persisted blob size matches schema exactly, with no room for last_seq
                                + 1 * (IOT154_EXT_ADDR_LEN + sizeof(uint32_t))
                                + 1 /* checksum */;
     TEST_ASSERT_EQUAL(expected_len, s_fake.length);
+}
+
+TEST_CASE("production adapter propagates post-staging commit failure", "[device_registry][AC-002-partial-g3f]")
+{
+    uint8_t sentinel_before[sizeof(s_nvs_fake.sentinel)];
+    reset_nvs_adapter_fixture();
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrA, 0x1234));
+    memcpy(sentinel_before, s_nvs_fake.sentinel, sizeof(sentinel_before));
+
+    s_nvs_fake.forced_commit_result = ESP_ERR_INVALID_STATE;
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_FAILED, device_registry_pair(kAddrB, 0x5678));
+    TEST_ASSERT_EQUAL(2, s_nvs_fake.set_calls);
+    TEST_ASSERT_EQUAL(2, s_nvs_fake.commit_calls);
+    TEST_ASSERT_FALSE(s_nvs_fake.staging_present);
+    TEST_ASSERT_EQUAL_MEMORY(sentinel_before, s_nvs_fake.sentinel, sizeof(sentinel_before));
+    TEST_ASSERT_TRUE(device_registry_find(kAddrA, NULL, NULL));
+    TEST_ASSERT_FALSE(device_registry_find(kAddrB, NULL, NULL));
+
+    device_registry_init(device_registry_nvs_storage());
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
+    TEST_ASSERT_TRUE(device_registry_find(kAddrA, NULL, NULL));
+    TEST_ASSERT_FALSE(device_registry_find(kAddrB, NULL, NULL));
+    device_registry_nvs_reset_ops_for_test();
 }
 
 void app_main(void)
