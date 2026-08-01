@@ -912,6 +912,29 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   de decisão de `main.c` para forma testável (G1) e a obter placa física
   ESP32-C3/C6 para fechar G3-N/G5.
 
+### Revisão técnica da implementação v0.4 (Engenheiro Revisor, 01/08/2026)
+
+- revisado integralmente o resultado até `135aef1` contra COORD-REG-001 a 013,
+  AC-001 a AC-008, matriz de decisão, gates G1 a G5, substitutos e manifesto;
+- builds independentes ESP-IDF 6.0.1 terminaram com código 0: app ESP32-C3
+  `0x24110` bytes e produção ESP32-C6 `0x45bc0` bytes; nenhum caso foi
+  executado e G4 não foi convertido em evidência comportamental;
+- confirmado que os rótulos parciais foram corrigidos e que os quatro novos
+  casos estruturais de AC-007 compilam, sem alegação de AC integral;
+- achado alto: a fonte agora contém 17 casos, mas o runner físico ainda exige
+  resumo terminal de 13; portanto ele não consegue concluir com sucesso para
+  a suíte atual;
+- achado alto: G1 continua inexistente, G3-N/G5 não foram executados, AC-005
+  não possui caso, AC-007 permanece sem inicialização NVS/sentinela real e
+  G3-F continua parcial; nenhum AC está integralmente aprovado;
+- achado médio: `start_host_command()` ainda verifica comando pendente antes
+  do estado do registry; a combinação pending + unavailable não preserva a
+  precedência normativa de `RegistryUnavailable`, embora não transmita;
+- recomendação: não aceitar nem promover; corrigir runner e precedência,
+  completar G1 e depois executar os gates físicos autorizados. Estados
+  permanecem `Proposed`, `In Progress`, `Not Ready`, `Implementable` e
+  `EKM-CHG-0008` `Open`.
+
 ---
 
 ## EKM-CHG-0009 — Retirada transversal de QEMU

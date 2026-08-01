@@ -1610,3 +1610,73 @@ atuação futura dedicada a extrair o código de decisão de `main.c` para uma
 forma testável (G1), condição necessária para aprovar integralmente AC-001,
 AC-003, AC-004, AC-005 e AC-006, e a obter acesso a placa física ESP32-C3/C6
 para fechar G3-N e G5.
+
+### 16.16 Revisão técnica da implementação v0.4 (Engenheiro Revisor, 01/08/2026)
+
+Recorte revisado: implementação integral disponível até o commit `135aef1`,
+COORD-REG-001 a 013, COORD-REG-AC-001 a AC-008, matriz de decisão, gates G1 a
+G5, contrato dos substitutos, manifesto de evidências e migração para runners
+permitidos pela política transversal.
+
+**Evidência terminal independente**
+
+- build limpo do app `device_registry_test` com ESP-IDF 6.0.1 para ESP32-C3:
+  código 0, `device_registry_test.bin` com `0x24110` bytes e SHA-256
+  `b737a30b39e8ae1273b6cc37cd39fdd2fbd6e34689076c82ecff5e117e03242a`;
+- build limpo da composição de produção com ESP-IDF 6.0.1 para ESP32-C6:
+  código 0, `central_154.bin` com `0x45bc0` bytes e SHA-256
+  `a4fe24567b1b14b4db4c42dc1ef7cef816dcbdb1092ea462db0b94a082d4f4aa`;
+- nenhuma ocorrência técnica vigente de import, marker ou comando QEMU foi
+  encontrada fora de política/histórico; nenhuma operação automática
+  `nvs_flash_erase`, `nvs_erase_all` ou `nvs_erase_key` foi encontrada em
+  `coordinator_154/main`;
+- a fonte contém 17 `TEST_CASE`, todos os rótulos AC usados no app declaram
+  cobertura parcial, e os quatro novos cenários estruturais de AC-007 compilam.
+
+Não houve execução comportamental. Nenhuma porta serial ESP32-C3/C6 foi
+detectada, e flash/monitor não foram autorizados. QEMU não foi usado. Os builds
+acima aprovam somente compilação e link; não aprovam nenhum AC.
+
+**Achados materiais**
+
+1. **Alto — o runner físico não corresponde à suíte atual.**
+   `pytest_device_registry.py` ainda exige exatamente
+   `13 Tests 0 Failures 0 Ignored`, mas a fonte contém 17 casos depois da
+   adição dos quatro cenários de AC-007. Mesmo que os 17 casos terminem sem
+   falha em placa, o runner não observará seu oráculo e falhará por timeout ou
+   resultado ausente. Afeta a migração de validação v0.4 e impede produzir
+   evidência terminal dos casos existentes em runner permitido.
+2. **Alto — gates obrigatórios continuam incompletos.** G1 permanece
+   inexistente; G3-N e G5 não foram implementados/executados; AC-005 continua
+   sem caso integrado; e as classes de inicialização NVS e sentinela real de
+   AC-007 permanecem ausentes. G3-F ainda cobre somente adaptador/core, sem
+   observar ausência de resposta/publicação pela política integrada. Assim,
+   nenhum AC possui todos os gates obrigatórios `Approved`, e a implementação
+   não pode ser promovida para `Implemented` ou `Validated`.
+3. **Médio — a precedência de `RegistryUnavailable` no comando do host ainda
+   é incompleta** (COORD-REG-011/012, AC-007/G1). A correção distingue
+   indisponibilidade de identidade desconhecida, mas
+   `start_host_command()` ainda verifica `s_pending_command.active` antes de
+   consultar `device_registry_state()`. Quando há comando pendente e registry
+   indisponível ao mesmo tempo, o resultado final continua sendo
+   `another command is pending`, embora a seção 5.1 determine que
+   `RegistryUnavailable` preceda correlações e políticas operacionais. O efeito
+   seguro de não transmitir é preservado, mas estado e observabilidade ainda
+   violam o contrato.
+
+**Correções confirmadas e limitações**
+
+Os quatro rótulos que superestimavam AC-002/003/004/006 foram corrigidos para
+`Partial`, e os quatro cenários novos ampliam cobertura estrutural de AC-007
+sem alegar aprovação integral. Essas correções são válidas, porém não foram
+executadas e não fecham G1 ou G3-N. A revisão não realizou correção de código,
+teste ou runner e não recebeu validação humana nem aceite do Arquiteto.
+
+**Recomendação ao Arquiteto:** não aceitar nem promover esta implementação.
+Solicitar atuação corretiva de Engenheiro Implementador para alinhar o runner
+aos 17 casos, aplicar a precedência integral no comando do host e completar
+G1 e seus cenários; G3-N/G5 continuam dependendo de atuação física autorizada.
+Depois, repetir revisão integral. Estados preservados: normativo `Proposed`,
+implementação funcional e migração de validação `In Progress`, prontidão
+`Not Ready`, revisão de implementabilidade `Implementable` e
+`EKM-CHG-0008` `Open`.
