@@ -2,7 +2,7 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.12
+**Versão:** 1.13
 **Responsável:** Marcelo Miranda
 **Última atualização:** 01/08/2026
 **Escopo:** Todo o repositório
@@ -41,7 +41,7 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 |---|---|---|---|---|---|
 | Arquitetura ISSP | `docs/specs/ISSP-Architecture.md` | Active | Validated | `components/issp_*` e `client_154/main/main.cpp` | Builds, hardware, consumidor mínimo e auditoria documental |
 | Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
-| Registry de devices pareados do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Proposed | In Progress; Not Ready; Pending Review | `coordinator_154/main/device_registry.{h,c}` + `device_registry_nvs.c`, integrado em `main.c` | v0.3 exige integridade de conteúdo definida pelo schema e acrescenta G3-F para falha de commit atravessando o adaptador de produção; 13 requisitos/8 AC e escopo completo preservados; nova análise independente obrigatória |
+| Registry de devices pareados do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Proposed | In Progress; Not Ready; Implementable | `coordinator_154/main/device_registry.{h,c}` + `device_registry_nvs.c`, integrado em `main.c` | v0.3 analisada como `Implementable` em 01/08/2026: integridade obrigatória e mutações independentes fecham AC-007; G3-F atravessa o adaptador de produção sob falha de commit; baseline permanece não conforme e sem aceite |
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
 | API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main.cpp` e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 19/19 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |

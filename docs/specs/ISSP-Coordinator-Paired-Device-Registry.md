@@ -4,7 +4,7 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Pending Review
+**Revisão de implementabilidade:** Implementable
 **Versão:** 0.3
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 01/08/2026
@@ -792,8 +792,7 @@ Esta autoria v0.3 não implementa nem valida o comportamento. O estado corrente
 - `Proposed`;
 - `In Progress`, porque existe implementação parcial ainda não conforme;
 - `Not Ready`;
-- `Pending Review`, porque a seção 16.9 resolve os dois bloqueios da análise
-  v0.2 e exige nova análise independente da versão 0.3.
+- `Implementable`, pela análise independente da versão 0.3 na seção 16.10.
 
 ### 16.1 Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
 
@@ -1227,3 +1226,65 @@ Estado da versão 0.3: normativo `Proposed`, implementação existente
 `In Progress`, prontidão `Not Ready`, revisão de implementabilidade
 `Pending Review` e `EKM-CHG-0008` `Open`. A próxima etapa é nova análise
 independente da versão 0.3.
+
+### 16.10 Revisão de implementabilidade v0.3 (Engenheiro Analista, 01/08/2026)
+
+Confronto independente da versão 0.3 com os requisitos e critérios completos,
+`ISSP-Commissioning.md`, `ISSP-Architecture.md`, o baseline verificável de
+`coordinator_154/main/{main.c,device_registry.h,device_registry.c,device_registry_nvs.c}`,
+o app `coordinator_154/test_apps/device_registry_test` e o precedente de hooks
+e QEMU de `components/issp_app_154/test_apps`.
+
+**Contratos e critérios**
+
+- COORD-REG-001 a 013 permanecem cobertos por AC-001 a AC-008 e pelas duas
+  matrizes da seção 13; cenário, ação, resultado, gate e classificação terminal
+  continuam explícitos;
+- a seção 6 exige valor de integridade definido pelo schema e cobrindo versão,
+  contagem e todos os bytes das entradas. AC-007 parte de blob estruturalmente
+  válido e corrompe separadamente endereço e `device_id`, sem atualizar o
+  valor, impedindo que marcador constante ou cobertura parcial aprove o gate;
+- AC-002 exige G1+G2+G3-F. G3-F observa `nvs_set_blob()` bem-sucedido, erro
+  posterior de `nvs_commit()`, propagação pelo adaptador, ausência de publicação
+  e resposta, durable anterior após reabertura/reboot e sentinela preservada;
+- G3-N mantém separado o oráculo com adaptador de produção e NVS real. Assim,
+  o substituto de falhas não é convertido indevidamente em prova de
+  persistência nominal real.
+
+**Arquitetura e viabilidade**
+
+- a seção 2.4 identifica o padrão atual, limita a mudança a
+  `coordinator_154`, autoriza o ponto estreito de injeção na fronteira NVS e
+  registra sua justificativa; não cria componente transversal nem altera
+  protocolo, clients ou componentes ISSP compartilhados;
+- tabela interna de operações, wrapper de link ou mecanismo equivalente são
+  alternativas técnicas suficientes para G3-F. Em todas, a decisão de chamar
+  `nvs_set_blob()`, chamar `nvs_commit()` e propagar o resultado continua no
+  próprio `device_registry_nvs.c`, evitando uma política paralela de teste;
+- o precedente local de hooks e test apps sob QEMU confirma que a mudança pode
+  ser materializada sem nova pasta estrutural ou decisão arquitetural;
+- não há conflito material com commissioning ou arquitetura: janela de 60 s,
+  continuidade dos devices conhecidos, protocolo wire, identidade IEEE e
+  deduplicação volátil permanecem preservados.
+
+**Revisão adversarial**
+
+- implementação sem valor de integridade, com marcador constante ou que ignore
+  endereço ou `device_id` reprova as mutações independentes de AC-007;
+- fake correto com adaptador real incorreto não aprova AC-002, pois G3-F exige
+  executar `device_registry_nvs.c` e observar o erro devolvido ao core;
+- retorno injetado antes de `nvs_set_blob()`, publicação em RAM antes do commit,
+  resposta após erro, durable alterado ou sentinela perdida reprovam os oráculos
+  expressos do critério;
+- código e testes existentes ainda não atendem todos os requisitos e gates,
+  mas esses são débitos verificáveis da implementação `In Progress`, não
+  decisões ausentes da especificação.
+
+**Resultado:** `Implementable`.
+
+Todo o recorte pode ser executado sem inferência normativa, de produto ou
+arquitetura relevante. Esta promoção não aceita a implementação existente, não
+autoriza programar e não converte gates não executados em evidência. Estados
+preservados: normativo `Proposed`, implementação `In Progress`, prontidão
+`Not Ready` e `EKM-CHG-0008` `Open`. Nenhum código, teste ou configuração de
+implementação foi alterado ou executado nesta análise.

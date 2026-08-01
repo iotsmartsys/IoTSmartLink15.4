@@ -583,7 +583,7 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 
 ### Critérios de encerramento da transação
 
-- revisão independente promove a especificação para `Implementable` — **satisfeito** em 31/07/2026 para v0.1; a promoção de 01/08/2026 para v0.2 ficou sem efeito; versão 0.3 aguarda nova análise;
+- revisão independente promove a especificação para `Implementable` — **satisfeito** em 01/08/2026 para v0.3; registros de v0.1/v0.2 permanecem históricos;
 - Arquiteto autoriza implementação;
 - requisitos COORD-REG-001 a COORD-REG-013 são implementados;
 - gates automatizados e cenários de hardware AC-001 a AC-008 terminam com
@@ -796,3 +796,22 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 - versão 0.3 fica `Proposed`, implementação existente `In Progress`, prontidão
   `Not Ready`, revisão `Pending Review` e `EKM-CHG-0008` `Open`; próxima etapa
   é nova análise independente de implementabilidade.
+
+### Revisão de implementabilidade v0.3 (Engenheiro Analista, 01/08/2026)
+
+- confrontados COORD-REG-001 a 013, AC-001 a AC-008, matrizes, fontes de
+  commissioning/arquitetura, baseline do coordenador e precedentes de hooks e
+  QEMU;
+- integridade obrigatória e corrupções independentes de endereço/`device_id`
+  impedem aprovação por marcador constante ou cobertura parcial;
+- AC-002/G3-F executa o próprio `device_registry_nvs.c` e observa staging,
+  falha de commit, propagação do erro, ausência de resposta/publicação,
+  durable anterior e sentinela; G3-N preserva a prova nominal com NVS real;
+- seção 2.4 delimita padrão atual, mudança local, alcance e justificativa do
+  seam, sem nova camada transversal ou conflito com as especificações vigentes;
+- resultado: `Implementable`; nenhuma decisão normativa, de produto ou
+  arquitetura ausente para o recorte completo;
+- implementação permanece `In Progress` e não aceita; normativo `Proposed`,
+  prontidão `Not Ready`, `EKM-CHG-0008` `Open`;
+- nenhuma implementação ou teste alterado ou executado; nova ordem do Arquiteto
+  é necessária antes de programar.
