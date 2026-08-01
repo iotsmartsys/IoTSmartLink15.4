@@ -877,6 +877,41 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 - nenhuma implementação ou execução foi realizada; nova ordem do Arquiteto é
   necessária para iniciar a atuação de Engenheiro Implementador.
 
+### Registro corretivo de implementação v0.4 (Engenheiro Implementador, 01/08/2026)
+
+- corrigidos dois achados Médios da revisão técnica anterior: `main.c`
+  (`start_host_command()`) passou a consultar `device_registry_state()`
+  explicitamente e a propagar um motivo distinto de `RegistryUnavailable`
+  até o host, em vez de reportar tudo como `"target not known"`
+  (COORD-REG-011/012); quatro `TEST_CASE` de
+  `device_registry_test/main/test_device_registry.c` que usavam rótulo
+  integral (`[AC-002]`, `[AC-003]`, `[AC-004]`, `[AC-006]`) apesar de
+  exercitarem somente `device_registry.c` isolado passaram a usar sufixo
+  `-partial-core`/`-partial-schema`, conforme o contrato de rótulos da
+  seção 13;
+- ampliada a cobertura estrutural de AC-007 em G2 (sem hardware): quatro
+  `TEST_CASE` novos cobrem contagem acima de oito, endereço nulo, endereço
+  broadcast e endereço duplicado em blob corretamente checksumado, todos
+  rotulados `[AC-007-partial-...]`;
+- build limpo de produção ESP32-C6 (`central_154.bin`, `0x45bc0` bytes) e do
+  app `device_registry_test` ESP32-C3 (`0x24110` bytes) com ESP-IDF 6.0.1,
+  código 0, zero warnings — evidência G4 apenas;
+- nenhum caso Unity foi executado nesta atuação: sem placa ESP32-C3/C6
+  conectada nesta sessão e com QEMU proibido por `TESTEXEC-001`, G4
+  (compilação) não substitui evidência comportamental; flash em placa também
+  depende de ordem explícita do Arquiteto;
+- débitos preservados sem alteração: G1 (política integrada de `main.c`)
+  continua inexistente, G3-N e G5 continuam não executados por ausência de
+  hardware, AC-005 continua sem qualquer caso, e as classes de AC-007
+  dependentes de erro de inicialização NVS ou de sentinela sob NVS real
+  continuam fora do escopo desta correção;
+- estado resultante: implementação `In Progress`, migração de validação
+  `In Progress`, prontidão `Not Ready`, `EKM-CHG-0008` permanece `Open`;
+  nenhum AC promovido a `Approved`, implementação não promovida a
+  `Implemented`. Recomenda-se atuação futura dedicada a extrair a política
+  de decisão de `main.c` para forma testável (G1) e a obter placa física
+  ESP32-C3/C6 para fechar G3-N/G5.
+
 ---
 
 ## EKM-CHG-0009 — Retirada transversal de QEMU

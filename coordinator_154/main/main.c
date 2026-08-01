@@ -1017,7 +1017,18 @@ static bool transmit_pending_command(void)
     return true;
 }
 
-static bool start_host_command(const char *host_device_id,
+/// @brief Outcome of a host-command intake attempt, precise enough to keep RegistryUnavailable
+/// distinguishable from an unknown identity per section 5.1's precedence rule (COORD-REG-011).
+typedef enum
+{
+    HOST_COMMAND_START_OK = 0,
+    HOST_COMMAND_START_PENDING,
+    HOST_COMMAND_START_INVALID_ADDR,
+    HOST_COMMAND_START_REGISTRY_UNAVAILABLE,
+    HOST_COMMAND_START_UNKNOWN_DEVICE,
+} host_command_start_result_t;
+
+static host_command_start_result_t start_host_command(const char *host_device_id,
                                const char *host_request_device_id,
                                const char *capability_name,
                                const char *host_value,
@@ -1030,19 +1041,27 @@ static bool start_host_command(const char *host_device_id,
     {
         ESP_LOGW(TAG, "command rejected: another command is pending seq=%u",
                  (unsigned)s_pending_command.sequence);
-        return false;
+        return HOST_COMMAND_START_PENDING;
     }
 
     if (!parse_host_ext_addr(host_device_id, ext_addr))
     {
-        return false;
+        return HOST_COMMAND_START_INVALID_ADDR;
+    }
+
+    /* Section 5.1 precedence: RegistryUnavailable must be resolved before origin/identity, so a
+       lookup failure caused by an unavailable registry is never reported as an unknown device. */
+    if (device_registry_state() != DEVICE_REGISTRY_STATE_READY)
+    {
+        ESP_LOGW("DEVICE_REGISTRY", "command rejected reason=registry_unavailable dev=%s", host_device_id);
+        return HOST_COMMAND_START_REGISTRY_UNAVAILABLE;
     }
 
     uint32_t known_device_id = 0;
     if (!device_registry_find(ext_addr, &known_device_id, NULL))
     {
         ESP_LOGW(TAG, "command target not known dev=%s", host_device_id);
-        return false;
+        return HOST_COMMAND_START_UNKNOWN_DEVICE;
     }
 
     ++s_next_command_seq;
@@ -1070,7 +1089,7 @@ static bool start_host_command(const char *host_device_id,
             sizeof(s_pending_command.host_value));
 
     (void)transmit_pending_command();
-    return true;
+    return HOST_COMMAND_START_OK;
 }
 
 static void complete_pending_command(bool accepted, const char *error)
@@ -1187,17 +1206,37 @@ static void handle_host_line(char *line)
         return;
     }
 
-    if (!start_host_command(host_device_id,
+    const host_command_start_result_t start_result = start_host_command(host_device_id,
                             device_id_text,
                             capability_name,
                             value,
                             endpoint_id,
                             event_type,
-                            event_value))
+                            event_value);
+    if (start_result != HOST_COMMAND_START_OK)
     {
-        ESP_LOGW(TAG, "ignored host cmd: unavailable host_id=%s capability=%s value=%s", host_device_id, capability_name, value);
-        host_send_error(device_id_text, capability_name, value,
-                        s_pending_command.active ? "another command is pending" : "target not known");
+        /* COORD-REG-011/5.1: report the precise reason so RegistryUnavailable is never surfaced
+           to the host as "target not known" (unknown identity). */
+        const char *reason;
+        switch (start_result)
+        {
+        case HOST_COMMAND_START_PENDING:
+            reason = "another command is pending";
+            break;
+        case HOST_COMMAND_START_REGISTRY_UNAVAILABLE:
+            reason = "registry unavailable";
+            break;
+        case HOST_COMMAND_START_INVALID_ADDR:
+            reason = "invalid issp154 device id";
+            break;
+        case HOST_COMMAND_START_UNKNOWN_DEVICE:
+        default:
+            reason = "target not known";
+            break;
+        }
+        ESP_LOGW(TAG, "ignored host cmd: unavailable host_id=%s capability=%s value=%s reason=%s",
+                host_device_id, capability_name, value, reason);
+        host_send_error(device_id_text, capability_name, value, reason);
         return;
     }
 

@@ -1,13 +1,24 @@
 // Automated coverage for device_registry (ISSP-Coordinator-Paired-Device-Registry.md):
-// COORD-REG-AC-002 (atomic failure preserves previous view), AC-003 (capacity without eviction),
-// AC-004 (update and idempotency), AC-006 (last_seq never belongs to the blob) and the structural
-// load outcomes that AC-001/AC-007 require (absent, incompatible schema, corrupt/unavailable).
-// Every test drives device_registry.c through the storage seam with an in-memory fake. The app
-// targets a physical esp32c3 and its runner captures the terminal Unity result over serial.
+// COORD-REG-AC-002 (atomic failure preserves previous view, including the G3-F path through
+// device_registry_nvs.c under a commit-boundary failure), AC-003 (capacity without eviction),
+// AC-004 (update and idempotency), AC-006 (last_seq never belongs to the blob, schema-size half)
+// and the structural load outcomes that AC-001/AC-007 require: absent, incompatible schema,
+// truncated, entry_count above capacity, null/broadcast/duplicate address and checksum coverage.
+// Every test drives device_registry.c (and, for the two "-partial-g3f"/"-partial-core" NVS-adapter
+// cases, device_registry_nvs.c) through the storage seam with an in-memory or NVS-ops fake. The
+// app targets a physical esp32c3 and its runner captures the terminal Unity result over serial,
+// per docs/specs/Repository-Test-Execution-Policy.md (no QEMU).
 //
-// Not covered here: AC-007's sentinel/namespace-isolation evidence against real NVS, and AC-001 /
-// AC-008's mandatory real-hardware terminal execution. Those remain pending per the specification's
-// own gate (section 13): compilation and fakes do not substitute for that evidence.
+// Every TEST_CASE tag here is a "-partial-..." subset per the manifest rule in section 13: this
+// app exercises device_registry.c/device_registry_nvs.c in isolation (gates G2 and part of G3-F),
+// never the decision code integrated into main.c (G1), real NVS on physical hardware (G3-N), nor
+// the end-to-end radio/hardware flow (G5). No test here may claim a bare "[AC-00N]" label. Still
+// pending, and not claimed as evidence by this app: AC-005 (no case here at all — it needs the
+// integrated policy of G1); the NVS-initialization-error classes of AC-007
+// (ESP_ERR_NVS_NO_FREE_PAGES / ESP_ERR_NVS_NEW_VERSION_FOUND, which are decided in main.c, not
+// here); AC-007's sentinel/namespace-isolation evidence against real NVS (G3-N); and AC-001/AC-008's
+// mandatory real-hardware terminal execution (G3-N/G5). Compilation and fakes do not substitute
+// for that evidence (section 13).
 
 #include <string.h>
 
@@ -313,6 +324,91 @@ TEST_CASE("checksum covers address and device id bytes", "[device_registry][AC-0
     TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_UNAVAILABLE, reboot_and_load());
 }
 
+// COORD-REG-AC-007 class 2 — entry_count above the eight-entry capacity is unavailable, without
+// interpreting any byte as an entry (section 10).
+TEST_CASE("load with entry count above capacity is unavailable", "[device_registry][AC-007-partial-count]")
+{
+    reset_fixture();
+    s_fake.present = true;
+    s_fake.buffer[0] = DEVICE_REGISTRY_SCHEMA_VERSION;
+    s_fake.buffer[1] = DEVICE_REGISTRY_MAX_ENTRIES + 1;
+    s_fake.length = 2;
+
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_UNAVAILABLE, device_registry_load());
+    TEST_ASSERT_EQUAL(0, device_registry_count());
+}
+
+// COORD-REG-AC-007 class 3 — a structurally valid, correctly checksummed blob whose address is
+// null must still be rejected as unavailable (section 5, "endereço não nulo").
+TEST_CASE("load with a null extended address is unavailable", "[device_registry][AC-007-partial-address]")
+{
+    reset_fixture();
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrA, 0x1234));
+
+    uint8_t original_addr[IOT154_EXT_ADDR_LEN];
+    memcpy(original_addr, &s_fake.buffer[2], sizeof(original_addr));
+    int16_t delta = 0;
+    for (size_t i = 0; i < IOT154_EXT_ADDR_LEN; ++i)
+    {
+        delta = (int16_t)(delta + 0x00 - (int16_t)original_addr[i]);
+    }
+    memset(&s_fake.buffer[2], 0x00, IOT154_EXT_ADDR_LEN);
+    s_fake.buffer[s_fake.length - 1] = (uint8_t)(s_fake.buffer[s_fake.length - 1] + delta);
+
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_UNAVAILABLE, reboot_and_load());
+    TEST_ASSERT_EQUAL(0, device_registry_count());
+}
+
+// COORD-REG-AC-007 class 3 — same as above for the broadcast address (section 5, "diferente de
+// broadcast").
+TEST_CASE("load with a broadcast extended address is unavailable", "[device_registry][AC-007-partial-address]")
+{
+    reset_fixture();
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrA, 0x1234));
+
+    uint8_t original_addr[IOT154_EXT_ADDR_LEN];
+    memcpy(original_addr, &s_fake.buffer[2], sizeof(original_addr));
+    int16_t delta = 0;
+    for (size_t i = 0; i < IOT154_EXT_ADDR_LEN; ++i)
+    {
+        delta = (int16_t)(delta + 0xff - (int16_t)original_addr[i]);
+    }
+    memset(&s_fake.buffer[2], 0xff, IOT154_EXT_ADDR_LEN);
+    s_fake.buffer[s_fake.length - 1] = (uint8_t)(s_fake.buffer[s_fake.length - 1] + delta);
+
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_UNAVAILABLE, reboot_and_load());
+    TEST_ASSERT_EQUAL(0, device_registry_count());
+}
+
+// COORD-REG-AC-007 class 4 — two entries sharing the same extended address must be rejected as
+// unavailable (section 5, "endereços sem duplicidade"), even though each address is individually
+// valid and the checksum is recomputed to stay internally consistent.
+TEST_CASE("load with a duplicated extended address is unavailable", "[device_registry][AC-007-partial-duplicate]")
+{
+    reset_fixture();
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrA, 0x1234));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_PAIR_CREATED, device_registry_pair(kAddrB, 0x5678));
+
+    const size_t entry_size = IOT154_EXT_ADDR_LEN + sizeof(uint32_t);
+    const size_t second_addr_offset = 2 + entry_size;
+    uint8_t original_addr[IOT154_EXT_ADDR_LEN];
+    memcpy(original_addr, &s_fake.buffer[second_addr_offset], sizeof(original_addr));
+
+    int16_t delta = 0;
+    for (size_t i = 0; i < IOT154_EXT_ADDR_LEN; ++i)
+    {
+        delta = (int16_t)(delta + (int16_t)kAddrA[i] - (int16_t)original_addr[i]);
+    }
+    memcpy(&s_fake.buffer[second_addr_offset], kAddrA, IOT154_EXT_ADDR_LEN);
+    s_fake.buffer[s_fake.length - 1] = (uint8_t)(s_fake.buffer[s_fake.length - 1] + delta);
+
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_UNAVAILABLE, reboot_and_load());
+    TEST_ASSERT_EQUAL(0, device_registry_count());
+}
+
 TEST_CASE("load with a real read error is unavailable", "[device_registry]")
 {
     reset_fixture();
@@ -331,7 +427,9 @@ TEST_CASE("pairing while unavailable fails without writing", "[device_registry]"
 }
 
 // COORD-REG-AC-002 — failed commit preserves the previous durable view and RAM view.
-TEST_CASE("write failure preserves the previous entry across reboot", "[device_registry][AC-002]")
+// Partial: the single-buffer fake only fails the write atomically as a whole; it does not model a
+// separate staging/commit boundary (see "staging failures..." below for that half of the gate).
+TEST_CASE("write failure preserves the previous entry across reboot", "[device_registry][AC-002-partial-core]")
 {
     reset_fixture();
     TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
@@ -382,7 +480,9 @@ TEST_CASE("staging failures preserve durable registry and sentinel", "[device_re
 }
 
 // COORD-REG-AC-003 — full registry rejects a new address without evicting any existing entry.
-TEST_CASE("capacity full rejects a new address without evicting existing entries", "[device_registry][AC-003]")
+// Partial: calls device_registry_pair() directly; it does not observe the DISCOVERY_RESP/radio
+// effect that the gate's integrated evidence (G1) requires.
+TEST_CASE("capacity full rejects a new address without evicting existing entries", "[device_registry][AC-003-partial-core]")
 {
     reset_fixture();
     TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
@@ -415,7 +515,9 @@ TEST_CASE("capacity full rejects a new address without evicting existing entries
 }
 
 // COORD-REG-AC-004 — repeating the same pair is a no-op write; a changed device_id commits once.
-TEST_CASE("repeated identical pairing does not write, changed device_id commits once", "[device_registry][AC-004]")
+// Partial: exercises device_registry.c only; it does not observe a restored command using the
+// updated device_id, which the gate's integrated evidence (G1) requires.
+TEST_CASE("repeated identical pairing does not write, changed device_id commits once", "[device_registry][AC-004-partial-core]")
 {
     reset_fixture();
     TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());
@@ -438,7 +540,9 @@ TEST_CASE("repeated identical pairing does not write, changed device_id commits 
 
 // COORD-REG-AC-006 — last_seq has no place in the persisted schema: the wire format is exactly
 // schema_version + entry_count + entries(addr+device_id) + checksum, nothing volatile included.
-TEST_CASE("persisted blob size matches schema exactly, with no room for last_seq", "[device_registry][AC-006]")
+// Partial: checks blob size only; the gate also requires observing the event/duplicate/reboot/
+// resend sequence and decoding the blob to demonstrate last_seq's absence (section 13).
+TEST_CASE("persisted blob size matches schema exactly, with no room for last_seq", "[device_registry][AC-006-partial-schema]")
 {
     reset_fixture();
     TEST_ASSERT_EQUAL(DEVICE_REGISTRY_STATE_READY, device_registry_load());

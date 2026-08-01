@@ -1501,3 +1501,112 @@ aprovado. Estados preservados: normativo `Proposed`, implementação funcional
 `EKM-CHG-0008` `Open`. Nenhum código, teste ou arquivo de configuração de
 implementação foi alterado ou executado nesta análise. Uma nova ordem do
 Arquiteto é necessária para atuação de Engenheiro Implementador.
+
+### 16.15 Registro corretivo de implementação v0.4 (Engenheiro Implementador, 01/08/2026)
+
+Ordem recebida: atuar como Engenheiro Implementador sobre a v0.4. Condições de
+entrada confirmadas: branch `gap0006-radio-diagnostics` derivada da `main`,
+árvore de trabalho limpa, especificação `Implementable` conforme 16.14. Esta
+atuação corrige o achado Médio nº2 da revisão 16.12 (precedência de
+`RegistryUnavailable` no comando do host) e o achado Médio nº3 (rótulos de
+teste que superestimavam evidência), e amplia a cobertura estrutural de
+AC-007 em G2. Não fecha G1, G3-N nem G5; não reabre nem reclassifica os
+achados Alto nº1 e Médio nº4 de 16.12, que permanecem válidos como débito.
+
+**Correção de código:**
+
+- `coordinator_154/main/main.c`, `start_host_command()`: a função consultava
+  apenas `device_registry_find()` para decidir se um comando do host podia
+  prosseguir; como esse lookup já retorna falso tanto para identidade
+  desconhecida quanto para `RegistryUnavailable`, o efeito seguro (não
+  transmitir) já existia, mas a mensagem de log e o erro devolvido ao host
+  tratavam ambos os casos como `"target not known"`, contrariando a
+  precedência da seção 5.1 (a distinção deve ser preservada até a decisão
+  final de efeitos). A função passou a checar `device_registry_state()`
+  explicitamente antes do lookup de identidade e a propagar um motivo
+  distinto (`registry unavailable` vs. `target not known` vs. `another
+  command is pending`) até `handle_host_line()`, via o novo tipo
+  `host_command_start_result_t`. Nenhum efeito de rádio ou transmissão foi
+  alterado; apenas a observabilidade e a precedência da decisão. Cobre
+  COORD-REG-011/012.
+
+**Correção de evidência (rótulos):**
+
+- `coordinator_154/test_apps/device_registry_test/main/test_device_registry.c`:
+  os quatro casos que a revisão 16.12 apontou como rotulados com o AC
+  integral apesar de exercitarem somente `device_registry.c` isolado (sem
+  efeito de rádio, host ou comando restaurado) passaram a usar sufixo
+  `-partial-core` ou `-partial-schema`, conforme o contrato de rótulos da
+  seção 13: `write failure preserves the previous entry across reboot`
+  (`AC-002-partial-core`), `capacity full rejects a new address without
+  evicting existing entries` (`AC-003-partial-core`), `repeated identical
+  pairing does not write, changed device_id commits once`
+  (`AC-004-partial-core`) e `persisted blob size matches schema exactly, with
+  no room for last_seq` (`AC-006-partial-schema`). Nenhum destes testes teve
+  seu comportamento alterado; apenas o rótulo, para deixar de superestimar a
+  cobertura.
+
+**Ampliação de cobertura AC-007 (G2, sem hardware):**
+
+Quatro casos novos em `device_registry_test`, cobrindo classes da seção 13
+ainda ausentes e executáveis sem NVS real: contagem de entradas acima da
+capacidade (classe 2), endereço nulo e endereço broadcast em um blob
+corretamente checksumado (classe 3), e endereço duplicado entre duas entradas
+válidas com checksum recalculado para permanecer internamente consistente
+(classe 4). Todos rotulados `[AC-007-partial-...]`, pois nenhum executa contra
+NVS real nem observa a sentinela de namespace exigida pelo gate G3-N completo
+do AC-007.
+
+**Execuções terminais desta atuação:**
+
+| Critério/alvo | Gate | Comando | Resultado | Classificação |
+|---|---|---|---|---|
+| Build de produção ESP32-C6 | G4 | `idf.py -B build_verify_c6 -DIDF_TARGET=esp32c6 build`, ESP-IDF 6.0.1 | código 0, `central_154.bin` `0x45bc0` bytes, zero warnings novos | Approved (G4 apenas) |
+| Build do app `device_registry_test` ESP32-C3 | G4 | `idf.py -B build_verify_c3 -DIDF_TARGET=esp32c3 build`, ESP-IDF 6.0.1 | código 0, `device_registry_test.bin` `0x24110` bytes, zero warnings | Approved (G4 apenas) |
+
+**Limitação ambiental verificada (seção 13, "Verificação do ambiente"):** o
+ambiente ESP-IDF 6.0.1 (`~/.espressif/v6.0.1/esp-idf`) foi encontrado e
+ativado com sucesso (`export.sh`, interpretador `python3.14`) — instalação
+válida, não apenas ausente do `PATH`. Nenhuma porta serial ESP32-C3/C6 foi
+detectada (`/dev/cu.usbserial*`, `/dev/cu.usbmodem*` ausentes): "instalação
+encontrada mas placa física ausente nesta sessão". QEMU está proibido por
+`Repository-Test-Execution-Policy.md` (`TESTEXEC-001`) e não foi usado.
+Consequentemente, **nenhum caso Unity foi executado nesta atuação** — nem os
+quatro casos novos de AC-007, nem os quatro casos relabelados, nem os já
+existentes. G4 comprova apenas compilação e link; não constitui e não é
+apresentado como evidência comportamental. Flash e execução em placa também
+dependem de ordem explícita do Arquiteto (`AGENTS.md`), que não foi recebida
+nesta atuação.
+
+**Débitos explicitamente preservados (não fechados nesta atuação):**
+
+- G1 continua inexistente: nenhum teste exercita o código de decisão integrado
+  de `main.c` (`DISCOVERY_REQ`, `DATA`, `ACK`, comando do host) com efeitos
+  substituídos. AC-001, AC-003, AC-004, AC-005 e AC-006 continuam sem a
+  evidência integrada que a seção 13 exige; AC-005 continua sem qualquer caso,
+  integrado ou não;
+- G3-N (adaptador de produção com NVS real em placa física) e G5 (hardware
+  ponta a ponta) continuam não executados, por ausência de placa nesta sessão;
+- as classes de AC-007 dependentes de `ESP_ERR_NVS_NO_FREE_PAGES` /
+  `ESP_ERR_NVS_NEW_VERSION_FOUND` na inicialização e a sentinela de namespace
+  sob NVS real continuam fora do app de teste, pois dependem de `main.c`
+  (G1) ou de NVS real em placa (G3-N), não apenas de `device_registry.c`;
+- o achado Alto nº1 de 16.12 (ausência de G1/G3-N/G5 como um todo) e o achado
+  Médio nº4 (G3-F parcial, sem observar ausência de resposta/publicação pela
+  política integrada) permanecem válidos e não foram tratados nesta atuação;
+- nenhum caso automatizado, novo ou preexistente, foi executado nesta sessão;
+  toda a evidência comportamental de execuções anteriores (QEMU) permanece
+  apenas histórica, conforme `TESTEXEC-006`.
+
+**Estado resultante:** implementação `In Progress`; migração de validação
+`In Progress`; prontidão `Not Ready`; `EKM-CHG-0008` `Open`. Esta atuação
+corrige dois achados Médios de 16.12 com evidência de compilação limpa e
+amplia a cobertura estrutural fonte de AC-007, mas não promove nenhum AC a
+`Approved` nem a implementação a `Implemented`: G1, G3-N, G5, a execução
+comportamental de qualquer caso e as classes de AC-007 dependentes de
+inicialização NVS continuam pendentes. Promoção para `Validated` ou `Done`
+não pertence a este papel e não foi solicitada. Recomenda-se ao Arquiteto uma
+atuação futura dedicada a extrair o código de decisão de `main.c` para uma
+forma testável (G1), condição necessária para aprovar integralmente AC-001,
+AC-003, AC-004, AC-005 e AC-006, e a obter acesso a placa física ESP32-C3/C6
+para fechar G3-N e G5.
