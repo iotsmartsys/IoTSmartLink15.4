@@ -583,7 +583,7 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 
 ### Critérios de encerramento da transação
 
-- revisão independente promove a especificação para `Implementable` — **satisfeito** em 31/07/2026 para v0.1 e **reconfirmado** em 01/08/2026 para v0.2;
+- revisão independente promove a especificação para `Implementable` — **satisfeito** em 31/07/2026 para v0.1; a promoção de 01/08/2026 para v0.2 ficou sem efeito após a análise corretiva e permanece pendente;
 - Arquiteto autoriza implementação;
 - requisitos COORD-REG-001 a COORD-REG-013 são implementados;
 - gates automatizados e cenários de hardware AC-001 a AC-008 terminam com
@@ -734,3 +734,21 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   prontidão `Not Ready`; `EKM-CHG-0008` permanece `Open`;
 - esta promoção não autoriza programar; correção e nova evidência dependem de
   ordem própria do Arquiteto.
+
+### Encerramento corretivo da análise v0.2 (01/08/2026)
+
+- revisão adversarial posterior identifica inconsistência entre o caráter
+  opcional de checksum/marcador na seção 6 e sua corrupção obrigatória em
+  AC-007;
+- AC-002 e sua matriz exigem falha de commit apenas em G1+G2, permitindo que um
+  fake correto aprove enquanto o adaptador NVS de produção trata
+  `nvs_commit()` incorretamente;
+- a promoção `Implementable` registrada anteriormente para v0.2 fica sem
+  efeito; resultado corrente da análise: `Needs Clarification`;
+- especificação devolvida ao Autor para alinhar o contrato de integridade e
+  fechar o gate de falha de commit no adaptador de produção;
+- COORD-REG-001 a 013, AC-001 a AC-008 e o escopo funcional permanecem
+  inalterados; implementação `In Progress`, prontidão `Not Ready` e
+  `EKM-CHG-0008` `Open`;
+- nenhuma alteração ou execução de código, testes ou configuração ocorreu
+  nesta correção; a etapa de análise fica encerrada.

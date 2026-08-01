@@ -4,7 +4,7 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Implementable
+**Revisão de implementabilidade:** Needs Clarification
 **Versão:** 0.2
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 01/08/2026
@@ -747,8 +747,8 @@ Esta autoria v0.2 não implementa nem valida o comportamento. O estado corrente
 - `Proposed`;
 - `In Progress`, porque existe implementação parcial ainda não conforme;
 - `Not Ready`;
-- `Implementable`, pela análise independente da seção 16.6; a conclusão
-  histórica da seção 16.1 permanece apenas como registro da versão 0.1.
+- `Needs Clarification`, pelo encerramento corretivo da seção 16.7; as
+  conclusões das seções 16.1 e 16.6 permanecem como registros históricos.
 
 ### 16.1 Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
 
@@ -1030,3 +1030,35 @@ aceita o baseline atual; correção, gates e revisão técnica dependem de ordem
 própria do Arquiteto. Estados preservados: normativo `Proposed`, implementação
 `In Progress`, prontidão `Not Ready`. Nenhum código, teste ou configuração de
 implementação foi alterado nesta análise.
+
+### 16.7 Encerramento corretivo da análise e retorno à autoria (01/08/2026)
+
+Após revisão adversarial do resultado da seção 16.6, o Engenheiro Analista
+identificou duas lacunas que impedem afirmar que todos os requisitos da versão
+0.2 são plenamente validáveis:
+
+1. a seção 6 torna opcionais marcador, checksum ou metadados equivalentes de
+   integridade, enquanto a tabela da seção 10 e AC-007 exigem produzir e
+   reprovar checksum ou marcador inválido. O Autor deve tornar inequívoco se o
+   schema exige ao menos um mecanismo verificável de integridade e alinhar o
+   oráculo de corrupção à decisão;
+2. AC-002 exige falhas de `set_blob` e commit somente em G1+G2, que podem usar
+   substituto fiel. G3 exercita o adaptador NVS de produção apenas nos cenários
+   atualmente enumerados para AC-001/AC-007. Assim, um adaptador real que não
+   propague corretamente uma falha de `nvs_commit()` pode satisfazer os gates
+   existentes. O Autor deve exigir evidência que atravesse o adaptador
+   de produção sob falha de commit, ou definir gate material equivalente que
+   feche essa possibilidade.
+
+Esses bloqueios não reduzem COORD-REG-001 a 013, AC-001 a AC-008 nem o escopo
+funcional. Eles também não rejeitam a arquitetura local proposta. Exigem apenas
+que contrato e gates sejam ajustados antes de nova promoção.
+
+**Resultado corrente:** `Needs Clarification`.
+
+A promoção `Implementable` da seção 16.6 fica sem efeito para a versão corrente
+e é preservada somente como registro histórico. Estados mantidos: normativo
+`Proposed`, implementação `In Progress`, prontidão `Not Ready` e transação
+`EKM-CHG-0008` `Open`. A etapa de análise está encerrada e a especificação é
+devolvida ao Autor. Nenhum código, teste ou configuração de implementação foi
+alterado ou executado nesta correção.
