@@ -4,7 +4,7 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** Not Started
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Pending Review
+**Revisão de implementabilidade:** Implementable
 **Versão:** 0.1
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 01/08/2026
@@ -181,8 +181,68 @@ Nenhum item desta seção é excluído pela autoria.
 
 Esta versão registra a decisão arquitetural e propõe a migração completa sem
 alterar implementação. Estados: `Proposed`, `Not Started`, `Not Ready` e
-`Pending Review`.
+`Implementable`.
 
-A próxima etapa é análise independente de implementabilidade. Somente depois
-de promoção e ordem própria do Arquiteto um Engenheiro Implementador poderá
-migrar runners, ajustar test apps e excluir os artefatos inventariados.
+A análise independente da seção 10 promoveu esta versão a `Implementable`.
+Uma ordem própria do Arquiteto continua necessária antes que um Engenheiro
+Implementador possa migrar runners, ajustar test apps ou excluir os artefatos
+inventariados.
+
+## 10. Revisão de implementabilidade (Engenheiro Analista, 01/08/2026)
+
+A versão 0.1 foi confrontada integralmente com os artefatos versionados, os
+test apps existentes, as especificações dependentes de Bootstrap e Registry,
+o mapa de conhecimento e `EKM-CHG-0009`.
+
+### Requisitos, critérios e preservação funcional
+
+- TESTEXEC-001 a 007 possuem cobertura em TESTEXEC-AC-001 a 007 e na matriz
+  da seção 8;
+- TESTEXEC-002 e AC-006 proíbem retirar cenário, falha, condição de borda ou
+  oráculo; as matrizes SMARTAPP e COORD-REG permanecem funcionalmente
+  preservadas;
+- TESTEXEC-005 torna terminal a exigência de AC-005: mais de zero casos,
+  resultado final e oráculo observado são obrigatórios; build ou mera
+  capacidade de executar não aprovam o critério;
+- TESTEXEC-006 e AC-007 separam objetivamente histórico auditável de evidência
+  vigente, sem apagar fatos nem reutilizá-los como aprovação.
+
+### Viabilidade e precedentes
+
+- `pytest_hello_world.py` já contém precedentes independentes para target
+  Linux host-native e execução genérica em placa; remover os imports, tipos,
+  marker e caso específicos do emulador não exige nova arquitetura;
+- `smart_sys_app_test` e `device_registry_test` são test apps ESP-IDF comuns,
+  com `CMakeLists.txt`, app Unity e artefatos de flash. Podem executar em
+  ESP32-C3 físico sem alteração de comportamento de produção;
+- a execução host-native é opcional e condicionada à fidelidade integral dos
+  substitutos. Quando essa prova não existir, TESTEXEC-003 determina o fallback
+  físico, portanto o Implementador não precisa inventar uma nova abstração para
+  satisfazer a política;
+- G3-N do registry conserva adaptador de produção e NVS real em target físico;
+  G3-F conserva a passagem por `device_registry_nvs.c`; G4 e G5 permanecem
+  inalterados. A retirada do runner não enfraquece nenhum gate;
+- a mudança técnica fica limitada a runners, imports, markers, comentários,
+  configurações, documentação e artefatos de build inventariados. Não cria
+  componente de produção, pasta estrutural ou política funcional paralela.
+
+### Limites e dependências
+
+- porta serial, placa disponível e automação de flash são dados de execução,
+  não decisões normativas ausentes; ausência desses recursos resulta em
+  `Not Executed`, conforme TESTEXEC-005;
+- flash, monitor e captura física continuam dependendo de ordem explícita do
+  Arquiteto, sem conflito com `AGENTS.md`;
+- a ferramenta externa e suas bibliotecas estão corretamente fora do escopo do
+  repositório; sua eventual desinstalação exige ordem separada;
+- as versões 1.5 de `ISSP-Configurable-Bootstrap.md` e 0.4 de
+  `ISSP-Coordinator-Paired-Device-Registry.md` permanecem `Pending Review` em
+  seus próprios ciclos integrais. Esta promoção comprova a política
+  coordenadora e não antecipa a promoção formal dessas especificações.
+
+**Resultado:** `Implementable`.
+
+Não há decisão normativa, de produto ou arquitetura ausente para migrar o
+recorte completo. Estados preservados: normativo `Proposed`, implementação
+`Not Started` e prontidão `Not Ready`. Esta análise não autoriza programar,
+remover artefatos, executar testes nem realizar flash.

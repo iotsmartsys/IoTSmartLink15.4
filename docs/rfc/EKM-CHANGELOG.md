@@ -916,3 +916,19 @@ falhas, oráculos nem quantidade de casos.
 - artefatos QEMU versionados e locais removidos sem perda de cobertura;
 - especificações, documentação e mapa reconciliados;
 - revisão confirma ausência de QEMU como estratégia vigente.
+
+### Revisão de implementabilidade (Engenheiro Analista, 01/08/2026)
+
+- confrontados integralmente TESTEXEC-001 a 007, TESTEXEC-AC-001 a 007,
+  matriz de substituição, inventário técnico, Bootstrap v1.5 e Registry v0.4;
+- confirmado precedente host-native no runner raiz e execução física viável
+  para os dois test apps ESP-IDF; quando a fidelidade host-native não puder ser
+  demonstrada, o fallback físico é obrigatório;
+- a retirada de QEMU não elimina cenário, falha, oráculo ou quantidade de
+  casos e não transforma build em evidência comportamental;
+- migração limitada a runners, imports, markers, comentários, configurações,
+  documentação e artefatos inventariados, sem nova camada de produção;
+- resultado da política v0.1: `Implementable`; normativo `Proposed`,
+  implementação `Not Started`, prontidão `Not Ready`, transação `Open`;
+- Bootstrap v1.5 e Registry v0.4 permanecem `Pending Review` em seus ciclos
+  integrais; nenhuma implementação, remoção, teste ou flash foi executado.
