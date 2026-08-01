@@ -2,9 +2,9 @@
 
 **Tipo:** Operacional
 **Status:** Active
-**Versão:** 1.6
+**Versão:** 1.7
 **Responsável:** Marcelo Miranda
-**Última atualização:** 30/07/2026
+**Última atualização:** 31/07/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -516,3 +516,60 @@ inicial.
   `Ready`; o mapa foi reconciliado e a Definition of Done EKM respondida;
 - `EKM-CHG-0007` foi encerrada por decisão do Arquiteto. O encerramento cobre a
   fachada configurável e não constitui validação de uma correção do transporte.
+
+---
+
+## EKM-CHG-0008 — Registry persistente de devices pareados do coordenador
+
+**Status:** `Open`
+**Tipo:** Especificação funcional
+**Aberta em:** 31/07/2026
+
+### Motivação
+
+O coordenador mantém até oito devices somente em RAM, perde os destinos de
+comando ao reiniciar e permite que `DATA` de origem desconhecida alimente essa
+tabela mesmo depois do fechamento da janela. A especificação de commissioning
+já exige preservar e atender devices registrados, mas não define seu registry.
+
+### Ativos afetados nesta etapa
+
+- nova `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md`;
+- `docs/rfc/KNOWLEDGE-MAP.md`;
+- este histórico.
+
+### Decisões confirmadas pelo Arquiteto
+
+- pareamento decorre de discovery válido durante a janela e só é respondido
+  como sucesso depois da confirmação NVS;
+- endereço IEEE é a identidade primária e `device_id` também é persistido;
+- o limite permanece em oito, sem eviction;
+- mesmo endereço atualiza `device_id`; repetição idêntica é idempotente;
+- `last_seq` permanece volátil;
+- tráfego operacional depois do fechamento exige device persistido;
+- falha de persistência não conclui pareamento;
+- ausência ou schema incompatível inicia registry vazio; corrupção e erro real
+  não apagam automaticamente toda a NVS;
+- remoção, reset do coordenador, autenticação e migração automática ficam fora
+  deste recorte.
+
+### Resultado da autoria
+
+- schema lógico, estados de carga, transação atômica, capacidade, falhas,
+  autorização de tráfego e compatibilidade de implantação especificados;
+- treze requisitos mapeados para oito critérios falsificáveis;
+- efeitos de rádio, protocolo, janela e deduplicação preservados fora da
+  mudança necessária;
+- nenhuma implementação ou validação funcional executada;
+- especificação deixada como `Proposed`, `Not Started`, `Not Ready` e
+  `Pending Review`.
+
+### Critérios de encerramento da transação
+
+- revisão independente promove a especificação para `Implementable`;
+- Arquiteto autoriza implementação;
+- requisitos COORD-REG-001 a COORD-REG-013 são implementados;
+- gates automatizados e cenários de hardware AC-001 a AC-008 terminam com
+  evidência aprovada;
+- mapa, especificações relacionadas e transação são reconciliados;
+- implantação em ambiente real permanece sujeita a ordem própria.
