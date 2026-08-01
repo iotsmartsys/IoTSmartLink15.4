@@ -675,3 +675,19 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 - recomendação: não aceitar nem promover. `EKM-CHG-0008` permanece `Open` e a
   especificação permanece `Proposed`, `In Progress` e `Not Ready` até correção
   e nova revisão.
+
+### Encerramento da revisão e retorno à autoria (01/08/2026)
+
+- o Arquiteto decide preservar o escopo funcional completo e abrir uma nova
+  rodada de autoria para tornar a especificação mais validável antes de
+  corrigir a implementação;
+- a atuação do Engenheiro Revisor é encerrada sem aceite, promoção normativa ou
+  correção de código;
+- estado normativo transita de `Proposed` para `Draft`; implementação permanece
+  `In Progress`; prontidão permanece `Not Ready`; revisão de implementabilidade
+  retorna de `Implementable` para `Pending Review`;
+- a revisão de implementabilidade de 31/07/2026 permanece como registro
+  histórico da versão então avaliada, mas não antecipa a análise independente
+  do conteúdo que será revisado;
+- achados e evidências da revisão técnica permanecem como entrada factual para
+  o Autor da Especificação; `EKM-CHG-0008` permanece `Open`.

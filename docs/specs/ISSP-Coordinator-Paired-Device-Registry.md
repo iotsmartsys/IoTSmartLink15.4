@@ -1,10 +1,10 @@
 # ISSP 802.15.4 — Registry de Dispositivos Pareados do Coordenador
 
 **Tipo:** Normativo
-**Estado normativo:** Proposed
+**Estado normativo:** Draft
 **Estado da implementação:** In Progress
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Implementable
+**Revisão de implementabilidade:** Pending Review
 **Versão:** 0.1
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 01/08/2026
@@ -593,3 +593,27 @@ uma atuação separada de Engenheiro Implementador para corrigir os dois defeito
 de runtime e completar os gates obrigatórios; depois repetir revisão, QEMU e os
 cenários de hardware. Estados preservados: `Proposed`, `In Progress` e
 `Not Ready`; `EKM-CHG-0008` permanece `Open`.
+
+### 16.4 Encerramento da revisão e retorno à autoria (01/08/2026)
+
+O Arquiteto recebeu os achados da seção 16.3 e determinou uma nova rodada de
+autoria antes de qualquer correção de implementação. O objetivo declarado é
+preservar o escopo funcional completo e experimentar uma especificação mais
+validável, incorporando controles de estados, invariantes, fidelidade dos
+substitutos e rastreabilidade entre critérios, testes e evidência.
+
+Esta decisão não aprova os achados, não corrige código e ainda não transforma
+as medidas discutidas em requisitos normativos. Ela encerra a atuação atual do
+Engenheiro Revisor e devolve formalmente o documento à autoria:
+
+- estado normativo: `Draft`, pois o conteúdo voltará a ser elaborado;
+- estado da implementação: `In Progress`, pois existe implementação parcial
+  com defeitos e lacunas de evidência registrados;
+- prontidão: `Not Ready`;
+- revisão de implementabilidade: `Pending Review`, pois a conclusão histórica
+  da seção 16.1 não poderá validar antecipadamente o conteúdo revisado;
+- transação `EKM-CHG-0008`: `Open`.
+
+Os achados e evidências da seção 16.3 permanecem como entrada factual para a
+próxima autoria. A versão revisada deverá passar por nova análise independente
+de implementabilidade antes de autorizar outra atuação de implementação.
