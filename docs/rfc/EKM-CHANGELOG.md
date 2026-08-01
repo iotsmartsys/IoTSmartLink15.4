@@ -649,3 +649,29 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   `Implemented` conforme regras comuns §3.2 e perfil do Implementador);
   `EKM-CHG-0008` permanece `Open`; promoção a `Implemented`, `Validated` ou
   `Done` não ocorreu nem foi autorizada nesta etapa.
+
+### Revisão técnica (Engenheiro Revisor, 01/08/2026)
+
+- revisão estática do commit `2cc600c` confrontada com COORD-REG-001 a 013 e
+  AC-001 a AC-008;
+- build de produção ESP-IDF 6.0.1/ESP32-C6 concluído com código 0 e sem warnings
+  do compilador; build do app de teste ESP32-C3 concluído com código 0; QEMU
+  terminou com `10 Tests 0 Failures 0 Ignored`; `git diff --check` sem erro;
+- achado alto: `DATA` é encaminhado ao host e recebe ACK com janela aberta
+  quando o registry está indisponível, violando o fail-closed de COORD-REG-011
+  e AC-007;
+- achado alto: `init_nvs()` ainda executa `nvs_flash_erase()` em duas falhas de
+  inicialização, podendo apagar namespaces não relacionados e violando
+  COORD-REG-010/AC-007;
+- achado alto de evidência: faltam o gate de integração AC-005, o cenário
+  completo de reboot/deduplicação de AC-006 e fakes que preservem staging,
+  commit e isolamento de namespaces para AC-002/AC-007; os dez testes aprovam
+  somente os cenários presentes;
+- registro anterior superestimava cobertura ao mencionar contagem inválida,
+  que não integra os dez testes executados; a limitação de toolchain deixou de
+  se aplicar ao ambiente observado nesta revisão;
+- AC-001 e AC-008 continuam sem execução terminal em hardware real; nenhuma
+  validação humana nem aprovação do Arquiteto foi recebida;
+- recomendação: não aceitar nem promover. `EKM-CHG-0008` permanece `Open` e a
+  especificação permanece `Proposed`, `In Progress` e `Not Ready` até correção
+  e nova revisão.

@@ -7,7 +7,7 @@
 **Revisão de implementabilidade:** Implementable
 **Versão:** 0.1
 **Responsável arquitetural:** Marcelo Miranda
-**Última atualização:** 31/07/2026
+**Última atualização:** 01/08/2026
 **Escopo:** Persistência NVS dos dispositivos pareados pelo coordenador ISSP
 
 ---
@@ -535,3 +535,61 @@ obrigatórios estão escritos, mas a ausência de evidência de build/execução
 neste ambiente impede a promoção para `Implemented` (regras comuns §3.2 e
 perfil do Engenheiro Implementador). Promoção para `Validated` ou `Done`
 não pertence a este papel e não foi solicitada.
+
+### 16.3 Revisão técnica (Engenheiro Revisor, 01/08/2026)
+
+Recorte revisado: implementação completa do commit `2cc600c`, requisitos
+COORD-REG-001 a COORD-REG-013 e critérios COORD-REG-AC-001 a AC-008.
+
+**Evidência terminal obtida nesta revisão:**
+
+- build de produção com ESP-IDF 6.0.1 para `esp32c6`: concluído com código 0,
+  sem warnings do compilador; `central_154.bin` gerado com `0x45bc0` bytes;
+- build do app `coordinator_154/test_apps/device_registry_test` para
+  `esp32c3`: concluído com código 0;
+- execução do app no QEMU: `10 Tests 0 Failures 0 Ignored`, seguida de
+  encerramento terminal do QEMU com código 0;
+- `git diff --check`: concluído sem erro.
+
+Essas execuções corrigem a limitação ambiental registrada na seção 16.2, mas
+comprovam somente compilação e os dez cenários realmente presentes no app de
+teste. Não constituem evidência de hardware real nem dos gates ausentes.
+
+**Achados materiais:**
+
+1. **Alto — fail-closed incompleto em `RegistryUnavailable`**
+   (`COORD-REG-011`, `COORD-REG-AC-007`). Em `main.c`, quando
+   `device_registry_find()` retorna falso, a decisão considera apenas a janela
+   de ingresso. Com a janela aberta, `DATA` é encaminhado ao host e recebe ACK
+   mesmo quando o registry está indisponível. Isso contraria a seção 7, que
+   exige operação fechada para tráfego de devices nesse estado.
+2. **Alto — recuperação do boot ainda pode apagar toda a NVS**
+   (`COORD-REG-010`, `COORD-REG-AC-007`). `init_nvs()` mantém
+   `nvs_flash_erase()` para `ESP_ERR_NVS_NO_FREE_PAGES` e
+   `ESP_ERR_NVS_NEW_VERSION_FOUND`. O comportamento pode remover namespaces
+   não relacionados antes de o registry ser classificado como indisponível,
+   contrariando as seções 7 e 10 e inviabilizando o oráculo de sentinela do
+   AC-007.
+3. **Alto — gates automatizados obrigatórios incompletos** (seção 13).
+   Não existe teste de integração para AC-005; o teste rotulado AC-006 verifica
+   apenas o tamanho do blob e não executa sequência, reboot e reenvio; o fake
+   do AC-002 oferece uma operação `write` já atômica e não representa staging,
+   commit separado e conteúdo reiniciado; e os cenários de AC-007 não modelam
+   namespaces nem sentinela. Assim, `10/10` aprova o conjunto escrito, mas não
+   os gates AC-002/005/006/007 completos.
+4. **Médio — registro de implementação superestima cobertura.** A seção 16.2
+   e o changelog declaram teste de contagem inválida, mas os dez casos
+   executados não incluem esse cenário. A alegação anterior de ausência de
+   `idf.py`/toolchain também deixou de representar o ambiente observado nesta
+   revisão.
+
+**Limitações preservadas:** COORD-REG-AC-001 e AC-008 continuam sem execução
+terminal em hardware real; AC-007 continua sem prova de isolamento contra NVS
+real ou fake semanticamente equivalente. Nenhuma validação humana nem aprovação
+do Arquiteto foi fornecida nesta ordem.
+
+**Recomendação ao Arquiteto:** não aceitar nem promover a implementação. Abrir
+uma atuação separada de Engenheiro Implementador para corrigir os dois defeitos
+de runtime e completar os gates obrigatórios; depois repetir revisão, QEMU e os
+cenários de hardware. Estados preservados: `Proposed`, `In Progress` e
+`Not Ready`; `EKM-CHG-0008` permanece `Open`.
