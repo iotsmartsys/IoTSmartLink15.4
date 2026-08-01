@@ -4,7 +4,7 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** Not Started
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Pending Review
+**Revisão de implementabilidade:** Implementable
 **Versão:** 0.1
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 31/07/2026
@@ -425,4 +425,37 @@ Esta autoria não implementa nem valida o comportamento. A proposta permanece:
 - `Proposed`;
 - `Not Started`;
 - `Not Ready`;
-- `Pending Review` pelo Engenheiro Analista.
+- `Implementable`, conforme revisão do Engenheiro Analista de 31/07/2026.
+
+### 16.1 Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
+
+Confronto entre requisitos, `docs/specs/ISSP-Commissioning.md`,
+`docs/specs/ISSP-Architecture.md`, `coordinator_154/main/main.c` e
+`coordinator_154/main/iot154_packet.h`:
+
+- os fatos da seção 2.1 correspondem ao estado real do firmware: `s_devices[8]`
+  em RAM sem persistência, `is_duplicate()` cria/atualiza entrada tanto para
+  `DISCOVERY_REQ` quanto para `DATA` sem checar janela, e `find_device_by_ext_addr`
+  é a única fonte de destino de comando — nenhum fato foi inventado por
+  inferência;
+- os treze requisitos possuem critério assertável e cobertura na matriz
+  requisito–critério (seção 13); nenhum requisito obrigatório ficou sem AC;
+- a solução proposta (seção 2.3) não introduz nova camada arquitetural de
+  domínio; identifica padrão atual, mudança, alcance e justificativa da
+  abstração interna de NVS, satisfazendo a exigência de precisão arquitetural
+  do perfil do Analista;
+- `coordinator_154` não possui hoje separação em componente nem `test_apps`
+  (diferente de `components/issp_app_154`). Isso não bloqueia a
+  implementabilidade: a especificação já autoriza expressamente uma abstração
+  interna pequena para permitir substituto de NVS, e o precedente mais próximo
+  do repositório (`SmartSysApp::SetupHooks` + `components/issp_app_154/test_apps`
+  sob QEMU) resolve a lacuna de "como" sem exigir nova decisão do Arquiteto;
+  fica registrado como observação para o Engenheiro Implementador, não como
+  bloqueio;
+- nenhum conflito material foi encontrado entre esta especificação e
+  `ISSP-Commissioning.md`/`ISSP-Architecture.md`; a janela de ingresso, o
+  protocolo wire e a deduplicação volátil permanecem preservados conforme
+  seção 4.
+
+Resultado: `Implementable`. Autorização para iniciar implementação depende de
+ordem própria do Arquiteto.

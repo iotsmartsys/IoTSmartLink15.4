@@ -564,9 +564,26 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 - especificação deixada como `Proposed`, `Not Started`, `Not Ready` e
   `Pending Review`.
 
+### Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
+
+- confrontados os treze requisitos, as fontes arquiteturais locais
+  (`ISSP-Commissioning.md`, `ISSP-Architecture.md`) e o estado real de
+  `coordinator_154/main/main.c` e `iot154_packet.h`; nenhuma divergência
+  material encontrada entre os fatos descritos na especificação e o firmware
+  atual;
+- nenhuma decisão normativa, de produto ou de arquitetura ausente identificada;
+  a solução proposta não introduz nova camada de domínio e delimita a
+  abstração interna de NVS necessária para testes;
+- observação registrada para o Implementador: `coordinator_154` ainda não tem
+  componente nem `test_apps` próprios; o precedente mais próximo para o gate
+  automatizado com NVS substituível é `components/issp_app_154`
+  (`SetupHooks` + `test_apps` sob QEMU);
+- resultado: `Implementable`. Detalhe completo em
+  `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` seção 16.1.
+
 ### Critérios de encerramento da transação
 
-- revisão independente promove a especificação para `Implementable`;
+- revisão independente promove a especificação para `Implementable` — **satisfeito** em 31/07/2026;
 - Arquiteto autoriza implementação;
 - requisitos COORD-REG-001 a COORD-REG-013 são implementados;
 - gates automatizados e cenários de hardware AC-001 a AC-008 terminam com
