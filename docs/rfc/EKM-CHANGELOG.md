@@ -691,3 +691,26 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   do conteúdo que será revisado;
 - achados e evidências da revisão técnica permanecem como entrada factual para
   o Autor da Especificação; `EKM-CHG-0008` permanece `Open`.
+
+### Reautoria v0.2 (Autor da Especificação, 01/08/2026)
+
+- Arquiteto ordena revisão integral sem redução do escopo funcional e preserva
+  COORD-REG-001 a 013 e AC-001 a AC-008;
+- baseline anterior, implementação corrente e contrato normativo passam a ser
+  distinguidos explicitamente;
+- adicionadas precedência normativa de estados e matriz de decisão cruzando
+  registry, janela, identidade, mensagem e efeitos observáveis;
+- falhas de inicialização NVS e operações destrutivas preexistentes passam a
+  integrar explicitamente COORD-REG-010/011 e AC-007;
+- contrato persistente distingue staging, durable, commit e reboot;
+- gates G1 a G5 separam política integrada, backend fiel, QEMU com NVS real,
+  build ESP32-C6 e hardware; cada AC declara evidência terminal mínima;
+- substitutos devem modelar namespaces, sentinela, falhas por etapa e descarte
+  de staging no reboot; fake parcial não pode sustentar AC completo;
+- manifesto AC–teste–gate–resultado, diagnóstico ambiental e varreduras de
+  conformidade tornam-se saída obrigatória da implementação;
+- nenhum código ou teste funcional alterado ou executado nesta autoria;
+  especificação v0.2 fica `Proposed`, implementação `In Progress`, prontidão
+  `Not Ready` e revisão de implementabilidade `Pending Review`;
+- `EKM-CHG-0008` permanece `Open`; próxima etapa é análise independente de
+  implementabilidade da versão 0.2.
