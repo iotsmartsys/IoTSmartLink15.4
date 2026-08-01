@@ -1325,3 +1325,71 @@ integrados de `main.c`, G3-N com NVS real, nem a execução G5 em hardware exigi
 por AC-001 e AC-008. AC-003, AC-004 e AC-006 ainda exercitam somente o core,
 portanto não satisfazem os oráculos de rádio/host da seção 13. A implementação
 permanece `In Progress`, a prontidão `Not Ready` e `EKM-CHG-0008` `Open`.
+
+### 16.12 Revisão técnica da correção v0.3 (Engenheiro Revisor, 01/08/2026)
+
+Recorte revisado: implementação integral do commit `a739be0`, requisitos
+COORD-REG-001 a COORD-REG-013, critérios COORD-REG-AC-001 a AC-008 e gates
+G1, G2, G3-N, G3-F, G4 e G5.
+
+**Evidência terminal independente:**
+
+- build limpo da composição de produção com ESP-IDF 6.0.1 para ESP32-C6:
+  código 0, `central_154.bin` gerado com `0x45b00` bytes;
+- build limpo do app `device_registry_test` para ESP32-C3: código 0;
+- execução do app no QEMU: `13 Tests 0 Failures 0 Ignored`, encerramento
+  controlado e código 0;
+- varredura estática confirmou a remoção das operações de apagamento NVS em
+  `coordinator_154/main`;
+- `git diff --check`: concluído sem erro antes deste registro de revisão.
+
+Esses resultados confirmam G4 e os treze cenários efetivamente escritos. Não
+convertem testes parciais em aprovação dos critérios nem suprem gates que não
+foram executados.
+
+**Achados materiais:**
+
+1. **Alto — gates obrigatórios e critérios continuam incompletos.** O app de
+   teste compila `device_registry.c` e `device_registry_nvs.c`, mas não executa
+   o código de decisão de `main.c`; portanto não existe G1. G3-N com NVS real e
+   G5 em hardware também não foram executados. AC-005 não possui cenário, e
+   AC-003, AC-004 e AC-006 exercitam apenas parte do core. AC-007 não cobre as
+   classes obrigatórias de contagem maior que oito, endereços nulo/broadcast,
+   endereço duplicado, erros de inicialização NVS, fail-closed em todas as
+   entradas ou sentinela sob G3-N. Consequentemente, nenhum AC está aprovado
+   integralmente e a implementação não pode ser promovida.
+2. **Médio — comando do host não conserva `RegistryUnavailable` até a decisão
+   final** (`COORD-REG-011`, `COORD-REG-012`, AC-007/G1). Em
+   `start_host_command()`, uma falha de `device_registry_find()` é registrada
+   como `command target not known`; o estado do registry não é consultado e a
+   verificação de comando pendente ocorre antes da disponibilidade. O efeito
+   seguro de não transmitir é preservado, mas o estado indisponível é
+   confundido com identidade desconhecida, contrariando a precedência da
+   seção 5.1. Por isso, a afirmação da seção 16.11 de que o comando do host
+   passou a considerar explicitamente `RegistryUnavailable` não é sustentada
+   pelo código.
+3. **Médio — rótulos integrais superestimam a evidência.** Os testes referentes
+   a AC-002, AC-003, AC-004 e AC-006 ainda usam `[AC-002]`, `[AC-003]`,
+   `[AC-004]` e `[AC-006]`, embora o próprio registro de implementação os
+   classifique como parciais. Isso viola o manifesto da seção 13, que reserva
+   `[AC-00N]` ao critério completo e exige sufixo `[AC-00N-partial-...]` para
+   subconjuntos.
+4. **Médio — G3-F foi executado somente de forma parcial.** O caso atravessa o
+   adaptador de produção e comprova staging, erro de commit, durable anterior e
+   sentinela. Como não executa a política integrada, não observa ausência de
+   resposta/publicação exigida pela definição de G3-F e por AC-002. O resultado
+   `Partial` da seção 16.11 está correto; referências resumidas não devem
+   apresentar esse gate como concluído.
+
+**Limitações preservadas:** não houve execução em rádio/hardware real nem
+aprovação humana do Arquiteto. A tentativa adicional de reusar um diretório de
+build dentro do sandbox encontrou bloqueio ambiental de `sysctl`; os builds
+limpos executados fora desse isolamento terminaram com código 0 e são a
+evidência considerada.
+
+**Recomendação ao Arquiteto:** não aceitar nem promover a implementação.
+Solicitar atuação corretiva do Engenheiro Implementador para preservar a
+distinção de indisponibilidade no comando do host, corrigir os rótulos de
+evidência e implementar os gates/cenários pendentes; em seguida repetir revisão
+integral, incluindo G1, G3-N e G5. Estados preservados: normativo `Proposed`,
+implementação `In Progress`, prontidão `Not Ready` e `EKM-CHG-0008` `Open`.

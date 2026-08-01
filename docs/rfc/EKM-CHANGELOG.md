@@ -835,3 +835,24 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 - os resultados são parciais: faltam G1, G3-N e G5 e os critérios que exigem
   rádio/host ou hardware não foram aprovados. A especificação permanece
   `Proposed`/`In Progress`/`Not Ready` e esta transação permanece `Open`.
+
+### Revisão técnica da correção v0.3 (Engenheiro Revisor, 01/08/2026)
+
+- revisado integralmente o commit `a739be0` contra COORD-REG-001 a 013,
+  AC-001 a AC-008 e gates G1 a G5;
+- build limpo ESP-IDF 6.0.1/ESP32-C6 terminou com código 0 e gerou
+  `central_154.bin` de `0x45b00` bytes; build ESP32-C3 e QEMU terminaram com
+  código 0 e `13 Tests 0 Failures 0 Ignored`;
+- confirmado que não há mais operação de apagamento NVS em
+  `coordinator_154/main` e que os cenários escritos de core/adaptador passam;
+- achado alto: permanecem ausentes G1, G3-N e G5; AC-005 não possui cenário e
+  AC-003/004/006/007 mantêm cobertura parcial relevante;
+- achado médio: `start_host_command()` ainda converte indisponibilidade em
+  alvo desconhecido e não preserva a precedência normativa de
+  `RegistryUnavailable`, embora impeça a transmissão;
+- achado médio: quatro testes parciais usam os rótulos integrais `[AC-002]`,
+  `[AC-003]`, `[AC-004]` e `[AC-006]`, contrariando o manifesto de evidências;
+- G3-F atravessa o adaptador e comprova persistência sob falha, mas permanece
+  parcial porque não observa ausência de resposta/publicação em G1;
+- recomendação: não aceitar nem promover. Estados permanecem `Proposed`,
+  `In Progress` e `Not Ready`; `EKM-CHG-0008` permanece `Open`.
