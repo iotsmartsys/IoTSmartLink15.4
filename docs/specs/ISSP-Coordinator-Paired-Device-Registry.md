@@ -747,8 +747,8 @@ Esta autoria v0.2 não implementa nem valida o comportamento. O estado corrente
 - `Proposed`;
 - `In Progress`, porque existe implementação parcial ainda não conforme;
 - `Not Ready`;
-- `Needs Clarification`, pelo encerramento corretivo da seção 16.7; as
-  conclusões das seções 16.1 e 16.6 permanecem como registros históricos.
+- `Needs Clarification`, pela análise independente da seção 16.8; as
+  conclusões das seções 16.1, 16.6 e 16.7 permanecem como registros históricos.
 
 ### 16.1 Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
 
@@ -1062,3 +1062,92 @@ e é preservada somente como registro histórico. Estados mantidos: normativo
 `EKM-CHG-0008` `Open`. A etapa de análise está encerrada e a especificação é
 devolvida ao Autor. Nenhum código, teste ou configuração de implementação foi
 alterado ou executado nesta correção.
+
+### 16.8 Revisão de implementabilidade independente (Engenheiro Analista, 01/08/2026)
+
+Ordem recebida: atuar como Engenheiro Analista sobre a especificação v0.2
+corrente. Condições de entrada confirmadas: branch `gap0006-radio-diagnostics`
+derivada da `main`, árvore limpa, especificação em `Proposed` com revisão
+corrente `Needs Clarification` após a seção 16.7. A promoção histórica da
+seção 16.6 e o encerramento corretivo da 16.7 não foram reutilizados como
+aprovação nem como recusa automática; o texto normativo e as fontes técnicas
+foram confrontados de novo.
+
+**Fontes confrontadas**
+
+- `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` (texto normativo
+  completo e seções 16.1–16.7 como histórico);
+- `docs/specs/ISSP-Commissioning.md` e `docs/specs/ISSP-Architecture.md`;
+- baseline verificável de
+  `coordinator_154/main/{main.c,device_registry.h,device_registry.c,device_registry_nvs.c}`;
+- `coordinator_154/test_apps/device_registry_test` e o precedente de
+  `components/issp_app_154/test_apps`;
+- `docs/rfc/KNOWLEDGE-MAP.md` e `docs/rfc/EKM-CHANGELOG.md` (`EKM-CHG-0008`).
+
+Nenhum código, teste ou configuração de implementação foi alterado ou
+executado nesta análise.
+
+**O que permanece implementável sem nova decisão**
+
+- COORD-REG-001 a 013 continuam cobertos por AC-001 a AC-008 e pela matriz
+  requisito–critério; a matriz 9.1 e a precedência 5.1 fecham a política de
+  discovery, `DATA`, `ACK` e comando sob `Ready` e `Unavailable`;
+- a célula deliberadamente aberta (`DATA` desconhecido com janela aberta em
+  `Ready`) declara dualidade de aceite operacional e proíbe persistência; isso
+  não exige decisão de produto adicional para o gate;
+- a seção 2.4 identifica o padrão atual, autoriza apenas abstrações locais de
+  política e adaptador NVS e proíbe nova camada de domínio; o precedente
+  `device_registry*` + `test_apps` + QEMU de `issp_app_154` basta para o
+  “como” de G1–G3;
+- não há conflito material com commissioning nem com a arquitetura: a janela
+  de 60 s, a continuidade de devices conhecidos e a preservação do protocolo
+  wire permanecem intactas; a frase de commissioning sobre “atualização do
+  registry” pelo report inicial não define criação de entrada persistente no
+  coordenador e já está delimitada pelas seções 4/8/9 e pela decisão do
+  Arquiteto de 31/07/2026;
+- os desvios do baseline (`nvs_flash_erase` em `init_nvs`, fail-closed
+  incompleto de `DATA` sob `RegistryUnavailable`, fake de buffer único e
+  ausência de gates G1 integrais) são débitos da implementação `In Progress`,
+  não lacunas normativas novas.
+
+**Decisões ainda ausentes (bloqueantes)**
+
+1. **Integridade do blob versus oráculo de corrupção.** A seção 6 declara que
+   o formato físico *pode* incluir tamanho, marcador, checksum ou outros
+   metadados de integridade, sem tornar obrigatório ao menos um mecanismo
+   verificável além da coerência de tamanho. Em contrapartida, a tabela da
+   seção 10 e a classe 5 de AC-007 exigem produzir e reprovar “checksum ou
+   marcador de integridade inválido” como `RegistryUnavailable`. Enquanto a
+   obrigatoriedade do mecanismo permanecer opcional, um implementador pode
+   omitir checksum/marcador e tornar essa classe de AC-007 inexequível, ou
+   inventar o mecanismo só no teste. O Autor deve decidir se o schema exige
+   ao menos um mecanismo verificável de integridade do conteúdo (e alinhar
+   seção 6, invariantes, seção 10 e AC-007) ou se a classe de corrupção por
+   checksum/marcador é condicional à presença do campo — hipótese que enfraquece
+   o oráculo e também precisa ficar explícita.
+
+2. **Falha de commit no adaptador NVS de produção.** AC-002 e a matriz
+   critério–gate exigem falhas separadas de `set_blob` e de commit apenas em
+   G1+G2, que podem usar substituto fiel. G3 exercita o adaptador de produção
+   nos caminhos nominais de AC-001 e nas corrupções/sentinela de AC-007, mas
+   não obriga atravessar `device_registry_nvs.c` sob falha de `nvs_commit()`
+   após staging bem-sucedido. Um adaptador real que ignore ou engula falha de
+   commit pode, em tese, satisfazer os gates escritos. O Autor deve exigir
+   evidência terminal que atravesse o adaptador de produção sob falha de
+   commit (por exemplo, ampliar AC-002 ou AC-007/G3 com esse cenário) ou
+   definir gate material equivalente que feche essa possibilidade sem depender
+   só do fake.
+
+Nenhuma outra decisão normativa, de produto ou de arquitetura ausente foi
+identificada para o recorte. Em particular, capacidade 8, identidade IEEE,
+`last_seq` volátil, fail-closed de `RegistryUnavailable`, proibição de
+`nvs_flash_erase` automático e pareamento exclusivo por discovery já estão
+decididos.
+
+**Resultado:** `Needs Clarification`.
+
+Estados preservados: normativo `Proposed`, implementação `In Progress`,
+prontidão `Not Ready`, revisão de implementabilidade `Needs Clarification` e
+transação `EKM-CHG-0008` `Open`. A especificação permanece com o Autor até as
+duas decisões acima serem materializadas no texto normativo e nos gates. Esta
+análise não autoriza implementação nem aceita o baseline atual.

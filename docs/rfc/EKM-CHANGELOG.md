@@ -752,3 +752,26 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   `EKM-CHG-0008` `Open`;
 - nenhuma alteração ou execução de código, testes ou configuração ocorreu
   nesta correção; a etapa de análise fica encerrada.
+
+### Revisão de implementabilidade independente v0.2 (Engenheiro Analista, 01/08/2026)
+
+- ordem: Engenheiro Analista sobre a especificação v0.2 corrente; branch
+  `gap0006-radio-diagnostics`, árvore limpa; conclusões 16.1/16.6/16.7 tratadas
+  apenas como histórico;
+- confrontados de novo o texto normativo completo, `ISSP-Commissioning.md`,
+  `ISSP-Architecture.md`, baseline de `coordinator_154/main/*device_registry*`
+  e `main.c`, `test_apps/device_registry_test` e o precedente QEMU de
+  `issp_app_154`;
+- requisitos 001–013, matriz 9.1, precedência 5.1 e seção 2.4 continuam
+  suficientes para o “o quê” e o alcance arquitetural local; desvios do
+  baseline (`nvs_flash_erase`, fail-closed incompleto, gates parciais) seguem
+  como débito de implementação `In Progress`, não como decisão nova;
+- bloqueio 1 confirmado: seção 6 torna checksum/marcador opcional, enquanto
+  seção 10 e AC-007 classe 5 exigem reprovar integridade inválida;
+- bloqueio 2 confirmado: AC-002/G1+G2 não obrigam atravessar
+  `device_registry_nvs.c` sob falha de `nvs_commit()` após staging;
+- resultado: `Needs Clarification` (detalhe na seção 16.8 da especificação);
+  estados preservados `Proposed` / `In Progress` / `Not Ready`;
+  `EKM-CHG-0008` permanece `Open`;
+- especificação permanece com o Autor; nenhuma autorização de implementação;
+  nenhum código, teste ou configuração de implementação alterado ou executado.
