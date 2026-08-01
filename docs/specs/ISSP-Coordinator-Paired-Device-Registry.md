@@ -2,7 +2,7 @@
 
 **Tipo:** Normativo
 **Estado normativo:** Proposed
-**Estado da implementação:** Not Started
+**Estado da implementação:** In Progress
 **Prontidão:** Not Ready
 **Revisão de implementabilidade:** Implementable
 **Versão:** 0.1
@@ -459,3 +459,79 @@ Confronto entre requisitos, `docs/specs/ISSP-Commissioning.md`,
 
 Resultado: `Implementable`. Autorização para iniciar implementação depende de
 ordem própria do Arquiteto.
+
+### 16.2 Registro de implementação (Engenheiro Implementador, 31/07/2026)
+
+Arquiteto autorizou implementação com recorte de escopo completo
+(COORD-REG-001 a 013) nesta etapa.
+
+**Código:**
+
+- `coordinator_154/main/device_registry.h`/`.c`: schema versionado (seção 6),
+  validação de carga (seção 7, tabela da seção 10) e transação de pareamento
+  (seção 8) com um seam de storage (`device_registry_storage_t`) que isola a
+  lógica de pareamento do acesso a NVS, conforme autorizado pela seção 2.3;
+- `coordinator_154/main/device_registry_nvs.c`: implementação real do seam
+  sobre `nvs.h`, namespace próprio `coord_reg`, chave `devices`, isolado dos
+  namespaces de fábrica/PHY/Wi-Fi/clients; substituição atômica via
+  `nvs_set_blob` + `nvs_commit`, seguindo o precedente de
+  `issp154_network_manager.cpp` citado na seção 15;
+- `coordinator_154/main/main.c`: `device_registry_load()` executa antes de
+  `iot154_radio_start_rx()` (seção 7); a tabela volátil `s_devices[8]` e as
+  funções `is_duplicate()`/`find_device_by_ext_addr()` (que aprendiam
+  qualquer origem — inclusive por `DATA` — com eviction cega do slot 0) foram
+  removidas; `DISCOVERY_REQ` chama `device_registry_pair()` e só emite
+  `DISCOVERY_RESP` de sucesso após o commit (seção 8); `DATA` de origem
+  desconhecida com a janela fechada é descartado sem ACK, evento ou gravação
+  (COORD-REG-007/008); a conclusão de comando por `ACK` passa a exigir também
+  que a origem seja conhecida e que o `device_id` do frame corresponda ao
+  persistido; comando do host resolve o destino via `device_registry_find()`;
+  a deduplicação de `last_seq` permanece volátil (COORD-REG-009), agora como
+  cache por slot do registry, nunca no blob;
+- comportamento de `DATA` de origem desconhecida com a janela **aberta**
+  permanece fora do recorte desta especificação (seção 9); a implementação
+  preserva o processamento anterior (evento + ACK, sem persistência), por não
+  haver decisão normativa para alterá-lo nesta etapa;
+- logs `DEVICE_REGISTRY: ...` da seção 11 implementados; foram adicionados
+  `discovery ignored reason=registry_unavailable` e `pairing result=failed
+  reason=registry_unavailable`, além do vocabulário mínimo exigido, para
+  tornar `RegistryUnavailable` observável (seção 7) sem reduzir os tokens
+  obrigatórios.
+
+**Testes automatizados:**
+
+`coordinator_154/test_apps/device_registry_test` (Unity, alvo `esp32c3`,
+execução prevista via QEMU `idf.py qemu`), seguindo o mesmo precedente de
+`components/issp_app_154/test_apps/smart_sys_app_test`. Usa um substituto de
+storage em memória que injeta falha de leitura/escrita e corrupção estrutural
+— exercitando exclusivamente `device_registry.c`, nunca `device_registry_nvs.c`
+nem uma partição NVS real. Cobre:
+
+- COORD-REG-AC-002: falha de commit preserva a visão anterior em RAM e após
+  recarregar a partir do que ficou persistido;
+- COORD-REG-AC-003: capacidade cheia rejeita sem eviction, oito entradas
+  permanecem íntegras após recarregar;
+- COORD-REG-AC-004: repetição idêntica não grava; mudança de `device_id`
+  grava exatamente uma vez e sobrevive a recarregar;
+- COORD-REG-AC-006 (parcial): o blob serializado nunca contém `last_seq`;
+- estados de carga usados por AC-001/AC-007: ausente, schema incompatível,
+  blob truncado, contagem inválida, checksum inválido, erro real de leitura.
+
+**Limitações registradas (não convertidas em evidência aprovada):**
+
+- build ESP-IDF (alvo `esp32c6`) e a execução dos testes acima sob QEMU
+  **não foram realizados nesta etapa**: este ambiente não possui `idf.py`
+  nem toolchain ESP-IDF instalada. Nenhuma compilação nem execução é
+  reivindicada como evidência;
+- a parte de COORD-REG-AC-007 que exige NVS real com namespace sentinela
+  isolado não foi automatizada nem executada — o gate escrito usa somente o
+  substituto em memória;
+- COORD-REG-AC-001 e COORD-REG-AC-008 exigem execução terminal em hardware
+  real (seção 13) e permanecem pendentes, sem qualquer execução ou simulação
+  nesta etapa.
+
+**Estado resultante:** `In Progress`. Código e testes automatizáveis
+obrigatórios estão escritos, mas a ausência de evidência de build/execução
+neste ambiente impede a promoção para `Implemented` (regras comuns §3.2 e
+perfil do Engenheiro Implementador). Promoção para `Validated` ou `Done`
+não pertence a este papel e não foi solicitada.

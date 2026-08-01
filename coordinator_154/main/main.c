@@ -17,6 +17,7 @@
 #include "esp_timer.h"
 #include "nvs_flash.h"
 
+#include "device_registry.h"
 #include "iot154_packet.h"
 #include "iot154_radio.h"
 
@@ -110,15 +111,27 @@ typedef struct
 
 static pending_command_t s_pending_command;
 
-typedef struct
-{
-    uint32_t device_id;
-    uint16_t last_seq;
-    uint8_t ext_addr[IOT154_EXT_ADDR_LEN];
-    bool valid;
-} device_seq_state_t;
+/// @brief Volatile DATA sequence dedup cache, keyed by the device's registry slot index
+/// (COORD-REG-009: last_seq never belongs to the persisted blob). Zero-initialized at boot, so the
+/// first DATA frame observed for each slot in this run is never treated as a duplicate.
+static uint16_t s_last_seq[DEVICE_REGISTRY_MAX_ENTRIES];
+static bool s_last_seq_valid[DEVICE_REGISTRY_MAX_ENTRIES];
 
-static device_seq_state_t s_devices[8];
+static bool is_known_data_duplicate(size_t registry_index, uint16_t seq)
+{
+    if (!s_last_seq_valid[registry_index])
+    {
+        s_last_seq_valid[registry_index] = true;
+        s_last_seq[registry_index] = seq;
+        return false;
+    }
+    if (s_last_seq[registry_index] == seq)
+    {
+        return true;
+    }
+    s_last_seq[registry_index] = seq;
+    return false;
+}
 
 static const char *type_from_event(uint8_t event_type);
 
@@ -942,53 +955,6 @@ static void update_join_window(void)
     ESP_LOGI("COMMISSIONING", "join_window closed");
 }
 
-/// @brief Return true when this source address + seq was already processed, remembering the logical protocol ID.
-static bool is_duplicate(uint32_t device_id, uint16_t seq, const uint8_t *src_ext_addr)
-{
-    device_seq_state_t *free_slot = NULL;
-
-    for (size_t i = 0; i < sizeof(s_devices) / sizeof(s_devices[0]); ++i)
-    {
-        if (s_devices[i].valid && iot154_ext_addr_equal(s_devices[i].ext_addr, src_ext_addr))
-        {
-            s_devices[i].device_id = device_id;
-            if (s_devices[i].last_seq == seq)
-            {
-                return true;
-            }
-            s_devices[i].last_seq = seq;
-            return false;
-        }
-        if (!s_devices[i].valid && free_slot == NULL)
-        {
-            free_slot = &s_devices[i];
-        }
-    }
-
-    if (free_slot == NULL)
-    {
-        free_slot = &s_devices[0];
-    }
-
-    free_slot->device_id = device_id;
-    free_slot->last_seq = seq;
-    memcpy(free_slot->ext_addr, src_ext_addr, IOT154_EXT_ADDR_LEN);
-    free_slot->valid = true;
-    return false;
-}
-
-static const device_seq_state_t *find_device_by_ext_addr(const uint8_t *ext_addr)
-{
-    for (size_t i = 0; i < sizeof(s_devices) / sizeof(s_devices[0]); ++i)
-    {
-        if (s_devices[i].valid && iot154_ext_addr_equal(s_devices[i].ext_addr, ext_addr))
-        {
-            return &s_devices[i];
-        }
-    }
-    return NULL;
-}
-
 static bool transmit_pending_command(void)
 {
     if (!s_pending_command.active || s_radio_tx_busy)
@@ -1073,8 +1039,8 @@ static bool start_host_command(const char *host_device_id,
         return false;
     }
 
-    const device_seq_state_t *device = find_device_by_ext_addr(ext_addr);
-    if (device == NULL)
+    uint32_t known_device_id = 0;
+    if (!device_registry_find(ext_addr, &known_device_id, NULL))
     {
         ESP_LOGW(TAG, "command target not known dev=%s", host_device_id);
         return false;
@@ -1088,7 +1054,7 @@ static bool start_host_command(const char *host_device_id,
 
     memset(&s_pending_command, 0, sizeof(s_pending_command));
     s_pending_command.active = true;
-    s_pending_command.device_id = device->device_id;
+    s_pending_command.device_id = known_device_id;
     s_pending_command.sequence = s_next_command_seq;
     s_pending_command.endpoint_id = endpoint_id;
     s_pending_command.event_type = event_type;
@@ -1328,6 +1294,8 @@ void app_main(void)
     char central_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
 
     init_nvs();
+    device_registry_init(device_registry_nvs_storage());
+    (void)device_registry_load();
     init_host_uart();
     ESP_ERROR_CHECK(esp_read_mac(s_central_ext_addr, ESP_MAC_IEEE802154));
     s_events = xEventGroupCreate();
@@ -1399,19 +1367,37 @@ void app_main(void)
             {
                 char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
                 format_ext_addr(mac.src_ext, sensor_mac_text, sizeof(sensor_mac_text));
-                if (s_join_window_open)
-                {
-                    ESP_LOGI("COMMISSIONING",
-                             "discovery accepted dev=0x%08" PRIx32 " seq=%u sensor=%s",
-                             packet.device_id, packet.seq, sensor_mac_text);
-                    (void)is_duplicate(packet.device_id, packet.seq, mac.src_ext);
-                    send_discovery_response(packet.device_id, packet.seq, mac.src_ext);
-                }
-                else
+                if (!s_join_window_open)
                 {
                     ESP_LOGI("COMMISSIONING",
                              "discovery ignored reason=join_window_closed dev=0x%08" PRIx32,
                              packet.device_id);
+                }
+                else if (device_registry_state() != DEVICE_REGISTRY_STATE_READY)
+                {
+                    ESP_LOGW("COMMISSIONING",
+                             "discovery ignored reason=registry_unavailable dev=0x%08" PRIx32,
+                             packet.device_id);
+                }
+                else
+                {
+                    const device_registry_pair_result_t pair_result =
+                        device_registry_pair(mac.src_ext, packet.device_id);
+                    if (pair_result == DEVICE_REGISTRY_PAIR_KNOWN ||
+                        pair_result == DEVICE_REGISTRY_PAIR_UPDATED ||
+                        pair_result == DEVICE_REGISTRY_PAIR_CREATED)
+                    {
+                        ESP_LOGI("COMMISSIONING",
+                                 "discovery accepted dev=0x%08" PRIx32 " seq=%u sensor=%s",
+                                 packet.device_id, packet.seq, sensor_mac_text);
+                        send_discovery_response(packet.device_id, packet.seq, mac.src_ext);
+                    }
+                    else
+                    {
+                        ESP_LOGW("COMMISSIONING",
+                                 "discovery rejected dev=0x%08" PRIx32 " seq=%u sensor=%s",
+                                 packet.device_id, packet.seq, sensor_mac_text);
+                    }
                 }
             }
             else if (packet.msg_type == IOT154_MSG_DATA &&
@@ -1419,31 +1405,62 @@ void app_main(void)
                      iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
                      mac.src_mode == IOT154_ADDR_MODE_EXT)
             {
-                bool duplicate = is_duplicate(packet.device_id, packet.seq, mac.src_ext);
-                if (duplicate)
+                size_t registry_index = 0;
+                const bool known = device_registry_find(mac.src_ext, NULL, &registry_index);
+                if (!known)
                 {
-                    ESP_LOGI(TAG, "DATA duplicate dev=0x%08" PRIx32 " seq=%u", packet.device_id, packet.seq);
+                    if (!s_join_window_open)
+                    {
+                        char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
+                        format_ext_addr(mac.src_ext, sensor_mac_text, sizeof(sensor_mac_text));
+                        ESP_LOGI("DEVICE_REGISTRY",
+                                 "frame ignored reason=unknown_device dev=0x%08" PRIx32 " sensor=%s",
+                                 packet.device_id, sensor_mac_text);
+                        /* discarded per COORD-REG-007/008: no ACK, no host event, no registry write */
+                    }
+                    else
+                    {
+                        /* Join window open, unknown origin: acceptance policy is out of this spec's
+                           scope (section 9); preserve prior processing without creating persistence. */
+                        ESP_LOGI(TAG,
+                                 "DATA new dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u",
+                                 packet.device_id, packet.seq, packet.endpoint_id, packet.event_type, packet.value);
+                        host_send_event(mac.src_ext, packet.endpoint_id, packet.event_type, packet.value);
+                        send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
+                    }
                 }
                 else
                 {
-                    ESP_LOGI(TAG,
-                             "DATA new dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u",
-                             packet.device_id, packet.seq, packet.endpoint_id, packet.event_type, packet.value);
-                    host_send_event(mac.src_ext, packet.endpoint_id, packet.event_type, packet.value);
+                    const bool duplicate = is_known_data_duplicate(registry_index, packet.seq);
+                    if (duplicate)
+                    {
+                        ESP_LOGI(TAG, "DATA duplicate dev=0x%08" PRIx32 " seq=%u", packet.device_id, packet.seq);
+                    }
+                    else
+                    {
+                        ESP_LOGI(TAG,
+                                 "DATA new dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u",
+                                 packet.device_id, packet.seq, packet.endpoint_id, packet.event_type, packet.value);
+                        host_send_event(mac.src_ext, packet.endpoint_id, packet.event_type, packet.value);
+                    }
+                    send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
                 }
-                send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
             }
             else if (packet.msg_type == IOT154_MSG_ACK &&
                      mac.dst_mode == IOT154_ADDR_MODE_EXT &&
                      iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
                      mac.src_mode == IOT154_ADDR_MODE_EXT)
             {
+                uint32_t known_device_id = 0;
+                const bool origin_known = device_registry_find(mac.src_ext, &known_device_id, NULL);
                 const bool matches_pending = s_pending_command.active &&
                                              packet.device_id == s_pending_command.device_id &&
                                              packet.seq == s_pending_command.sequence &&
                                              packet.endpoint_id == s_pending_command.endpoint_id &&
                                              iot154_ext_addr_equal(mac.src_ext,
-                                                                   s_pending_command.destination);
+                                                                   s_pending_command.destination) &&
+                                             origin_known &&
+                                             known_device_id == packet.device_id;
                 ESP_LOGI(TAG,
                          "CMD ACK dev=0x%08" PRIx32 " seq=%u endpoint=%u status=%u match_pending=%s",
                          packet.device_id,

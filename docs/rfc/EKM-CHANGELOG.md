@@ -590,3 +590,62 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   evidência aprovada;
 - mapa, especificações relacionadas e transação são reconciliados;
 - implantação em ambiente real permanece sujeita a ordem própria.
+
+### Registro do Engenheiro Implementador (31/07/2026)
+
+- Arquiteto autoriza implementação com recorte de escopo completo (COORD-REG-001
+  a 013) nesta etapa;
+- criados `coordinator_154/main/device_registry.h`/`.c` (schema versionado,
+  validação de carga, transação de pareamento create/update/known/rejected,
+  seam de storage isolando NVS da lógica de pareamento) e
+  `device_registry_nvs.c` (implementação real do seam sobre `nvs.h`, namespace
+  próprio `coord_reg`, chave `devices`, `nvs_set_blob`+`nvs_commit` para
+  substituição atômica do blob, seguindo o precedente de
+  `issp154_network_manager.cpp`);
+- `coordinator_154/main/main.c` integrado: `device_registry_load()` executa
+  antes de `iot154_radio_start_rx()` (seção 7); a tabela volátil `s_devices[8]`
+  e `is_duplicate()`/`find_device_by_ext_addr()` (que aprendiam qualquer
+  origem, inclusive por `DATA`, com eviction cega do slot 0) foram removidas;
+  `DISCOVERY_REQ` passa a chamar `device_registry_pair()` e só responde sucesso
+  após o commit; `DATA` de origem desconhecida com janela fechada é descartado
+  sem ACK/evento/gravação (COORD-REG-007/008); `ACK` de comando passa a exigir
+  também que a origem seja conhecida e o `device_id` corresponda à entrada
+  persistida; comando do host passa a resolver destino via
+  `device_registry_find()`; deduplicação de `last_seq` continua volátil, agora
+  em cache por slot do registry, nunca no blob persistido (COORD-REG-009);
+- comportamento de `DATA` de origem desconhecida com janela **aberta**
+  permanece fora do recorte da especificação (seção 9); a implementação
+  preserva o processamento anterior (evento + ACK) sem criar entrada
+  persistente, por não haver decisão normativa para alterá-lo;
+- logs de `DEVICE_REGISTRY:` (seção 11) implementados; `discovery
+  ignored reason=registry_unavailable` e `pairing result=failed
+  reason=registry_unavailable` foram adicionados além do vocabulário mínimo da
+  especificação, para tornar o estado indisponível observável (seção 7), sem
+  reduzir os tokens exigidos;
+- testes automatizados escritos em
+  `coordinator_154/test_apps/device_registry_test` (Unity, alvo `esp32c3`,
+  execução prevista via QEMU `idf.py qemu`, mesmo precedente de
+  `components/issp_app_154/test_apps/smart_sys_app_test`), com um substituto de
+  storage em memória que injeta falha de leitura/escrita e corrupção
+  estrutural. Cobrem COORD-REG-AC-002 (falha de commit preserva a visão
+  anterior e sobrevive a um "reboot" do módulo), AC-003 (capacidade cheia
+  rejeita sem eviction), AC-004 (repetição idêntica não grava; mudança de
+  `device_id` grava exatamente uma vez) e AC-006 (o blob serializado nunca
+  contém `last_seq`), além dos estados de carga do AC-001/AC-007 (ausente,
+  schema incompatível, blob truncado, contagem inválida, checksum inválido,
+  erro real de leitura);
+- **não executados nesta etapa**: build ESP-IDF (`esp32c6`) e os testes acima
+  sob QEMU — este ambiente não tem `idf.py`/toolchain ESP-IDF instalado.
+  Nenhuma evidência de compilação ou execução é reivindicada; a limitação é
+  registrada como real, não como validação aprovada;
+- **fora do gate automatizado desta etapa**: a parte de AC-007 que exige NVS
+  real com namespace sentinela isolado (o teste escrito usa apenas o
+  substituto em memória, que não exercita `device_registry_nvs.c` nem
+  partição NVS real) e a totalidade de AC-001/AC-008, que a própria
+  especificação (seção 13) exige como execução terminal em hardware real —
+  nenhuma das duas foi executada nem simulada;
+- estado de implementação da especificação atualizado para `In Progress`
+  (código e testes escritos; evidência de build/execução ausente bloqueia
+  `Implemented` conforme regras comuns §3.2 e perfil do Implementador);
+  `EKM-CHG-0008` permanece `Open`; promoção a `Implemented`, `Validated` ou
+  `Done` não ocorreu nem foi autorizada nesta etapa.

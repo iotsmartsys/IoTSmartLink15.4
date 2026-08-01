@@ -1,0 +1,4 @@
+# device_registry drives storage only through the seam in device_registry.h and never touches
+# NVS, GPIO or radio, so this test app targets esp32c3 (no ieee802154 radio) and runs under QEMU
+# (idf.py qemu), matching components/issp_app_154/test_apps/smart_sys_app_test.
+CONFIG_IDF_TARGET="esp32c3"
