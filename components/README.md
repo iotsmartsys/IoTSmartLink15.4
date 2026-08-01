@@ -110,11 +110,12 @@ Testes automatizados de `issp_app_154` (configuração, estados, ordem de
 inicialização, `setup()` repetido, falhas injetadas e rollback) vivem em
 `test_apps/smart_sys_app_test` e usam exclusivamente
 `SmartSysApp::SetupHooks` com fakes — nenhum toca NVS, GPIO real ou rádio.
-Por isso o app de teste roda sobre `esp32c3` (que não tem
-`issp_transport_154` no build) via QEMU (`idf.py qemu`, ferramenta
-`qemu-riscv32` do próprio ESP-IDF), sem depender de hardware físico. A
-validação em hardware real (rádio, NVS, GPIO, factory reset) permanece
-tratada pelos critérios de aceite específicos de hardware da especificação.
+QEMU não é mais um runner permitido. Esses testes devem migrar para execução
+host-native quando os fakes preservarem integralmente a semântica material ou
+para ESP32-C3 físico. A validação de rádio, NVS, GPIO e factory reset permanece
+em hardware real, conforme `docs/specs/Repository-Test-Execution-Policy.md` e
+os critérios específicos da especificação. O test app é preservado até a
+atuação de implementação que definir e comprovar seu runner substituto.
 
 Limitações desta etapa: suporte e prova de hardware restritos a ESP-IDF
 6.0.1, ESP32-H2 (`client_154`, `examples/issp_minimal_client`) e ESP32-C6

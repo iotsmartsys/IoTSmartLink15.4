@@ -3,9 +3,10 @@
 **Tipo:** Normativo
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
+**Estado da migração de validação v0.4:** Not Started
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Implementable
-**Versão:** 0.3
+**Revisão de implementabilidade:** Pending Review
+**Versão:** 0.4
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 01/08/2026
 **Escopo:** Persistência NVS dos dispositivos pareados pelo coordenador ISSP
@@ -596,8 +597,10 @@ de namespaces e falhas de leitura. Cobre COORD-REG-001/010/011/012.
 Para cada classe, observar `RegistryUnavailable` ou término controlado
 permitido pela seção 7, ausência de resposta/evento/ACK/transmissão/conclusão
 de comando e sentinela inalterada. Pelo menos blob corrompido, reboot e
-isolamento da sentinela devem ser executados em QEMU contra o adaptador NVS de
-produção; falhas não produzíveis pelo backend real podem usar substituto fiel.
+isolamento da sentinela devem ser executados em ESP32-C3 ou ESP32-C6 físico
+contra o adaptador NVS de produção; falhas não produzíveis pelo backend real
+podem usar substituto fiel executado host-native ou em placa física, conforme
+`Repository-Test-Execution-Policy.md`.
 
 A classe 5 deve partir de um blob válido com ao menos duas entradas e executar
 duas corrupções independentes, preservando tamanho, schema, contagem e o valor
@@ -652,19 +655,21 @@ infraestrutura, execução não iniciada ou zero casos não constituem aprovaç�
 |---|---|---|---|
 | G1 — política integrada | executar o mesmo código de decisão usado por `main.c` com efeitos substituídos | matriz da seção 9, ordem persistência/resposta, ACK, host, comando e deduplicação | adaptador NVS real e hardware |
 | G2 — backend NVS fiel | injetar falhas por etapa e preservar staging/durable/namespaces/reboot | atomicidade sob falha, contadores e isolamento lógico | integração real do adaptador |
-| G3-N — adaptador de produção com NVS real | executar `device_registry_nvs.c` e partição NVS real sob QEMU | schema, reabertura, reboot, corrupção, namespace sentinela e caminho nominal de commit | falhas de primitivas não produzidas pelo backend e hardware |
+| G3-N — adaptador de produção com NVS real | executar `device_registry_nvs.c` e partição NVS real em ESP32-C3 ou ESP32-C6 físico | schema, reabertura, reboot, corrupção, namespace sentinela e caminho nominal de commit | falhas de primitivas não produzidas pelo backend e rádio ponta a ponta |
 | G3-F — adaptador de produção sob falha controlada | executar `device_registry_nvs.c` pelo fluxo real, substituindo somente a fronteira das primitivas NVS | ordem `set_blob`/commit, propagação do erro de commit, ausência de publicação/resposta e preservação durable | persistência nominal real, rádio e hardware |
 | G4 — build de produção | compilar/linkar a composição real ESP32-C6 | compatibilidade de build e warnings | comportamento executado |
 | G5 — hardware real | executar coordenador e devices físicos | rádio, reboot, commissioning e compatibilidade ponta a ponta | gates automatizados de falhas |
 
-G1 pode compartilhar o mesmo app de teste com G2. G3-N e G3-F podem usar
-ESP32-C3 sob QEMU quando o código exercitado não depender do rádio, mas ambos
-devem compilar e executar `device_registry_nvs.c`, não apenas o core do
-registry. Em G3-F, o ponto de injeção pode ser uma tabela interna de operações,
-wrapper de link ou mecanismo equivalente limitado às primitivas NVS; a decisão
-de chamar `nvs_set_blob()`, chamar `nvs_commit()` e propagar seus resultados
-permanece no adaptador de produção. G4 e G5 usam a versão ESP-IDF fixada pelo
-projeto.
+G1 pode compartilhar o mesmo runner com G2 e pode executar host-native quando
+todos os substitutos preservarem a semântica material. G3-N executa
+obrigatoriamente em ESP32-C3 ou ESP32-C6 físico com partição NVS real. G3-F
+pode executar host-native ou em placa física, mas deve compilar e executar
+`device_registry_nvs.c`, não apenas o core do registry. Em G3-F, o ponto de
+injeção pode ser uma tabela interna de operações, wrapper de link ou mecanismo
+equivalente limitado às primitivas NVS; a decisão de chamar `nvs_set_blob()`,
+chamar `nvs_commit()` e propagar seus resultados permanece no adaptador de
+produção. G4 e G5 usam a versão ESP-IDF fixada pelo projeto. Nenhum gate usa
+QEMU, conforme `Repository-Test-Execution-Policy.md`.
 
 ### Contrato obrigatório dos substitutos
 
@@ -782,17 +787,21 @@ ordenada separadamente para cada ambiente.
   parcial existente e precedente local a ampliar;
 - `coordinator_154/main/iot154_packet.h`: identidade e envelope vigentes;
 - `docs/rfc/KNOWLEDGE-MAP.md`: nova fonte normativa do registry;
-- `docs/rfc/EKM-CHANGELOG.md`: transação `EKM-CHG-0008`.
+- `docs/rfc/EKM-CHANGELOG.md`: transação `EKM-CHG-0008`;
+- `docs/specs/Repository-Test-Execution-Policy.md`: proibição transversal de
+  QEMU e ambientes permitidos para evidência executável.
 
 ## 16. Estado e próxima etapa
 
-Esta autoria v0.3 não implementa nem valida o comportamento. O estado corrente
+Esta autoria v0.4 não implementa nem valida o comportamento. O estado corrente
 é:
 
 - `Proposed`;
 - `In Progress`, porque existe implementação parcial ainda não conforme;
+- migração de validação `Not Started`;
 - `Not Ready`;
-- `Implementable`, pela análise independente da versão 0.3 na seção 16.10.
+- `Pending Review`; a análise da versão 0.3 na seção 16.10 é histórica e não
+  aprova a estratégia de validação da versão 0.4.
 
 ### 16.1 Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
 
@@ -1393,3 +1402,32 @@ distinção de indisponibilidade no comando do host, corrigir os rótulos de
 evidência e implementar os gates/cenários pendentes; em seguida repetir revisão
 integral, incluindo G1, G3-N e G5. Estados preservados: normativo `Proposed`,
 implementação `In Progress`, prontidão `Not Ready` e `EKM-CHG-0008` `Open`.
+
+### 16.13 Reautoria v0.4 — retirada de QEMU (Autor da Especificação, 01/08/2026)
+
+O Arquiteto determinou remover QEMU de todo o repositório como estratégia de
+validação ou execução de testes, sem reduzir requisitos funcionais. Esta
+autoria preserva COORD-REG-001 a 013, AC-001 a AC-008, todos os cenários,
+falhas, oráculos e gates materiais.
+
+As mudanças normativas desta versão são:
+
+- G1 e G2 podem executar host-native quando seus substitutos preservarem toda
+  a semântica material; caso contrário executam em placa física;
+- G3-N passa a executar o adaptador de produção e a NVS real exclusivamente em
+  ESP32-C3 ou ESP32-C6 físico;
+- G3-F continua atravessando `device_registry_nvs.c` e pode executar
+  host-native ou em placa física sob primitivas controladas;
+- G4 permanece build da composição ESP32-C6 e G5 permanece hardware real
+  ponta a ponta com rádio;
+- resultados QEMU das seções históricas continuam auditáveis, mas tornam-se
+  evidência legada e não podem aprovar a versão 0.4 nem revisão posterior;
+- os test apps existentes são preservados nesta autoria e passam ao inventário
+  de migração de `Repository-Test-Execution-Policy.md`; sua alteração ou
+  exclusão depende de atuação posterior do Engenheiro Implementador.
+
+Nenhum código, teste, configuração, runner ou artefato técnico foi alterado,
+excluído ou executado. A implementação funcional preexistente permanece
+`In Progress`; a migração de validação da v0.4 fica `Not Started`. Estados da
+versão: `Proposed`, `Not Ready` e `Pending Review`; `EKM-CHG-0008` continua
+`Open`. A próxima etapa é análise independente de implementabilidade.

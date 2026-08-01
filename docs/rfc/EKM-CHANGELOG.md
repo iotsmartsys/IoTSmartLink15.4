@@ -2,9 +2,9 @@
 
 **Tipo:** Operacional
 **Status:** Active
-**Versão:** 1.7
+**Versão:** 1.8
 **Responsável:** Marcelo Miranda
-**Última atualização:** 31/07/2026
+**Última atualização:** 01/08/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -856,3 +856,63 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   parcial porque não observa ausência de resposta/publicação em G1;
 - recomendação: não aceitar nem promover. Estados permanecem `Proposed`,
   `In Progress` e `Not Ready`; `EKM-CHG-0008` permanece `Open`.
+
+---
+
+## EKM-CHG-0009 — Retirada transversal de QEMU
+
+**Status:** `Open`
+**Tipo:** Mudança de estratégia de validação
+**Aberta em:** 01/08/2026
+
+### Decisão do Arquiteto
+
+QEMU deixa de ser usado em todo o repositório como estratégia de validação ou
+execução de testes. A decisão não reduz requisitos funcionais, cenários,
+falhas, oráculos nem quantidade de casos.
+
+### Ativos afetados
+
+- `docs/specs/Repository-Test-Execution-Policy.md`;
+- `docs/specs/ISSP-Configurable-Bootstrap.md`;
+- `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md`;
+- `components/README.md`;
+- `pytest_hello_world.py` e os dois test apps ESP-IDF, como artefatos técnicos
+  candidatos à migração posterior;
+- `docs/rfc/KNOWLEDGE-MAP.md` e este histórico.
+
+### Resultado da autoria
+
+- criada política normativa transversal com requisitos TESTEXEC-001 a 007 e
+  critérios TESTEXEC-AC-001 a 007;
+- definido runner host-native somente quando preservada toda a semântica
+  material; demais testes executam em placa física suportada;
+- G3-N do registry passa a exigir adaptador de produção e NVS real em
+  ESP32-C3 ou ESP32-C6 físico; G3-F pode executar host-native fiel ou físico;
+- os dezenove cenários `SmartSysApp` permanecem obrigatórios e devem migrar
+  para host-native fiel ou ESP32-C3 físico;
+- resultados QEMU anteriores permanecem auditáveis como fatos históricos, mas
+  não podem aprovar versões ou revisões posteriores;
+- inventariados imports, markers, runners, comentários, test apps, diretórios
+  `build_qemu_c3`, imagens e ferramenta externa candidatos à remoção ou
+  migração; nada foi excluído nesta autoria;
+- nenhum código, teste, configuração ou runner foi alterado ou executado.
+
+### Estados e próxima etapa
+
+- política transversal: `Proposed`, `Not Started`, `Not Ready`,
+  `Pending Review`;
+- registry v0.4: funcional `In Progress`, migração `Not Started`, `Not Ready`,
+  `Pending Review`; `EKM-CHG-0008` permanece `Open`;
+- bootstrap v1.5: baseline funcional v1.4 historicamente `Validated`, migração
+  `Not Started`, versão `Proposed`, `Not Ready`, `Pending Review`;
+- próxima etapa: análise independente de implementabilidade antes de qualquer
+  migração ou exclusão técnica.
+
+### Critérios de encerramento
+
+- política promovida a `Implementable` por análise independente;
+- runners substitutos implementados e executados com evidência terminal;
+- artefatos QEMU versionados e locais removidos sem perda de cobertura;
+- especificações, documentação e mapa reconciliados;
+- revisão confirma ausência de QEMU como estratégia vigente.
