@@ -5,7 +5,7 @@
 **Estado da implementação:** In Progress
 **Estado da migração de validação v0.4:** In Progress
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Pending Review
+**Revisão de implementabilidade:** Implementable
 **Versão:** 0.4
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 01/08/2026
@@ -793,15 +793,16 @@ ordenada separadamente para cada ambiente.
 
 ## 16. Estado e próxima etapa
 
-Esta autoria v0.4 não implementa nem valida o comportamento. O estado corrente
-é:
+A versão v0.4 preserva a implementação funcional parcial e recebeu a migração
+técnica do runner físico registrada pela política transversal. O estado
+corrente é:
 
 - `Proposed`;
 - `In Progress`, porque existe implementação parcial ainda não conforme;
-- migração de validação `Not Started`;
+- migração de validação `In Progress`, porque o runner ESP32-C3 está escrito,
+  mas ainda não foi executado;
 - `Not Ready`;
-- `Pending Review`; a análise da versão 0.3 na seção 16.10 é histórica e não
-  aprova a estratégia de validação da versão 0.4.
+- `Implementable`, conforme a análise integral da versão 0.4 na seção 16.14.
 
 ### 16.1 Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
 
@@ -1431,3 +1432,72 @@ excluído ou executado. A implementação funcional preexistente permanece
 `In Progress`; a migração de validação da v0.4 fica `Not Started`. Estados da
 versão: `Proposed`, `Not Ready` e `Pending Review`; `EKM-CHG-0008` continua
 `Open`. A próxima etapa é análise independente de implementabilidade.
+
+### 16.14 Revisão de implementabilidade v0.4 (Engenheiro Analista, 01/08/2026)
+
+A versão 0.4 foi confrontada integralmente com COORD-REG-001 a 013,
+COORD-REG-AC-001 a AC-008, matriz de decisão, gates G1 a G5, contratos dos
+substitutos, manifesto de evidências e fontes relacionadas. Foram também
+confrontados o baseline atual de `coordinator_154/main`, o app de teste do
+registry, seu runner físico e a política transversal de execução de testes.
+
+**Requisitos, critérios e ambientes**
+
+- os treze requisitos continuam cobertos pelos oito critérios e pela matriz
+  requisito–critério; cada AC declara condição inicial, ação, resultado
+  observável, evidência que reprova e condição que permanece `Not Executed` ou
+  `Partial`;
+- a retirada de QEMU não remove cenário, falha, oráculo nem gate. G1 e G2 podem
+  executar host-native somente com substitutos fiéis e possuem fallback em
+  placa; G3-N exige NVS real em ESP32-C3/C6 físico; G3-F conserva o adaptador
+  de produção sob primitivas controladas; G4 continua sendo o build ESP32-C6 e
+  G5 continua sendo execução física ponta a ponta;
+- a política `Repository-Test-Execution-Policy.md` está `Active` e é compatível
+  com essas escolhas. Evidência QEMU anterior permanece apenas histórica e não
+  pode aprovar a v0.4;
+- indisponibilidade de `pytest`, placa ou porta serial possui resultado
+  determinado (`Not Executed`) e não exige decisão de produto. Flash, monitor
+  e captura continuam dependentes de ordem explícita do Arquiteto.
+
+**Arquitetura e viabilidade**
+
+- a seção 2.4 identifica o padrão atual concentrado em `main.c`, limita a
+  mudança a `coordinator_154` e autoriza uma abstração local para que o mesmo
+  código de decisão governe produção e G1. Assim, completar G1 não exige criar
+  componente transversal nem inventar política paralela;
+- os seams atuais `device_registry_storage_t` e
+  `device_registry_nvs_ops_t`, o app Unity e o runner ESP32-C3 demonstram
+  pontos técnicos suficientes para G2 e G3-F. G3-N possui caminho explícito
+  pelo adaptador de produção e NVS real em placa;
+- commissioning, janela de 60 segundos, identidade IEEE, protocolo wire,
+  capacidade oito, deduplicação volátil e continuidade dos devices conhecidos
+  permanecem compatíveis com `ISSP-Commissioning.md` e
+  `ISSP-Architecture.md`;
+- a implantação de clients preexistentes está delimitada na seção 14 e exige
+  ordem própria por ambiente, mas não deixa comportamento normativo em aberto.
+
+**Confronto adversarial e débitos existentes**
+
+- executar somente os 13 casos atuais em placa não aprova os ACs integrais: o
+  manifesto e a matriz de gates continuam exigindo G1, G3-N e G5 onde
+  aplicáveis;
+- usar host-native para NVS real ou rádio reprova os gates correspondentes;
+  reutilizar resultado QEMU histórico também não promove estado;
+- G1 ainda não existe, G3-N e G5 não foram executados, AC-005 não possui caso
+  integrado e vários cenários atuais são parciais. O comando do host ainda não
+  conserva explicitamente `RegistryUnavailable` até o resultado observável e
+  os rótulos integrais de testes parciais ainda precisam ser corrigidos;
+- esses pontos possuem resultado esperado, gate e oráculo definidos pela
+  especificação. São débitos verificáveis da implementação `In Progress`, não
+  decisões normativas, de produto ou arquitetura ausentes.
+
+**Resultado:** `Implementable`.
+
+Toda a versão 0.4 pode ser executada sem inferência relevante. Esta promoção
+não aceita a implementação existente, não autoriza programação, flash ou
+hardware e não converte build, runner escrito ou evidência histórica em teste
+aprovado. Estados preservados: normativo `Proposed`, implementação funcional
+`In Progress`, migração de validação `In Progress`, prontidão `Not Ready` e
+`EKM-CHG-0008` `Open`. Nenhum código, teste ou arquivo de configuração de
+implementação foi alterado ou executado nesta análise. Uma nova ordem do
+Arquiteto é necessária para atuação de Engenheiro Implementador.

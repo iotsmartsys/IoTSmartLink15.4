@@ -857,6 +857,26 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 - recomendação: não aceitar nem promover. Estados permanecem `Proposed`,
   `In Progress` e `Not Ready`; `EKM-CHG-0008` permanece `Open`.
 
+### Revisão de implementabilidade v0.4 (Engenheiro Analista, 01/08/2026)
+
+- confrontados integralmente COORD-REG-001 a 013, AC-001 a AC-008, matriz de
+  decisão, gates G1 a G5, substitutos, manifesto de evidências, arquitetura,
+  commissioning, baseline técnico e política transversal de testes;
+- confirmado que a retirada de QEMU preserva todos os cenários e oráculos:
+  G1/G2 usam host-native fiel ou placa, G3-N exige NVS real em ESP32-C3/C6,
+  G3-F conserva o adaptador de produção, G4 continua build e G5 hardware real;
+- a abstração local autorizada na seção 2.4 é suficiente para extrair a
+  política integrada usada por `main.c`, sem componente transversal ou lógica
+  paralela de teste;
+- G1 ausente, G3-N/G5 pendentes, AC-005 sem caso integrado, distinção do
+  comando sob `RegistryUnavailable` e rótulos parciais são débitos objetivos
+  da implementação, não decisões ausentes;
+- resultado da versão 0.4: `Implementable`; normativo `Proposed`, implementação
+  funcional e migração de validação `In Progress`, prontidão `Not Ready` e
+  `EKM-CHG-0008` `Open`;
+- nenhuma implementação ou execução foi realizada; nova ordem do Arquiteto é
+  necessária para iniciar a atuação de Engenheiro Implementador.
+
 ---
 
 ## EKM-CHG-0009 — Retirada transversal de QEMU
