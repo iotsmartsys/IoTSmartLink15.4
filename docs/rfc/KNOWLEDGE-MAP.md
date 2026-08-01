@@ -2,9 +2,9 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.9
+**Versão:** 1.10
 **Responsável:** Marcelo Miranda
-**Última atualização:** 31/07/2026
+**Última atualização:** 01/08/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -41,7 +41,7 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 |---|---|---|---|---|---|
 | Arquitetura ISSP | `docs/specs/ISSP-Architecture.md` | Active | Validated | `components/issp_*` e `client_154/main/main.cpp` | Builds, hardware, consumidor mínimo e auditoria documental |
 | Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
-| Registry de devices pareados do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Proposed | In Progress; Not Ready; Pending Review | `coordinator_154/main/device_registry.{h,c}` + `device_registry_nvs.c`, integrado em `main.c` | v0.2 preserva 13 requisitos/8 AC e acrescenta precedência de estados, matriz de decisão, gates G1–G5, fidelidade NVS, manifesto terminal e varreduras de conformidade; implementação existente ainda não conforme; nova análise independente obrigatória |
+| Registry de devices pareados do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Proposed | In Progress; Not Ready; Implementable | `coordinator_154/main/device_registry.{h,c}` + `device_registry_nvs.c`, integrado em `main.c` | v0.2 analisada em 01/08/2026 como Implementable; 13 requisitos/8 AC, matriz 9.1 e gates G1–G5 suficientes sem decisão ausente; baseline ainda não conforme (erase NVS, fail-closed DATA, gates parciais); correção depende de ordem própria do Arquiteto |
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
 | API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main.cpp` e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 19/19 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |

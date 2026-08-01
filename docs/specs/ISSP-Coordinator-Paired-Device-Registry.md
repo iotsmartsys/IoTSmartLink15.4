@@ -4,7 +4,7 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Pending Review
+**Revisão de implementabilidade:** Implementable
 **Versão:** 0.2
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 01/08/2026
@@ -747,8 +747,8 @@ Esta autoria v0.2 não implementa nem valida o comportamento. O estado corrente
 - `Proposed`;
 - `In Progress`, porque existe implementação parcial ainda não conforme;
 - `Not Ready`;
-- `Pending Review`, porque a análise de 31/07/2026 pertence à versão 0.1 e não
-  promove antecipadamente esta revisão.
+- `Implementable`, pela análise independente da seção 16.6; a conclusão
+  histórica da seção 16.1 permanece apenas como registro da versão 0.1.
 
 ### 16.1 Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
 
@@ -967,3 +967,66 @@ implementação existente permanece `In Progress`; a proposta v0.2 fica
 `Proposed`, `Not Ready` e `Pending Review`. A próxima etapa é uma nova análise
 independente de implementabilidade; a conclusão histórica da versão 0.1 não é
 reutilizável como aprovação desta versão.
+
+### 16.6 Revisão de implementabilidade v0.2 (Engenheiro Analista, 01/08/2026)
+
+Confronto independente da versão 0.2 com `docs/specs/ISSP-Commissioning.md`,
+`docs/specs/ISSP-Architecture.md`, o baseline real de
+`coordinator_154/main/{main.c,device_registry.h,device_registry.c,device_registry_nvs.c}`,
+`coordinator_154/test_apps/device_registry_test` e o precedente de
+`components/issp_app_154/test_apps`. A conclusão histórica da seção 16.1 não foi
+reutilizada como aprovação.
+
+**Requisitos, critérios e matriz**
+
+- COORD-REG-001 a 013 permanecem cobertos por AC-001 a AC-008 e pela matriz
+  requisito–critério da seção 13; nenhum requisito obrigatório ficou sem
+  oráculo assertável;
+- a matriz da seção 9.1 cobre discovery, `DATA`, `ACK` e comando do host sob
+  `RegistryReady` e `RegistryUnavailable`; a única célula deliberadamente não
+  normatizada (`DATA` desconhecido com janela aberta em `Ready`) declara
+  explicitamente dualidade de aceite operacional com proibição de persistência,
+  o que basta para o gate sem nova decisão de produto;
+- a precedência da seção 5.1 remove a ambiguidade que permitia tratar
+  `RegistryUnavailable` como origem desconhecida; o contrato de staging,
+  durable, commit e reboot da seção 6 torna falsificáveis AC-002 e AC-007;
+- G1 a G5, o contrato dos substitutos, o manifesto AC–teste–gate–resultado e as
+  varreduras de conformidade tornam a evidência parcial distinguível de
+  aprovação, sem exigir decisão normativa adicional.
+
+**Arquitetura e precedentes**
+
+- a seção 2.4 identifica o padrão atual (`coordinator_154` concentrado em
+  `main.c`), autoriza apenas abstrações locais para política compartilhada e
+  adaptador NVS, e proíbe nova camada de domínio compartilhada; isso satisfaz a
+  exigência de precisão arquitetural do perfil do Analista;
+- o precedente local já existente
+  (`device_registry` + seam de storage + `test_apps/device_registry_test`) e o
+  precedente de QEMU em `components/issp_app_154/test_apps` resolvem o “como”
+  dos gates G1–G3 sem nova pasta estrutural ou componente transversal;
+- não há conflito material com commissioning nem com a arquitetura: a janela de
+  60 s, a continuidade de devices conhecidos após o fechamento e a preservação
+  do protocolo wire permanecem intactas. A frase de commissioning sobre
+  “atualização do registry” pelo report inicial não define criação de entrada
+  persistente no coordenador; a decisão do Arquiteto em 31/07/2026 e as seções
+  4/8/9 desta especificação já fixam pareamento exclusivo por discovery.
+
+**Baseline de implementação observado (fato, não requisito)**
+
+- `init_nvs()` ainda chama `nvs_flash_erase()` em
+  `ESP_ERR_NVS_NO_FREE_PAGES`/`ESP_ERR_NVS_NEW_VERSION_FOUND`;
+- `DATA` com janela aberta ainda produz evento e ACK quando
+  `device_registry_find()` falha, inclusive sob registry indisponível;
+- o app de teste atual cobre apenas um subconjunto parcial dos ACs e usa fake de
+  storage de buffer único, insuficiente para AC-002/AC-007 completos;
+- esses desvios são correções e ampliações de evidência da implementação
+  `In Progress`, não lacunas de especificação.
+
+**Resultado:** `Implementable`.
+
+Nenhuma decisão normativa, de produto ou de arquitetura ausente foi identificada
+para executar o recorte completo. Esta promoção não autoriza implementação nem
+aceita o baseline atual; correção, gates e revisão técnica dependem de ordem
+própria do Arquiteto. Estados preservados: normativo `Proposed`, implementação
+`In Progress`, prontidão `Not Ready`. Nenhum código, teste ou configuração de
+implementação foi alterado nesta análise.

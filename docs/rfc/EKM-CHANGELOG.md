@@ -583,7 +583,7 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 
 ### Critérios de encerramento da transação
 
-- revisão independente promove a especificação para `Implementable` — **satisfeito** em 31/07/2026;
+- revisão independente promove a especificação para `Implementable` — **satisfeito** em 31/07/2026 para v0.1 e **reconfirmado** em 01/08/2026 para v0.2;
 - Arquiteto autoriza implementação;
 - requisitos COORD-REG-001 a COORD-REG-013 são implementados;
 - gates automatizados e cenários de hardware AC-001 a AC-008 terminam com
@@ -714,3 +714,23 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   `Not Ready` e revisão de implementabilidade `Pending Review`;
 - `EKM-CHG-0008` permanece `Open`; próxima etapa é análise independente de
   implementabilidade da versão 0.2.
+
+### Revisão de implementabilidade v0.2 (Engenheiro Analista, 01/08/2026)
+
+- confrontados COORD-REG-001 a 013, AC-001 a AC-008, a matriz 9.1, G1–G5 e o
+  contrato de substitutos da v0.2 com `ISSP-Commissioning.md`,
+  `ISSP-Architecture.md` e o baseline real de `coordinator_154`;
+- nenhum requisito obrigatório sem oráculo; a célula aberta de `DATA`
+  desconhecido com janela aberta em `Ready` já delimita dualidade de aceite e
+  proíbe persistência;
+- seção 2.4 autoriza apenas abstrações locais de política/NVS; precedentes
+  `device_registry*`, `test_apps/device_registry_test` e
+  `components/issp_app_154/test_apps` bastam sem nova camada arquitetural;
+- desvios do baseline (`nvs_flash_erase`, fail-closed incompleto de `DATA`,
+  gates parciais) são débitos de implementação `In Progress`, não decisões
+  ausentes;
+- resultado: `Implementable` (detalhe na seção 16.6 da especificação);
+- estados preservados: normativo `Proposed`, implementação `In Progress`,
+  prontidão `Not Ready`; `EKM-CHG-0008` permanece `Open`;
+- esta promoção não autoriza programar; correção e nova evidência dependem de
+  ordem própria do Arquiteto.
