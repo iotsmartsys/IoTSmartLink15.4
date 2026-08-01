@@ -2,9 +2,8 @@
 // COORD-REG-AC-002 (atomic failure preserves previous view), AC-003 (capacity without eviction),
 // AC-004 (update and idempotency), AC-006 (last_seq never belongs to the blob) and the structural
 // load outcomes that AC-001/AC-007 require (absent, incompatible schema, corrupt/unavailable).
-// Every test drives device_registry.c through the storage seam with an in-memory fake — nothing
-// here touches real NVS, so this app targets esp32c3 and runs under QEMU (idf.py qemu), matching
-// the precedent in components/issp_app_154/test_apps/smart_sys_app_test.
+// Every test drives device_registry.c through the storage seam with an in-memory fake. The app
+// targets a physical esp32c3 and its runner captures the terminal Unity result over serial.
 //
 // Not covered here: AC-007's sentinel/namespace-isolation evidence against real NVS, and AC-001 /
 // AC-008's mandatory real-hardware terminal execution. Those remain pending per the specification's

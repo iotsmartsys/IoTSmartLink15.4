@@ -1,0 +1,2 @@
+# Physical runner target for the fake-backed SmartSysApp Unity suite.
+CONFIG_IDF_TARGET="esp32c3"

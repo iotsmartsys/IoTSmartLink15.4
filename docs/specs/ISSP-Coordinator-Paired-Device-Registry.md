@@ -3,7 +3,7 @@
 **Tipo:** Normativo
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
-**Estado da migração de validação v0.4:** Not Started
+**Estado da migração de validação v0.4:** In Progress
 **Prontidão:** Not Ready
 **Revisão de implementabilidade:** Pending Review
 **Versão:** 0.4

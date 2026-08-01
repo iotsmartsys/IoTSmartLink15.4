@@ -932,3 +932,24 @@ falhas, oráculos nem quantidade de casos.
   implementação `Not Started`, prontidão `Not Ready`, transação `Open`;
 - Bootstrap v1.5 e Registry v0.4 permanecem `Pending Review` em seus ciclos
   integrais; nenhuma implementação, remoção, teste ou flash foi executado.
+
+### Implementação da retirada técnica (Engenheiro Implementador, 01/08/2026)
+
+- removidos do runner raiz imports, tipos, marker e caso específicos do
+  emulador; a verificação de SHA-256 foi preservada no teste físico genérico;
+- adicionados runners pytest físicos ESP32-C3 para os 20 casos SmartSysApp e
+  13 casos do registry, com oráculos sobre resumo Unity e `OK` terminal;
+- comentários e configurações versionadas migrados; varredura técnica não
+  encontra dependência, marker ou runner proibido fora de política/histórico;
+- removidos os dois diretórios locais regeneráveis `build_qemu_c3`; fontes de
+  teste preservadas; ferramenta externa mantida por estar fora do escopo;
+- `py_compile` aprovou os três runners; builds ESP-IDF 6.0.1/ESP32-C3 geraram
+  `smart_sys_app_test.bin` (138272 bytes) e `device_registry_test.bin` (146320
+  bytes), ambos com código 0;
+- a coleta não iniciou porque o ambiente ESP-IDF não possui `pytest`; nenhum
+  teste comportamental foi executado;
+- flash e monitor não foram iniciados por ausência de ordem explícita;
+- TESTEXEC-AC-001/002/003/004/006/007 têm evidência estática aprovada;
+  TESTEXEC-AC-005 permanece `Not Executed`;
+- estado da política e das migrações dependentes: `In Progress`; prontidão
+  `Not Ready`; `EKM-CHG-0009` permanece `Open`.
