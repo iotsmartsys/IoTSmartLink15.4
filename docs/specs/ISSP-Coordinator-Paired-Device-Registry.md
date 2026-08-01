@@ -4,8 +4,8 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Needs Clarification
-**Versão:** 0.2
+**Revisão de implementabilidade:** Pending Review
+**Versão:** 0.3
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 01/08/2026
 **Escopo:** Persistência NVS dos dispositivos pareados pelo coordenador ISSP
@@ -86,6 +86,9 @@ O Arquiteto confirmou em 31/07/2026 que:
 12. a nova autoria preserva o escopo funcional completo e deve tornar estados,
     invariantes, critérios, substitutos e evidências objetivamente
     confrontáveis, sem reduzir os treze requisitos.
+13. o schema persistente deve possuir verificação de integridade do conteúdo,
+    e a falha de commit deve ser comprovada atravessando o adaptador NVS de
+    produção, não somente um fake do core.
 
 ### 2.4 Solução proposta e autorização arquitetural limitada
 
@@ -108,7 +111,10 @@ para:
   `DISCOVERY_REQ`, `DATA`, `ACK` e comandos conforme estado do registry, janela
   e identidade da origem;
 - substituir, em testes, operações NVS, efeitos de rádio, eventos ao host,
-  relógio/reboot e resultados de inicialização necessários aos critérios.
+  relógio/reboot e resultados de inicialização necessários aos critérios;
+- inserir um ponto estreito de injeção na fronteira das primitivas NVS para
+  executar o próprio adaptador de produção sob falha controlada de
+  `nvs_commit()`, sem duplicar sua lógica ou substituir seu tratamento de erro.
 
 A justificativa é permitir que os critérios obrigatórios sejam falsificáveis
 sem duplicar a lógica de produção no teste. Essas abstrações não podem criar
@@ -197,15 +203,26 @@ Registry
     └── device_id: uint32
 ```
 
-O formato físico pode incluir tamanho, marcador, checksum ou outros metadados
-de integridade. Esses campos não podem alterar a identidade nem aumentar o
-conteúdo funcional persistido sem nova evolução de schema.
+O formato físico deve incluir ao menos um valor determinístico de integridade
+do conteúdo, definido pelo schema vigente. Esse valor deve cobrir
+`schema_version`, `entry_count` e todos os bytes de todas as entradas; somente
+o próprio campo de integridade pode ficar fora do cálculo. O algoritmo e o
+tamanho do campo são decisões do schema e podem evoluir com sua versão. Um
+marcador constante, isoladamente, não satisfaz essa propriedade.
+
+Tamanho, marcador e outros metadados físicos adicionais são permitidos. Eles
+não podem alterar a identidade nem aumentar o conteúdo funcional persistido
+sem nova evolução de schema. No carregamento, a implementação deve recalcular
+o valor de integridade antes de publicar qualquer entrada em RAM; divergência
+resulta em `RegistryUnavailable`.
 
 São invariantes obrigatórios:
 
 - versão de schema explicitamente reconhecida;
 - contagem entre zero e oito;
 - tamanho do blob coerente com a versão e a contagem;
+- valor de integridade presente, reconhecido pelo schema e coerente com todo o
+  conteúdo coberto;
 - endereço não nulo e diferente de broadcast;
 - endereços sem duplicidade;
 - substituição atômica do blob completo;
@@ -381,7 +398,7 @@ reais.
 | registry ausente | iniciar vazio e permitir pareamento |
 | schema não reconhecido | não interpretar entradas; iniciar vazio |
 | blob truncado, contagem inválida, endereço inválido ou duplicado | `RegistryUnavailable` |
-| checksum ou marcador de integridade inválido | `RegistryUnavailable` |
+| valor obrigatório de integridade ausente, truncado ou divergente do conteúdo | `RegistryUnavailable` |
 | `ESP_ERR_NVS_NO_FREE_PAGES`, `ESP_ERR_NVS_NEW_VERSION_FOUND` ou falha equivalente de inicialização | `RegistryUnavailable` ou término controlado; nunca apagar a partição nem iniciar devices como registry vazio |
 | erro de abertura ou leitura NVS | `RegistryUnavailable` |
 | erro de gravação ou commit | preservar visão anterior; não responder sucesso |
@@ -489,6 +506,16 @@ reboot e sentinela de namespace não relacionado inalterada. O backend de teste
 deve possuir buffers distintos de staging e durable; retornar erro antes de
 copiar qualquer byte, por si só, não modela falha de commit e não aprova o AC.
 
+A falha de commit deve ser executada também em G3-F pelo fluxo de pareamento
+que compila e chama o próprio `device_registry_nvs.c`. Depois de
+`nvs_set_blob()` concluir e antes de qualquer publicação em RAM ou resposta,
+a fronteira da primitiva `nvs_commit()` deve retornar erro controlado. A
+execução aprova somente quando o adaptador propaga esse erro, o pareamento
+falha, não há `DISCOVERY_RESP`, fechar/reabrir o handle ou reiniciar restaura o
+blob anterior e a sentinela permanece idêntica. Testar uma reimplementação do
+adaptador, retornar erro antes de `nvs_set_blob()` ou apenas inspecionar o
+código constitui evidência parcial.
+
 ### COORD-REG-AC-003 — Limite sem eviction
 
 Partir de oito endereços distintos persistidos e tentar parear um nono. A
@@ -561,7 +588,7 @@ de namespaces e falhas de leitura. Cobre COORD-REG-001/010/011/012.
 2. contagem maior que oito;
 3. endereço nulo ou broadcast;
 4. endereço duplicado;
-5. checksum ou marcador inválido;
+5. alterar bytes cobertos sem recalcular o valor obrigatório de integridade;
 6. erro de abertura ou leitura;
 7. `ESP_ERR_NVS_NO_FREE_PAGES` e `ESP_ERR_NVS_NEW_VERSION_FOUND` na
    inicialização.
@@ -571,6 +598,14 @@ permitido pela seção 7, ausência de resposta/evento/ACK/transmissão/conclus�
 de comando e sentinela inalterada. Pelo menos blob corrompido, reboot e
 isolamento da sentinela devem ser executados em QEMU contra o adaptador NVS de
 produção; falhas não produzíveis pelo backend real podem usar substituto fiel.
+
+A classe 5 deve partir de um blob válido com ao menos duas entradas e executar
+duas corrupções independentes, preservando tamanho, schema, contagem e o valor
+de integridade armazenado: na primeira, alterar um byte de endereço sem torná-lo
+nulo, broadcast ou duplicado; na segunda, alterar um byte de `device_id`.
+Ambas devem resultar em `RegistryUnavailable`. Uma mutação que já reprove por
+tamanho, schema, contagem ou validade de endereço não comprova a cobertura do
+valor de integridade e constitui evidência parcial.
 
 ### COORD-REG-AC-008 — Compatibilidade funcional e build
 
@@ -617,14 +652,19 @@ infraestrutura, execução não iniciada ou zero casos não constituem aprovaç�
 |---|---|---|---|
 | G1 — política integrada | executar o mesmo código de decisão usado por `main.c` com efeitos substituídos | matriz da seção 9, ordem persistência/resposta, ACK, host, comando e deduplicação | adaptador NVS real e hardware |
 | G2 — backend NVS fiel | injetar falhas por etapa e preservar staging/durable/namespaces/reboot | atomicidade sob falha, contadores e isolamento lógico | integração real do adaptador |
-| G3 — QEMU com NVS real | executar o adaptador de produção e partição NVS | schema, reabertura, reboot, corrupção, namespace sentinela e caminho nominal de commit | rádio e hardware ESP32-C6 |
+| G3-N — adaptador de produção com NVS real | executar `device_registry_nvs.c` e partição NVS real sob QEMU | schema, reabertura, reboot, corrupção, namespace sentinela e caminho nominal de commit | falhas de primitivas não produzidas pelo backend e hardware |
+| G3-F — adaptador de produção sob falha controlada | executar `device_registry_nvs.c` pelo fluxo real, substituindo somente a fronteira das primitivas NVS | ordem `set_blob`/commit, propagação do erro de commit, ausência de publicação/resposta e preservação durable | persistência nominal real, rádio e hardware |
 | G4 — build de produção | compilar/linkar a composição real ESP32-C6 | compatibilidade de build e warnings | comportamento executado |
 | G5 — hardware real | executar coordenador e devices físicos | rádio, reboot, commissioning e compatibilidade ponta a ponta | gates automatizados de falhas |
 
-G1 pode compartilhar o mesmo app de teste com G2. G3 pode usar ESP32-C3 sob
-QEMU quando o código exercitado não depender do rádio, mas deve compilar e
-executar `device_registry_nvs.c`, não apenas o core do registry. G4 e G5 usam a
-versão ESP-IDF fixada pelo projeto.
+G1 pode compartilhar o mesmo app de teste com G2. G3-N e G3-F podem usar
+ESP32-C3 sob QEMU quando o código exercitado não depender do rádio, mas ambos
+devem compilar e executar `device_registry_nvs.c`, não apenas o core do
+registry. Em G3-F, o ponto de injeção pode ser uma tabela interna de operações,
+wrapper de link ou mecanismo equivalente limitado às primitivas NVS; a decisão
+de chamar `nvs_set_blob()`, chamar `nvs_commit()` e propagar seus resultados
+permanece no adaptador de produção. G4 e G5 usam a versão ESP-IDF fixada pelo
+projeto.
 
 ### Contrato obrigatório dos substitutos
 
@@ -642,6 +682,11 @@ usar um substituto como evidência:
 | fechamento/reboot | descarta staging e RAM; preserva durable e sentinela |
 | observabilidade | contadores e ordem de chamadas/efeitos assertáveis |
 
+O substituto usado na fronteira NVS de G3-F deve preservar a mesma semântica
+de staging, durable, namespaces, fechamento e reboot exigida acima. Diferente
+de G2, G3-F não pode substituir `device_registry_nvs.c`: substitui apenas as
+primitivas chamadas por ele e observa o erro devolvido pelo adaptador ao core.
+
 Um fake com único buffer que só copia em sucesso comprova preservação da visão
 RAM do core, mas não falha pós-staging, commit ou reboot durável. Ele pode ser
 mantido como teste parcial, porém não sustenta AC-002 ou AC-007 completos.
@@ -650,13 +695,13 @@ mantido como teste parcial, porém não sustenta AC-002 ou AC-007 completos.
 
 | Critério | Gates obrigatórios | Evidência terminal mínima |
 |---|---|---|
-| AC-001 | G1 + G3 + G5 | ordem commit/resposta, reboot, entrada relida e comando antes de report |
-| AC-002 | G1 + G2 | falhas separadas de set/commit, visão anterior e sentinela após reboot |
+| AC-001 | G1 + G3-N + G5 | ordem commit/resposta, reboot, entrada relida e comando antes de report |
+| AC-002 | G1 + G2 + G3-F | falhas separadas de set/commit; adaptador real propaga falha de commit; visão anterior e sentinela após reboot |
 | AC-003 | G1 + G2 | oito entradas, nono rejeitado, zero commit adicional e oito relidas |
 | AC-004 | G1 + G2 | contadores de set/commit/resposta e comando restaurado com Y |
 | AC-005 | G1 + G2 | ausência de ACK/evento/TX/escrita e permanência como desconhecido |
 | AC-006 | G1 + G2 | evento/duplicata/reboot/reenvio, zero commits e blob sem sequência |
-| AC-007 | G1 + G2 + G3 | classes de erro, fail-closed em todas as entradas e sentinela preservada |
+| AC-007 | G1 + G2 + G3-N | classes de erro, fail-closed em todas as entradas e sentinela preservada |
 | AC-008 | G1 + G4 + G5 | build sem warnings e cenários funcionais com dois devices |
 
 ### Manifesto obrigatório de evidências
@@ -668,7 +713,7 @@ AC e por execução material:
 |---|---|
 | critério | ID exato AC-001..AC-008 |
 | cenário | condição inicial e variante executada |
-| gate | G1..G5 |
+| gate | G1, G2, G3-N, G3-F, G4 ou G5 |
 | teste/comando | nome exato do caso e comando reproduzível |
 | alvo/ambiente | target, versão ESP-IDF, backend e hardware quando aplicável |
 | casos | quantidade maior que zero |
@@ -741,14 +786,14 @@ ordenada separadamente para cada ambiente.
 
 ## 16. Estado e próxima etapa
 
-Esta autoria v0.2 não implementa nem valida o comportamento. O estado corrente
+Esta autoria v0.3 não implementa nem valida o comportamento. O estado corrente
 é:
 
 - `Proposed`;
 - `In Progress`, porque existe implementação parcial ainda não conforme;
 - `Not Ready`;
-- `Needs Clarification`, pela análise independente da seção 16.8; as
-  conclusões das seções 16.1, 16.6 e 16.7 permanecem como registros históricos.
+- `Pending Review`, porque a seção 16.9 resolve os dois bloqueios da análise
+  v0.2 e exige nova análise independente da versão 0.3.
 
 ### 16.1 Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
 
@@ -1151,3 +1196,34 @@ prontidão `Not Ready`, revisão de implementabilidade `Needs Clarification` e
 transação `EKM-CHG-0008` `Open`. A especificação permanece com o Autor até as
 duas decisões acima serem materializadas no texto normativo e nos gates. Esta
 análise não autoriza implementação nem aceita o baseline atual.
+
+### 16.9 Reautoria v0.3 (Autor da Especificação, 01/08/2026)
+
+O Arquiteto ordenou aplicar os ajustes devolvidos pelas análises corretivas da
+versão 0.2. Esta autoria preserva COORD-REG-001 a 013, AC-001 a AC-008 e todo o
+escopo funcional, e resolve os dois bloqueios:
+
+1. a seção 6 passa a exigir um valor de integridade definido pelo schema,
+   calculado sobre `schema_version`, `entry_count` e todos os bytes das
+   entradas. Marcador constante isolado não satisfaz o contrato; ausência,
+   truncamento ou divergência levam a `RegistryUnavailable` e possuem oráculo
+   executável em AC-007;
+2. AC-002 passa a exigir G3-F além de G1+G2. G3-F compila e executa o próprio
+   `device_registry_nvs.c`, injeta erro somente na fronteira de
+   `nvs_commit()` depois de `nvs_set_blob()` bem-sucedido e observa propagação
+   do erro, ausência de resposta/publicação, restauração do durable anterior e
+   preservação da sentinela.
+
+G3 foi explicitado em duas modalidades: G3-N usa o adaptador de produção com
+NVS real para caminhos nominais, corrupção e reboot; G3-F usa o mesmo adaptador
+sob falha controlada de primitiva. Nenhuma modalidade pode substituir ou
+reimplementar a lógica de `device_registry_nvs.c`.
+
+As seções 16.7 e 16.8 permanecem como histórico das análises que originaram
+estas correções; não representam o estado corrente. Nenhum código, teste ou
+configuração de implementação foi alterado ou executado nesta autoria.
+
+Estado da versão 0.3: normativo `Proposed`, implementação existente
+`In Progress`, prontidão `Not Ready`, revisão de implementabilidade
+`Pending Review` e `EKM-CHG-0008` `Open`. A próxima etapa é nova análise
+independente da versão 0.3.

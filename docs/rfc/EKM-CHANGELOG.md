@@ -583,7 +583,7 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 
 ### Critérios de encerramento da transação
 
-- revisão independente promove a especificação para `Implementable` — **satisfeito** em 31/07/2026 para v0.1; a promoção de 01/08/2026 para v0.2 ficou sem efeito após a análise corretiva e permanece pendente;
+- revisão independente promove a especificação para `Implementable` — **satisfeito** em 31/07/2026 para v0.1; a promoção de 01/08/2026 para v0.2 ficou sem efeito; versão 0.3 aguarda nova análise;
 - Arquiteto autoriza implementação;
 - requisitos COORD-REG-001 a COORD-REG-013 são implementados;
 - gates automatizados e cenários de hardware AC-001 a AC-008 terminam com
@@ -775,3 +775,24 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   `EKM-CHG-0008` permanece `Open`;
 - especificação permanece com o Autor; nenhuma autorização de implementação;
   nenhum código, teste ou configuração de implementação alterado ou executado.
+
+### Reautoria v0.3 (Autor da Especificação, 01/08/2026)
+
+- Arquiteto ordena aplicar os dois ajustes devolvidos pela análise v0.2 sem
+  reduzir COORD-REG-001 a 013, AC-001 a AC-008 ou o escopo funcional;
+- schema passa a exigir valor determinístico de integridade cobrindo versão,
+  contagem e todos os bytes das entradas; marcador constante isolado não
+  satisfaz o contrato;
+- seção 10 e AC-007 passam a reprovar ausência, truncamento ou divergência do
+  valor obrigatório de integridade; mutações independentes de endereço e
+  `device_id` comprovam cobertura do conteúdo funcional;
+- G3 é explicitado como G3-N para NVS real nominal e G3-F para executar o
+  próprio `device_registry_nvs.c` sob falha controlada de primitiva;
+- AC-002 passa a exigir G1+G2+G3-F, com `nvs_set_blob()` bem-sucedido seguido
+  de erro de `nvs_commit()`, propagação do erro, nenhuma resposta/publicação,
+  durable anterior após reabertura/reboot e sentinela preservada;
+- nenhum código, teste ou configuração de implementação alterado ou executado
+  nesta autoria;
+- versão 0.3 fica `Proposed`, implementação existente `In Progress`, prontidão
+  `Not Ready`, revisão `Pending Review` e `EKM-CHG-0008` `Open`; próxima etapa
+  é nova análise independente de implementabilidade.
