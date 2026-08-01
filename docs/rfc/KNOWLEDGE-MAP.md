@@ -29,7 +29,7 @@ classificação e estado.
 | Histórico de mudanças EKM | `docs/rfc/EKM-CHANGELOG.md` | Operacional | Active |
 | Manual da IA Executora | `docs/rfc/MAN-0001.md` | Normativo complementar | Active |
 | Instruções do Copilot | `.github/copilot-instructions.md` | Adaptador | Active |
-| Política de execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | Proposed; In Progress; Not Ready; Implementable |
+| Política de execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | Active; Accepted by Architect; Closed with accepted limitations; technical readiness Not Ready |
 
 Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferença,
 `EKM-GUIDELINES.md` é a fonte canônica das regras EKM.

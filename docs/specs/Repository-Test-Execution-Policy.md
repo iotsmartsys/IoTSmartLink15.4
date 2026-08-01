@@ -1,9 +1,9 @@
 # Política de Execução de Testes do Repositório
 
 **Tipo:** Normativo
-**Estado normativo:** Proposed
-**Estado da implementação:** In Progress
-**Prontidão:** Not Ready
+**Estado normativo:** Active
+**Estado da implementação:** Accepted by Architect
+**Prontidão:** Not Ready — encerrada com limitações aceitas
 **Revisão de implementabilidade:** Implementable
 **Versão:** 0.1
 **Responsável arquitetural:** Marcelo Miranda
@@ -179,14 +179,10 @@ Nenhum item desta seção é excluído pela autoria.
 
 ## 9. Estado e próxima etapa
 
-Esta versão registra a decisão arquitetural e propõe a migração completa sem
-alterar comportamento funcional. Estados: `Proposed`, `In Progress`, `Not Ready` e
-`Implementable`.
-
-A análise independente da seção 10 promoveu esta versão a `Implementable`.
-Uma ordem própria do Arquiteto continua necessária antes que um Engenheiro
-Implementador possa migrar runners, ajustar test apps ou excluir os artefatos
-inventariados.
+Esta versão registra a decisão arquitetural e a migração técnica realizada sem
+alterar comportamento funcional. A análise independente da seção 10 declarou
+a política `Implementable`; a implementação e a revisão estão registradas nas
+seções 11 e 12. O encerramento por decisão do Arquiteto está na seção 13.
 
 ## 10. Revisão de implementabilidade (Engenheiro Analista, 01/08/2026)
 
@@ -352,3 +348,33 @@ rodada. Solicitar ao Autor a reconciliação da quantidade SmartSysApp e, em
 atuação posterior autorizada, prover/coletar os runners e executar os 20 + 13
 casos em ESP32-C3 físico. Estados preservados: normativo `Proposed`,
 implementação `In Progress`, prontidão `Not Ready` e `EKM-CHG-0009` `Open`.
+
+## 13. Decisão arquitetural de aceite e encerramento (01/08/2026)
+
+O Arquiteto, como autoridade final sobre risco, aceite e encerramento, decidiu
+aceitar a implementação entregue e encerrar esta especificação e
+`EKM-CHG-0009` no estado observado.
+
+O significado exato da decisão é:
+
+- a política normativa passa a `Active` e continua proibindo QEMU como
+  estratégia vigente de validação ou execução de testes;
+- a implementação é `Accepted by Architect`; esse estado registra aceite
+  humano do resultado e do risco residual, não promoção técnica para
+  `Implemented` ou `Validated`;
+- TESTEXEC-AC-005 permanece factualmente `Not Executed`: os 20 casos
+  SmartSysApp e 13 casos Registry não foram coletados nem executados em
+  ESP32-C3 físico nesta mudança;
+- a ausência de `pytest` e dos plugins ESP-IDF no ambiente observado permanece
+  limitação conhecida;
+- a divergência documental entre dezenove casos normativos e 20 casos
+  preservados na fonte e no runner permanece registrada e aceita; ela não
+  representa redução de cobertura;
+- o encerramento desta política não promove nem encerra as especificações de
+  Bootstrap ou Registry, que conservam seus próprios estados e gates.
+
+Prontidão técnica permanece `Not Ready` por ausência da evidência terminal,
+mas não há nova etapa obrigatória desta política: eventual instalação do
+runner ou execução física será uma atuação futura somente mediante nova ordem
+do Arquiteto. A especificação e a transação estão encerradas por decisão
+humana explícita, com as limitações acima preservadas para auditabilidade.

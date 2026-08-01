@@ -861,7 +861,7 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 
 ## EKM-CHG-0009 — Retirada transversal de QEMU
 
-**Status:** `Open`
+**Status:** `Closed`
 **Tipo:** Mudança de estratégia de validação
 **Aberta em:** 01/08/2026
 
@@ -975,3 +975,19 @@ falhas, oráculos nem quantidade de casos.
   quantidade e depois executar os 20 + 13 casos em ESP32-C3 físico sob atuação
   autorizada. Estados permanecem `Proposed`, `In Progress`, `Not Ready` e
   transação `Open`.
+
+### Decisão arquitetural de aceite e encerramento (01/08/2026)
+
+- o Arquiteto decidiu aceitar a implementação entregue e encerrar a política
+  e esta transação no estado observado;
+- a política passa a `Active` e a implementação fica `Accepted by Architect`,
+  sem promoção técnica para `Implemented` ou `Validated`;
+- TESTEXEC-AC-005 permanece `Not Executed`; nenhum dos 20 + 13 casos foi
+  executado em ESP32-C3 físico nesta mudança;
+- permanecem registradas e aceitas a ausência de `pytest`/plugins no ambiente
+  observado e a divergência documental de dezenove versus 20 casos
+  SmartSysApp, sem redução efetiva de cobertura;
+- a prontidão técnica permanece `Not Ready`; o encerramento representa aceite
+  humano explícito do risco residual, não criação de evidência inexistente;
+- Bootstrap e Registry conservam seus ciclos e estados próprios;
+- `EKM-CHG-0009` está `Closed` por decisão do Arquiteto.
