@@ -953,3 +953,25 @@ falhas, oráculos nem quantidade de casos.
   TESTEXEC-AC-005 permanece `Not Executed`;
 - estado da política e das migrações dependentes: `In Progress`; prontidão
   `Not Ready`; `EKM-CHG-0009` permanece `Open`.
+
+### Revisão técnica da retirada (Engenheiro Revisor, 01/08/2026)
+
+- revisado integralmente o commit `c2e6c41` contra TESTEXEC-001 a 007,
+  TESTEXEC-AC-001 a 007, matriz de substituição e inventário técnico;
+- confirmado por inspeção e varredura que imports, tipos, marker, runner e
+  comandos QEMU não permanecem como ativos técnicos vigentes; os dois
+  diretórios locais `build_qemu_c3` continuam ausentes;
+- confirmados 20 casos SmartSysApp e 13 casos registry, runners físicos
+  ESP32-C3, `py_compile` com código 0 e artefatos de build ESP32-C3 nos
+  tamanhos registrados pela implementação;
+- achado alto: TESTEXEC-AC-005 permanece `Not Executed`; nenhum dos 33 casos
+  foi coletado ou executado em hardware e não existe evidência terminal nova;
+- achado médio: TESTEXEC-AC-005, Bootstrap v1.5 e a abertura desta transação
+  dizem “dezenove” cenários SmartSysApp, mas a fonte e o runner preservam 20;
+- a ausência de `pytest`/plugins no ambiente continua sendo limitação de
+  infraestrutura e deve ser resolvida antes da coleta; flash e monitor exigem
+  ordem explícita do Arquiteto;
+- recomendação: não aceitar nem promover; retornar ao Autor para reconciliar a
+  quantidade e depois executar os 20 + 13 casos em ESP32-C3 físico sob atuação
+  autorizada. Estados permanecem `Proposed`, `In Progress`, `Not Ready` e
+  transação `Open`.
