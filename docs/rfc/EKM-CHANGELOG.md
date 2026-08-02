@@ -955,6 +955,32 @@ já exige preservar e atender devices registrados, mas não define seu registry.
 - implementação e migração permanecem `In Progress`, prontidão `Not Ready` e
   `EKM-CHG-0008` `Open`; nenhum AC integralmente promovido.
 
+### Revisão técnica da correção de política e runner v0.4 (Engenheiro Revisor, 01/08/2026)
+
+- verificação independente confirmou as duas correções reivindicadas: build
+  de produção ESP32-C6 (código 0, `central_154.bin` `0x45c60` bytes, mesmo
+  tamanho declarado), build do app ESP32-C3 (código 0) e reexecução
+  host-native da política (`ctest`, `7 Tests 0 Failures 0 Ignored`);
+- confirmado por leitura de código que `device_registry_policy_host_command()`
+  agora avalia disponibilidade do registry antes de comando pendente, que o
+  runner físico exige `24 Tests` correspondendo à fonte atual, que nenhum
+  rótulo `[AC-00N]` íntegro resta e que não há chamada residual a
+  `nvs_flash_erase`/`nvs_erase_all`/`nvs_erase_key`;
+- achado alto: G1 no sentido normativo continua inexistente — os casos
+  "integrated" e o teste host-native chamam a política isolada, sem exercitar
+  o despacho real de `main.c` nem observar seus efeitos substituídos;
+- achado alto: G3-N e G5 continuam não executados; observação factual sem
+  efeito normativo — esta sessão detectou a porta serial
+  `/dev/cu.usbmodem101`, ausente em sessões anteriores; nenhum flash foi
+  tentado por ausência de ordem do Arquiteto;
+- achado médio: classes de AC-007 de inicialização NVS e sentinela sob NVS
+  real seguem ausentes de qualquer app de teste;
+- recomendação: não aceitar nem promover; completar G1 exercitando `main.c`,
+  decidir sobre autorizar flash/execução física dada a porta agora presente,
+  e adicionar as classes de inicialização/sentinela ao gate G3-N quando houver
+  placa. Estados preservados: `Proposed`, implementação e migração
+  `In Progress`, `Not Ready`, `Implementable` e `EKM-CHG-0008` `Open`.
+
 ---
 
 ## EKM-CHG-0009 — Retirada transversal de QEMU
