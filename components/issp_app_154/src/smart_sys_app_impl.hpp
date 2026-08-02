@@ -11,8 +11,7 @@
 // never embedded in this struct: they live behind hardwareStorage_, an
 // opaque fixed-size buffer only smart_sys_app_hardware.cpp knows how to
 // interpret. This lets SMARTAPP-AC-006 to AC-013 be covered by automated
-// tests that run on a radio-less target (this repository runs them under
-// QEMU for esp32c3) without depending on hardware.
+// tests on a physical ESP32-C3 without compiling or starting the radio stack.
 
 #include <array>
 #include <cstddef>

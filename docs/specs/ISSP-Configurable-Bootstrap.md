@@ -1,13 +1,14 @@
 # IoTSmartSys — Especificação da API pública `SmartSysApp`
 
 **Tipo:** Normativo
-**Estado normativo:** Active
-**Estado da implementação:** Validated
-**Prontidão:** Ready
-**Revisão de implementabilidade:** Implementable
-**Versão:** 1.4
+**Estado normativo:** Proposed
+**Estado da implementação funcional v1.4:** Validated
+**Estado da migração de validação v1.5:** In Progress
+**Prontidão da v1.5:** Not Ready
+**Revisão de implementabilidade:** Pending Review
+**Versão:** 1.5
 **Responsável arquitetural:** Marcelo Miranda
-**Última atualização:** 30/07/2026
+**Última atualização:** 01/08/2026
 **Escopo:** API pública de configuração e composição do firmware `client_154`
 
 ---
@@ -823,6 +824,21 @@ A implementação deve registrar:
 - `git diff --check`;
 - baseline inicial e reconciliação do inventário final.
 
+QEMU não é estratégia permitida para nenhuma execução futura desta
+especificação. Os testes de configuração, estados, ordem, falhas e rollback
+devem executar host-native quando `SmartSysApp::SetupHooks` e os fakes
+preservarem toda a semântica material do critério; caso essa fidelidade não
+possa ser demonstrada, devem executar no app Unity em ESP32-C3 físico. Rádio,
+NVS, GPIO e factory reset continuam exigindo os targets físicos definidos por
+SMARTAPP-AC-022. Aplicam-se integralmente os contratos de
+`Repository-Test-Execution-Policy.md`.
+
+Os resultados QEMU registrados na seção 22 permanecem fatos históricos da
+versão 1.4, mas não podem ser reutilizados como evidência vigente da versão
+1.5 ou de revisões futuras. Os dezenove cenários continuam obrigatórios e
+devem receber nova execução em runner permitido antes de qualquer nova
+promoção baseada neles.
+
 ## 19. Ativos autorizados para implementação futura
 
 Depois de aprovação humana e seleção do papel formal aplicável, a implementação
@@ -1119,3 +1135,29 @@ inventário de `components/` permanece com quatro componentes (seção 15 desta
 especificação e `components/README.md`); `issp_app_154` agora tem um app de
 teste adicional (`test_apps/smart_sys_app_test`) que não é consumido por
 nenhum firmware de produto.
+
+## 23. Reautoria v1.5 — retirada de QEMU (01/08/2026)
+
+O Arquiteto determinou retirar QEMU de todo o repositório como estratégia de
+validação e execução, sem reduzir requisitos funcionais. SMARTAPP-001 a 008 e
+SMARTAPP-AC-001 a AC-024 permanecem inalterados em intenção, cenários e
+oráculos.
+
+A versão 1.4 e sua implementação funcional continuam registradas como baseline
+historicamente `Validated`. A versão 1.5 altera a estratégia de evidência:
+
+- os dezenove testes de `SmartSysApp::SetupHooks` devem migrar para runner
+  host-native fiel ou ESP32-C3 físico;
+- os resultados QEMU da seção 22 são evidência legada, auditável, mas não
+  reutilizável para aprovação posterior;
+- o test app, seus testes e os hooks são preservados nesta autoria; imports,
+  runners, comentários e diretórios específicos do emulador são candidatos à
+  migração ou remoção posterior conforme
+  `Repository-Test-Execution-Policy.md`;
+- hardware ESP32-H2/ESP32-C6 continua sendo a evidência obrigatória dos
+  comportamentos físicos de SMARTAPP-AC-022.
+
+Nenhum código, teste, configuração, runner ou artefato técnico foi alterado,
+excluído ou executado. A migração de validação v1.5 fica `Not Started`; a
+versão normativa fica `Proposed`, `Not Ready` e `Pending Review`. A próxima
+etapa é análise independente de implementabilidade.

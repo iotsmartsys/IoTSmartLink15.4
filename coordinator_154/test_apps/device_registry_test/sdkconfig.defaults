@@ -1,0 +1,3 @@
+# device_registry drives storage through its seam. This test app targets a physical ESP32-C3;
+# cases that require the production NVS adapter still link nvs_flash explicitly.
+CONFIG_IDF_TARGET="esp32c3"

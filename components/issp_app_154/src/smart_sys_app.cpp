@@ -4,8 +4,8 @@
 // through SmartSysApp::SetupHooks, wired to the real implementations in
 // smart_sys_app_hardware.cpp (compiled only for targets with an
 // IEEE 802.15.4 radio) or to fakes supplied by automated tests. This file
-// only needs issp_core/issp_behaviors (GPIO, no radio), so it builds and
-// its logic can be exercised on any target, including one hosted by QEMU.
+// only needs issp_core/issp_behaviors (GPIO, no radio), so its logic can be
+// exercised by the physical ESP32-C3 test app without starting radio.
 
 #include "smart_sys_app_impl.hpp"
 
