@@ -14,8 +14,9 @@
 Indicar onde está o conhecimento autoritativo de cada área do projeto e como
 localizar sua implementação e suas evidências.
 
-Este mapa não duplica o conteúdo das fontes. Ele aponta para elas e registra sua
-classificação e estado.
+Este mapa não duplica contratos detalhados das fontes. Ele aponta para elas,
+registra sua classificação e estado e mantém as visões compactas necessárias
+para navegar pelas fronteiras do sistema.
 
 ---
 
@@ -43,12 +44,90 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 | Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
-| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main.cpp` e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 19/19 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |
-| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Pronta para revisão arquitetural | Não iniciada | Proposta para `client_154/main/{Kconfig.projbuild,firmwares/,boards/}`; nenhum código funcional criado | Árvore, diagramas, fronteiras, critérios BDD e estratégia do experimento EKOM |
-| Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | `issp_protocol.*` | Lacuna `EKM-GAP-0002` |
+| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main/main.cpp` e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 19/19 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |
+| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Pronta para revisão arquitetural | Não iniciada | Proposta para `client_154/main/{Kconfig.projbuild,firmwares/,boards/}`; nenhum código funcional criado | Ramo proposto do client neste mapa; fluxo, fronteiras, critérios BDD e estratégia do experimento na especificação |
+| Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | Client em `components/issp_core/src/issp_protocol.cpp`; coordenador em `coordinator_154/main/iot154_packet.h` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE funcionais; confiabilidade residual de ACK em `EKM-GAP-0006` |
 | Reports confirmados | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, executor e coordenador | Report inicial funcional; turnaround, confirmação e sequência entre retries em `EKM-GAP-0006` |
+
+### 3.1 Visão do repositório e conexão entre os alvos
+
+Esta árvore combina o estado observado do repositório com o ramo de variantes
+proposto para o client. O marcador `[proposto]` identifica o que ainda não está
+implementado; os demais ramos descrevem responsabilidades e fontes existentes.
+
+```text
+IoTSmartLink15.4 repository
+├── Runtime targets
+│   ├── client_154 (client IEEE 802.15.4; ESP32-H2 validado)
+│   │   ├── app_main e composição atual da tomada simples
+│   │   ├── SmartSysApp e componentes ISSP compartilhados
+│   │   └── [proposto] seleção de produto e board
+│   │       ├── Product firmware (uma escolha)
+│   │       │   ├── Single smart plug (baseline)
+│   │       │   ├── Dual smart plug + light
+│   │       │   ├── Door sensor
+│   │       │   └── Motion sensor
+│   │       ├── Board model (uma escolha)
+│   │       └── IDF_TARGET (definido pelo fluxo ESP-IDF)
+│   └── coordinator_154 (coordenador IEEE 802.15.4; ESP32-C6 validado)
+│       ├── janela de ingresso e resposta a discovery
+│       ├── recepção de reports e envio de ACKs
+│       ├── envio de comandos e tratamento de retries/ACKs
+│       └── ponte host por JSON-lines sobre UART
+├── Protocol connection
+│   ├── ISSP payload e tipos de mensagem
+│   ├── IEEE 802.15.4 frames e endereçamento
+│   ├── client: components/issp_core e issp_transport_154
+│   ├── coordinator: coordinator_154/main/iot154_packet.h e iot154_radio.*
+│   └── lacuna: especificação wire dedicada ainda inexistente
+├── Shared client platform
+│   ├── issp_app_154 / SmartSysApp
+│   ├── issp_behaviors
+│   ├── issp_core
+│   └── issp_transport_154
+├── Integration evidence
+│   └── examples/issp_minimal_client
+├── Knowledge and governance
+│   ├── docs/specs
+│   ├── docs/rfc
+│   └── AGENTS.md
+├── Project automation
+│   └── .github (instruções e criação manual do projeto Kanban)
+└── Unclassified prototype
+    └── root ESP-IDF project
+        ├── main/: leitura de bateria e blink
+        └── README/testes: ainda descrevem o exemplo hello_world
+```
+
+O `client_154` e o `coordinator_154` são alvos fisicamente separados, mas formam
+um único fluxo lógico. O host envia comandos ao coordenador; o coordenador os
+traduz para ISSP sobre IEEE 802.15.4; o client executa a capability e responde;
+reports percorrem o caminho inverso. Discovery e ACKs sustentam a formação e a
+confiabilidade desse vínculo.
+
+```mermaid
+flowchart LR
+    Host["Host"] -->|"commands · JSON-lines/UART"| Coordinator["coordinator_154<br/>ESP32-C6"]
+    Coordinator -->|"events and results · JSON-lines/UART"| Host
+    Coordinator -->|"discovery responses · commands · ACKs"| Client["client_154<br/>ESP32-H2"]
+    Client -->|"discovery · reports · ACKs"| Coordinator
+    Product["Product firmware<br/>current or selected"] --> Client
+    Board["Board model"] --> Product
+    Shared["SmartSysApp + ISSP components"] --> Client
+```
+
+As setas entre os alvos representam o protocolo ISSP sobre IEEE 802.15.4, não
+uma dependência de código entre seus diretórios. Hoje o contrato lógico aparece
+em implementações separadas nos dois alvos; `EKM-GAP-0002` registra a ausência
+de uma especificação wire dedicada.
+
+Para navegar dentro do ramo proposto do client: diferença de composição pertence
+ao product firmware; diferença física pertence ao board model; capacidade usada
+por mais de um produto pertence a um componente; protocolo e infraestrutura
+pertencem à plataforma compartilhada. O contrato da proposta está em
+`docs/specs/Firmware-Variants-Menuconfig.md`.
 
 ---
 

@@ -29,9 +29,10 @@ do repositório.
 > Para adicionar ou modificar uma variante de produto, onde devo atuar e o que
 > devo preservar para não acoplar regras do produto à plataforma compartilhada?
 
-A resposta deve ser obtida nesta especificação: escolha em `Kconfig`, composição
-no product firmware, detalhes elétricos no board model, capabilities em
-componentes reutilizáveis e runtime comum em `SmartSysApp`/`issp_*`.
+A resposta começa na visão de domínio de `docs/rfc/KNOWLEDGE-MAP.md` e é
+completada por esta especificação: escolha em `Kconfig`, composição no product
+firmware, detalhes elétricos no board model, capabilities em componentes
+reutilizáveis e runtime comum em `SmartSysApp`/`issp_*`.
 
 ## Estado atual observado
 
@@ -96,50 +97,13 @@ target é compatível. Até os nomes reais serem confirmados, a implementação 
 usar um identificador descritivo para a fiação atual do client, sem inventar um
 nome comercial.
 
-## Árvore de conhecimento do domínio
+## Visão do domínio
 
-```text
-IoTSmartLink15.4 client
-├── Build selection
-│   ├── Product firmware (uma escolha)
-│   ├── Board model (uma escolha)
-│   └── IDF_TARGET (definido pelo fluxo ESP-IDF)
-├── Product firmwares
-│   ├── Single smart plug (baseline atual)
-│   ├── Dual smart plug + light (futuro)
-│   ├── Door sensor (futuro)
-│   └── Motion sensor (futuro)
-├── Board models
-│   ├── target compatível
-│   ├── pinagem e polaridade
-│   └── recursos físicos disponíveis
-├── Reusable components
-│   ├── issp_app_154 / SmartSysApp
-│   ├── issp_behaviors
-│   ├── issp_core
-│   └── issp_transport_154
-└── Generated firmware
-    └── uma variante + um board + plataforma compartilhada
-```
-
-Regra de navegação: uma diferença de composição pertence ao product firmware;
-uma diferença física pertence ao board model; uma capacidade usada por mais de
-um produto pertence a um componente; protocolo e infraestrutura pertencem à
-plataforma.
-
-## Composição
-
-```mermaid
-flowchart LR
-    Variant["Product firmware"] --> App["SmartSysApp"]
-    Variant --> Capability["Reusable capabilities"]
-    Variant --> Board["Board model"]
-    App --> Platform["ISSP shared platform"]
-    Capability --> Platform
-```
-
-A direção inversa é proibida: plataforma, capability e board não dependem de
-uma variante concreta.
+A árvore do repositório, o diagrama que conecta client e coordenador e o ramo
+proposto de variantes estão em `docs/rfc/KNOWLEDGE-MAP.md`. Esse mapa é a porta
+de entrada para localizar o client dentro do sistema e navegar por suas
+responsabilidades; esta especificação permanece responsável pelo comportamento
+da seleção, pelas decisões, restrições e critérios de aceite.
 
 ## Fluxo de seleção
 
@@ -286,9 +250,10 @@ não autoriza criar stubs vazios.
 
 ### Navegabilidade EKOM
 
-- **Dada** esta especificação, **quando** alguém recebe a tarefa de adicionar
-  o sensor de porta, **então** consegue identificar onde registrar a seleção,
-  onde compor o produto, onde definir a placa e o que não deve alterar.
+- **Dados** o mapa de conhecimento e esta especificação, **quando** alguém
+  recebe a tarefa de adicionar o sensor de porta, **então** consegue identificar
+  onde registrar a seleção, onde compor o produto, onde definir a placa e o que
+  não deve alterar.
 - **Dada** uma dúvida sobre a localização de uma regra, **quando** se aplica a
   regra de navegação da árvore, **então** ela conduz a uma única fronteira
   principal: seleção, product firmware, board, componente ou plataforma.
