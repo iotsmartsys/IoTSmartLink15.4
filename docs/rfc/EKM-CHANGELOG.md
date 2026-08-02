@@ -516,3 +516,86 @@ inicial.
   `Ready`; o mapa foi reconciliado e a Definition of Done EKM respondida;
 - `EKM-CHG-0007` foi encerrada por decisão do Arquiteto. O encerramento cobre a
   fachada configurável e não constitui validação de uma correção do transporte.
+
+---
+
+## EKM-CHG-0008 — Variantes de firmware por `menuconfig`
+
+**Status:** `Open`
+**Tipo:** Especificação e revisão de implementabilidade
+**Aberta em:** 02/08/2026
+
+### Motivação
+
+Permitir que um único projeto ESP-IDF produza firmwares de produtos
+diferentes, selecionados no SDK Configuration Editor, sem copiar o runtime
+ISSP e sem espalhar condicionais de produto pelos componentes compartilhados;
+usar a mudança como prova prática da EKM.
+
+### Ativos afetados nesta etapa
+
+- `docs/specs/Firmware-Variants-Menuconfig.md`;
+- `docs/rfc/KNOWLEDGE-MAP.md`;
+- este histórico.
+
+### Decisões
+
+- direção arquitetural aprovada pelo Arquiteto (ordem recebida fora deste
+  documento); a especificação permanece `Proposed` e `Not Started`;
+- Engenheiro Analista confrontou a especificação integralmente contra o
+  estado atual do repositório: `client_154/main/main.cpp`,
+  `client_154/main/CMakeLists.txt`, `client_154/CMakeLists.txt`,
+  `components/issp_app_154/include/SmartSysApp.h` e
+  `components/issp_app_154/CMakeLists.txt` foram inspecionados diretamente;
+  os valores de baseline da decisão 8 conferem exatamente com
+  `client_154/main/main.cpp` atual;
+- confirmado precedente técnico local para composição condicional por
+  `IDF_TARGET` em `components/issp_app_154/CMakeLists.txt` e o símbolo
+  `CONFIG_IDF_TARGET_ESP32H2` já presente em `client_154/sdkconfig`, o que
+  sustenta a viabilidade do mecanismo Kconfig/CMake proposto para
+  compatibilidade board/target;
+- confirmado por busca em `components/issp_core`, `components/issp_behaviors`,
+  `components/issp_transport_154` e `components/issp_app_154` que nenhum
+  símbolo `CONFIG_*` de seleção de produto ou board existe hoje nesses
+  componentes;
+- as cinco "Questões para decisão antes da implementação" da especificação
+  foram avaliadas: as quatro primeiras já são respondidas por outras seções
+  da mesma versão (identificador descritivo de board permitido; segunda
+  variante e catálogo de boards fora do recorte da primeira entrega); a
+  quinta (forma do contrato de `product_firmware.hpp`) é grau de liberdade de
+  implementação já delegado pela própria especificação, não decisão
+  normativa ausente;
+- nenhuma decisão normativa, de produto ou de arquitetura ausente foi
+  encontrada no recorte necessário para a primeira migração (tomada simples +
+  um board); a especificação é promovida para `Implementable`, preservando
+  `Not Started` e `Not Ready`;
+- observações não bloqueantes registradas na própria especificação: os
+  arquivos `client_154/sdkconfig.esp32c6`/`.esp32h2`/`.old` são artefatos
+  gerados versionados e não representam um segundo board validado; os
+  critérios de "Navegabilidade EKOM" exigem evidência de caminhada guiada, não
+  apenas asserção binária; os testes 1, 3, 4 e 5 da estratégia de validação do
+  experimento dependem de uma segunda variante ou board reais e ficam fora do
+  recorte assertável desta entrega;
+- nenhuma implementação, protocolo, transporte, commissioning, ACK, retry,
+  reports, NVS ou factory reset alterados nesta etapa; esta atuação não
+  autoriza início de implementação.
+
+### Critérios de encerramento
+
+- especificação `Implementable` recebe ordem explícita do Arquiteto para
+  implementar;
+- migração da tomada simples implementada conforme os pontos reais afetados;
+- critérios de aceite de seleção/build, fronteiras, preservação do produto
+  atual e navegabilidade EKOM avaliados com evidência;
+- mapa de conhecimento e especificação reconciliados;
+- Definition of Done EKM respondida integralmente.
+
+### Evidências atuais
+
+- inspeção direta do entrypoint, `CMakeLists.txt` do `client_154` e da API
+  pública/CMake de `components/issp_app_154`;
+- busca por símbolos `CONFIG_*` nos componentes `issp_*`;
+- comparação byte-a-byte dos valores de baseline da decisão 8 contra
+  `client_154/main/main.cpp`;
+- nenhuma implementação, factory reset, report inicial, wire ou persistência
+  alterados nesta etapa.

@@ -1,6 +1,9 @@
 # Variantes de firmware selecionáveis pelo `menuconfig`
 
-**Estado:** Pronta para revisão arquitetural
+**Estado normativo:** Proposed
+**Estado da implementação:** Not Started
+**Revisão de implementabilidade:** Implementable
+**Prontidão:** Not Ready
 
 ## Missão
 
@@ -306,3 +309,94 @@ entrypoint do `client_154`, os componentes compartilhados e as fontes EKOM
 pertinentes. Somente documentação foi alterada; nenhuma implementação funcional
 foi iniciada. O resultado está pronto para revisão, sem representar aprovação
 arquitetural ou autorização para implementar.
+
+## Revisão de implementabilidade (Engenheiro Analista)
+
+**Resultado:** Implementável [`Implementable`]. Preserva `Not Started` e
+`Not Ready`; não autoriza início de implementação.
+
+### Confronto realizado
+
+- `client_154/main/main.cpp` inspecionado: os valores de baseline citados na
+  decisão 8 (`0x15400001`, GPIO 13 ativo em nível alto, GPIO 9 ativo em nível
+  baixo por 10000 ms, endpoint 1, event type 2, estado inicial desligado,
+  report inicial habilitado) conferem exatamente com o "Estado atual
+  observado";
+- `client_154/main/CMakeLists.txt` e `client_154/CMakeLists.txt` inspecionados:
+  a dependência pública hoje é somente `issp_app_154`, e
+  `EXTRA_COMPONENT_DIRS`/`MINIMAL_BUILD` já existem como declarados na tabela
+  de pontos afetados;
+- `components/issp_app_154/include/SmartSysApp.h` inspecionado: a API pública
+  (`addSwitchPlugCapability`, `configureFactoryResetButton`, `setup()`) é
+  suficiente para compor a variante tomada simples sem expor tipo privado
+  `issp_*`, conforme exigido pela seção de fronteiras;
+- `components/issp_app_154/CMakeLists.txt` inspecionado: já existe precedente
+  local de composição condicional por `IDF_TARGET` (via
+  `idf_build_get_property(... IDF_TARGET)` e comparação de string), o que
+  confirma a viabilidade técnica de restringir board/target tanto em
+  `Kconfig.projbuild` (`depends on IDF_TARGET_ESP32H2`, símbolo já presente em
+  `client_154/sdkconfig` como `CONFIG_IDF_TARGET_ESP32H2=y`) quanto em CMake
+  com `message(FATAL_ERROR ...)`;
+- `git ls-files` e busca por `CONFIG_` em `components/issp_core`,
+  `components/issp_behaviors`, `components/issp_transport_154` e
+  `components/issp_app_154` confirmam que hoje não existe símbolo `CONFIG_*`
+  de seleção de produto ou board nesses componentes (o único uso existente é
+  `CONFIG_IDF_TARGET_*`, próprio do ESP-IDF, não desta proposta) — a decisão 1
+  e o critério de fronteiras correspondente partem de uma baseline já limpa;
+- nenhum `Kconfig`/`Kconfig.projbuild` existe hoje no repositório; a proposta
+  não tem precedente local direto, mas usa mecanismo padrão do ESP-IDF já
+  referenciado pelo próprio build (`IDF_TARGET`), não introduzindo camada,
+  padrão arquitetural ou dependência nova fora do `client_154/main`, dentro do
+  que a decisão 4 já autoriza.
+
+### Decisões ausentes resolvidas por leitura integral da especificação
+
+As "Questões para decisão antes da implementação" não bloqueiam a primeira
+migração porque já são respondidas por outras seções desta mesma versão:
+
+- nomes/revisões reais de boards e qual board representa a fiação atual: já
+  resolvido pela seção "Conceitos e fronteiras" — usar identificador
+  descritivo da fiação atual do `client_154`, sem nome comercial, até
+  confirmação;
+- segunda variante e combinações produto/board do primeiro menu: já limitado
+  pelo Escopo e pela seção "Estrutura proposta de arquivos" — a primeira
+  entrega contém somente `single_smart_plug` e o board da fiação atual;
+  demais escolhas do `choice` ficam fora até terem composição compilável;
+- forma do contrato mínimo de `product_firmware.hpp` (função livre ou
+  interface): delegada ao Implementador pela própria especificação
+  ("a opção mais simples que suportar duas variantes deve prevalecer") e pela
+  decisão 10 ("abstrações adicionais só serão criadas quando uma segunda
+  variante demonstrar a necessidade"); não é decisão normativa, de produto ou
+  de arquitetura ausente, e sim grau de liberdade de implementação já
+  autorizado.
+
+Nenhuma decisão normativa, de produto ou de arquitetura ausente foi
+encontrada no recorte necessário para a primeira migração (tomada simples +
+um board).
+
+### Observações não bloqueantes
+
+- `client_154/sdkconfig.esp32c6`, `client_154/sdkconfig.esp32h2` e
+  `client_154/sdkconfig.old` são artefatos gerados versionados na raiz de
+  `client_154` (fora do padrão de `.gitignore` usado para
+  `components/**/sdkconfig`). Nenhum deles declara um segundo board validado;
+  o Implementador não deve tratar `esp32c6` como wiring/board suportado pela
+  primeira migração, pois o único alvo validado para `client_154` no mapa de
+  conhecimento é `esp32h2`;
+- os critérios de "Navegabilidade EKOM" são avaliados por caminhada guiada
+  (pergunta/resposta usando mapa e especificação), não por asserção puramente
+  binária; a "Estratégia de validação do experimento EKOM" já define o
+  procedimento — Implementador/Revisor devem registrar a pergunta feita, a
+  resposta obtida e as fontes consultadas como evidência, em vez de apenas
+  declarar sucesso;
+- os testes 1, 3, 4 e 5 da "Estratégia de validação do experimento EKOM" que
+  dependem de uma segunda variante ou de um segundo board real permanecem
+  fora do recorte assertável nesta entrega, consistente com o Escopo; não
+  bloqueiam `Implementable` para a migração da tomada simples, mas também não
+  podem ser reivindicados como evidência de fechamento antes de existirem.
+
+### Preservação de estado
+
+Esta atuação não altera código, teste ou configuração de implementação. O
+estado da implementação permanece `Not Started`; uma ordem posterior do
+Arquiteto é necessária para autorizar o início da implementação.
