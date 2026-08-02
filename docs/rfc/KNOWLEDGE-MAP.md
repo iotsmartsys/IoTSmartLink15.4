@@ -2,9 +2,9 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.8
+**Versão:** 1.9
 **Responsável:** Marcelo Miranda
-**Última atualização:** 30/07/2026
+**Última atualização:** 02/08/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -44,6 +44,7 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
 | API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main.cpp` e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 19/19 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |
+| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Pronta para revisão arquitetural | Não iniciada | Proposta para `client_154/main/{Kconfig.projbuild,firmwares/,boards/}`; nenhum código funcional criado | Árvore, diagramas, fronteiras, critérios BDD e estratégia do experimento EKOM |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | `issp_protocol.*` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE funcionais; confiabilidade residual de ACK em `EKM-GAP-0006` |
