@@ -935,6 +935,26 @@ já exige preservar e atender devices registrados, mas não define seu registry.
   permanecem `Proposed`, `In Progress`, `Not Ready`, `Implementable` e
   `EKM-CHG-0008` `Open`.
 
+### Implementação corretiva de política e runner v0.4 (Engenheiro Implementador, 01/08/2026)
+
+- criada política local compartilhada por produção e testes para discovery,
+  DATA, ACK e comando do host; `main.c` passou a consumir suas decisões;
+- corrigida a precedência pending + unavailable no comando: após validar o
+  endereço, indisponibilidade agora precede correlações e identidade;
+- runner físico atualizado de 13 para 24 casos, correspondendo à fonte atual;
+- adicionado runner host-native da política real; execução terminal aprovou
+  `7 Tests 0 Failures 0 Ignored` com código 0;
+- builds ESP-IDF 6.0.1 aprovados: app ESP32-C3 `0x24a30` e produção ESP32-C6
+  `0x45c60`; os 24 casos Unity foram compilados, mas não executados;
+- reconstruções terminais dos artefatos finais aprovaram após ativação
+  explícita do ambiente Python 3.14; tentativa C3 anterior foi bloqueada pelo
+  sandbox em consulta `psutil`, antes da compilação;
+- nenhuma porta física foi detectada, flash/monitor não foram autorizados e
+  QEMU não foi usado; G3-N, G5, sentinela real e oráculos integrados restantes
+  continuam pendentes;
+- implementação e migração permanecem `In Progress`, prontidão `Not Ready` e
+  `EKM-CHG-0008` `Open`; nenhum AC integralmente promovido.
+
 ---
 
 ## EKM-CHG-0009 — Retirada transversal de QEMU

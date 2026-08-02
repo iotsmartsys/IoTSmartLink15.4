@@ -4,17 +4,16 @@
 // AC-004 (update and idempotency), AC-006 (last_seq never belongs to the blob, schema-size half)
 // and the structural load outcomes that AC-001/AC-007 require: absent, incompatible schema,
 // truncated, entry_count above capacity, null/broadcast/duplicate address and checksum coverage.
-// Every test drives device_registry.c (and, for the two "-partial-g3f"/"-partial-core" NVS-adapter
-// cases, device_registry_nvs.c) through the storage seam with an in-memory or NVS-ops fake. The
+// Tests drive device_registry.c/device_registry_nvs.c through storage seams and exercise the same
+// device_registry_policy.c decisions used by main.c for G1 policy coverage. The
 // app targets a physical esp32c3 and its runner captures the terminal Unity result over serial,
-// per docs/specs/Repository-Test-Execution-Policy.md (no QEMU).
+// per docs/specs/Repository-Test-Execution-Policy.md (physical runner only).
 //
 // Every TEST_CASE tag here is a "-partial-..." subset per the manifest rule in section 13: this
-// app exercises device_registry.c/device_registry_nvs.c in isolation (gates G2 and part of G3-F),
-// never the decision code integrated into main.c (G1), real NVS on physical hardware (G3-N), nor
+// app exercises G1 policy decisions, G2 and part of G3-F, but never real NVS on physical hardware
+// (G3-N) nor
 // the end-to-end radio/hardware flow (G5). No test here may claim a bare "[AC-00N]" label. Still
-// pending, and not claimed as evidence by this app: AC-005 (no case here at all — it needs the
-// integrated policy of G1); the NVS-initialization-error classes of AC-007
+// pending, and not claimed as complete evidence by this app: the NVS-initialization-error classes of AC-007
 // (ESP_ERR_NVS_NO_FREE_PAGES / ESP_ERR_NVS_NEW_VERSION_FOUND, which are decided in main.c, not
 // here); AC-007's sentinel/namespace-isolation evidence against real NVS (G3-N); and AC-001/AC-008's
 // mandatory real-hardware terminal execution (G3-N/G5). Compilation and fakes do not substitute
@@ -23,6 +22,7 @@
 #include <string.h>
 
 #include "device_registry.h"
+#include "device_registry_policy.h"
 #include "unity.h"
 
 #define BLOB_CAPACITY 128
@@ -576,6 +576,90 @@ TEST_CASE("production adapter propagates post-staging commit failure", "[device_
     TEST_ASSERT_TRUE(device_registry_find(kAddrA, NULL, NULL));
     TEST_ASSERT_FALSE(device_registry_find(kAddrB, NULL, NULL));
     device_registry_nvs_reset_ops_for_test();
+}
+
+TEST_CASE("integrated discovery policy preserves registry and window precedence", "[device_registry][AC-001-partial-g1][AC-007-partial-g1]")
+{
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_DISCOVERY_REJECT_UNAVAILABLE,
+                      device_registry_policy_discovery(DEVICE_REGISTRY_STATE_UNAVAILABLE, true));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_DISCOVERY_REJECT_UNAVAILABLE,
+                      device_registry_policy_discovery(DEVICE_REGISTRY_STATE_UNAVAILABLE, false));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_DISCOVERY_REJECT_WINDOW_CLOSED,
+                      device_registry_policy_discovery(DEVICE_REGISTRY_STATE_READY, false));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_DISCOVERY_PROCESS,
+                      device_registry_policy_discovery(DEVICE_REGISTRY_STATE_READY, true));
+}
+
+TEST_CASE("integrated discovery response follows durable pairing outcome", "[device_registry][AC-001-partial-g1][AC-002-partial-g1][AC-003-partial-g1]")
+{
+    TEST_ASSERT_TRUE(device_registry_policy_discovery_response(DEVICE_REGISTRY_PAIR_KNOWN));
+    TEST_ASSERT_TRUE(device_registry_policy_discovery_response(DEVICE_REGISTRY_PAIR_UPDATED));
+    TEST_ASSERT_TRUE(device_registry_policy_discovery_response(DEVICE_REGISTRY_PAIR_CREATED));
+    TEST_ASSERT_FALSE(device_registry_policy_discovery_response(DEVICE_REGISTRY_PAIR_REJECTED_FULL));
+    TEST_ASSERT_FALSE(device_registry_policy_discovery_response(DEVICE_REGISTRY_PAIR_FAILED));
+}
+
+TEST_CASE("integrated data policy fails closed when registry is unavailable", "[device_registry][AC-007-partial-g1]")
+{
+    const device_registry_data_effects_t effects = device_registry_policy_data(
+        DEVICE_REGISTRY_STATE_UNAVAILABLE, true, true, false);
+    TEST_ASSERT_FALSE(effects.emit_host_event);
+    TEST_ASSERT_FALSE(effects.emit_ack);
+    TEST_ASSERT_FALSE(effects.log_unknown_device);
+    TEST_ASSERT_TRUE(effects.log_registry_unavailable);
+}
+
+TEST_CASE("integrated data policy keeps an unknown origin unpaired", "[device_registry][AC-005-partial-g1]")
+{
+    device_registry_data_effects_t effects = device_registry_policy_data(
+        DEVICE_REGISTRY_STATE_READY, false, false, false);
+    TEST_ASSERT_FALSE(effects.emit_host_event);
+    TEST_ASSERT_FALSE(effects.emit_ack);
+    TEST_ASSERT_TRUE(effects.log_unknown_device);
+
+    effects = device_registry_policy_data(DEVICE_REGISTRY_STATE_READY, true, false, false);
+    TEST_ASSERT_TRUE(effects.emit_host_event);
+    TEST_ASSERT_TRUE(effects.emit_ack);
+    TEST_ASSERT_FALSE(effects.log_unknown_device);
+    TEST_ASSERT_FALSE(effects.log_registry_unavailable);
+}
+
+TEST_CASE("integrated data policy preserves volatile duplicate effects", "[device_registry][AC-006-partial-g1]")
+{
+    device_registry_data_effects_t effects = device_registry_policy_data(
+        DEVICE_REGISTRY_STATE_READY, false, true, false);
+    TEST_ASSERT_TRUE(effects.emit_host_event);
+    TEST_ASSERT_TRUE(effects.emit_ack);
+
+    effects = device_registry_policy_data(DEVICE_REGISTRY_STATE_READY, false, true, true);
+    TEST_ASSERT_FALSE(effects.emit_host_event);
+    TEST_ASSERT_TRUE(effects.emit_ack);
+}
+
+TEST_CASE("integrated ack policy requires ready registry identity and correlation", "[device_registry][AC-007-partial-g1][AC-008-partial-g1]")
+{
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_ACK_REJECT_UNAVAILABLE,
+                      device_registry_policy_ack(DEVICE_REGISTRY_STATE_UNAVAILABLE, true, true));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_ACK_IGNORE,
+                      device_registry_policy_ack(DEVICE_REGISTRY_STATE_READY, false, true));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_ACK_IGNORE,
+                      device_registry_policy_ack(DEVICE_REGISTRY_STATE_READY, true, false));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_ACK_COMPLETE,
+                      device_registry_policy_ack(DEVICE_REGISTRY_STATE_READY, true, true));
+}
+
+TEST_CASE("host command policy applies validity registry pending and identity precedence", "[device_registry][AC-005-partial-g1][AC-007-partial-g1]")
+{
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_HOST_COMMAND_INVALID_ADDRESS,
+                      device_registry_policy_host_command(false, DEVICE_REGISTRY_STATE_UNAVAILABLE, true, false));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_HOST_COMMAND_REGISTRY_UNAVAILABLE,
+                      device_registry_policy_host_command(true, DEVICE_REGISTRY_STATE_UNAVAILABLE, true, false));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_HOST_COMMAND_PENDING,
+                      device_registry_policy_host_command(true, DEVICE_REGISTRY_STATE_READY, true, true));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_HOST_COMMAND_UNKNOWN_DEVICE,
+                      device_registry_policy_host_command(true, DEVICE_REGISTRY_STATE_READY, false, false));
+    TEST_ASSERT_EQUAL(DEVICE_REGISTRY_HOST_COMMAND_START,
+                      device_registry_policy_host_command(true, DEVICE_REGISTRY_STATE_READY, false, true));
 }
 
 void app_main(void)

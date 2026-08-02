@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "test_device_registry.c" "../../../main/device_registry.c" "../../../main/device_registry_nvs.c"
+    SRCS "test_device_registry.c" "../../../main/device_registry.c" "../../../main/device_registry_nvs.c" "../../../main/device_registry_policy.c"
     INCLUDE_DIRS "." "../../../main"
     REQUIRES unity nvs_flash
 )

@@ -1680,3 +1680,78 @@ Depois, repetir revisão integral. Estados preservados: normativo `Proposed`,
 implementação funcional e migração de validação `In Progress`, prontidão
 `Not Ready`, revisão de implementabilidade `Implementable` e
 `EKM-CHG-0008` `Open`.
+
+### 16.17 Implementação corretiva de política e runner v0.4 (Engenheiro Implementador, 01/08/2026)
+
+Ordem recebida: atuar como Engenheiro Implementador sobre a especificação
+integral. Condições de entrada confirmadas: branch
+`gap0006-radio-diagnostics`, derivada da `main`, árvore limpa no início e
+revisão de implementabilidade `Implementable`.
+
+**Resultado material:**
+
+- criados `coordinator_154/main/device_registry_policy.{h,c}` como abstração
+  local autorizada pela seção 2.4. O mesmo código agora decide a precedência e
+  os efeitos permitidos para `DISCOVERY_REQ`, `DATA`, `ACK` e comando do host
+  tanto no runtime de produção quanto nos testes;
+- `main.c` passou a consumir essas decisões. Para comando do host, a ordem é
+  validade do endereço, disponibilidade do registry, comando pendente e
+  identidade. Assim, a combinação comando pendente + registry indisponível
+  retorna `registry unavailable`, corrigindo o achado nº3 da seção 16.16;
+- o runner físico foi alinhado à suíte corrente e agora exige exatamente
+  `24 Tests 0 Failures 0 Ignored`: os 17 casos anteriores mais sete casos de
+  política compartilhada. Isso corrige o achado nº1 da seção 16.16;
+- criado `test_apps/device_registry_policy_host_test`, runner host-native que
+  compila o próprio `device_registry_policy.c` com stubs mínimos apenas para
+  os tipos não materiais de ESP-IDF. Ele confronta precedência de discovery,
+  resposta somente após resultado persistente de pareamento, fail-closed de
+  `DATA`, origem desconhecida com janela aberta/fechada, deduplicação, ACK e
+  comando do host.
+
+**Inventário de entradas e efeitos:**
+
+| Entrada | Código compartilhado usado por `main.c` | Precedência/efeitos |
+|---|---|---|
+| `DISCOVERY_REQ` | `device_registry_policy_discovery()` e `device_registry_policy_discovery_response()` | unavailable antes da janela; resposta somente para known/updated/created |
+| `DATA` | `device_registry_policy_data()` | unavailable sem evento/ACK; desconhecido fechado sem efeitos; conhecido preserva evento/dedup/ACK |
+| `ACK` | `device_registry_policy_ack()` | unavailable não conclui; Ready exige identidade e todas as correlações |
+| comando do host | `device_registry_policy_host_command()` | validade, unavailable, pending, identidade; só então inicia TX |
+
+Varredura das operações NVS destrutivas em `coordinator_154/main` não encontrou
+`nvs_flash_erase`, `nvs_erase_all` nem `nvs_erase_key`. A política não contém
+operação de persistência; `DATA`, `ACK` e comando não podem criar entrada.
+
+**Evidência terminal desta atuação:**
+
+| Critério | Cenário | Gate | Teste/comando | Alvo/ambiente | Casos | Resultado | Oráculo | Classificação/limitação |
+|---|---|---|---|---|---:|---|---|---|
+| AC-001/002/003/005/006/007/008 | decisões compartilhadas de discovery, DATA, ACK e host | G1 | `cmake -S test_apps/device_registry_policy_host_test -B /tmp/device_registry_policy_host_test_build -DCMAKE_BUILD_TYPE=Release && cmake --build /tmp/device_registry_policy_host_test_build && ctest --test-dir /tmp/device_registry_policy_host_test_build --output-on-failure` | host-native, AppleClang 21, stubs somente de tipos | 7 | código 0; `7 Tests 0 Failures 0 Ignored` | ações e flags de evento, ACK, logs, resposta, conclusão e TX permitida | `Partial`: não executa ordem integral de callbacks, reboot/NVS real nem rádio |
+| AC-001..008 | fonte Unity ampliada | G1/G2/G3-F parciais | `idf.py -B build_impl_c3 -DIDF_TARGET=esp32c3 build` | ESP-IDF 6.0.1, ESP32-C3 | 24 escritos, 0 executados | código 0; binário `0x24a30` bytes, SHA-256 `311e92fbcaa6bf289811bdbe27334c809f174ec6129f8ecba783fb4a74006889` | compilação/link dos casos e política real | `Not Executed` comportamentalmente; G4 de app apenas |
+| AC-008 | composição de produção | G4 | `idf.py -B build_impl_c6 -DIDF_TARGET=esp32c6 build` | ESP-IDF 6.0.1, ESP32-C6 | 1 build | código 0; `central_154.bin` `0x45c60` bytes, SHA-256 `a672c78cc69da90a9659e34b4fb6c304569d43d8a86ae9401d7b2076ec26f568` | `main.c` ligado ao código compartilhado sem erro do compilador | `Approved` para G4 apenas |
+
+A primeira tentativa do build de produção não encontrou `idf.py` no `PATH`, e
+a segunda expôs ambiente Python não selecionado; ambas terminaram com erro. A
+terceira ativou explicitamente o Python 3.14 da instalação ESP-IDF 6.0.1 e
+terminou com código 0, sendo a evidência considerada.
+
+Na reconstrução terminal dos artefatos finais, a tentativa sem ativar o
+ambiente selecionou Python 3.11 e falhou antes do build; a primeira tentativa
+C3 foi bloqueada pelo sandbox na consulta `psutil`. As repetições com o
+ambiente Python 3.14 explícito e, para C3, permissão somente de build,
+terminaram com código 0. Nenhuma dessas tentativas executou flash ou testes.
+
+**Confronto adversarial e débitos preservados:** uma política que inverta
+unavailable/pending, permita efeitos de `DATA` indisponível, conclua ACK sem
+identidade ou responda a pairing failed reprova o runner host-native. Porém,
+uma integração que deixe de executar um callback esperado ainda pode escapar
+do teste puramente decisório; por isso G1 e G3-F permanecem parciais para os
+ACs que exigem ordem e efeitos completos. G3-N e G5 continuam `Not Executed`:
+nenhuma porta ESP32-C3/C6 foi detectada, e não houve ordem de flash/monitor.
+As classes de inicialização NVS e a sentinela contra NVS real de AC-007 também
+permanecem pendentes. QEMU não foi usado.
+
+**Estado resultante:** implementação funcional e migração de validação
+`In Progress`, prontidão `Not Ready`, revisão `Implementable` e
+`EKM-CHG-0008` `Open`. Nenhum AC é promovido integralmente a `Approved` e a
+implementação não é promovida para `Implemented`, pois os gates físicos e os
+oráculos integrados restantes ainda são obrigatórios.

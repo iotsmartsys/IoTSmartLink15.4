@@ -18,6 +18,7 @@
 #include "nvs_flash.h"
 
 #include "device_registry.h"
+#include "device_registry_policy.h"
 #include "iot154_packet.h"
 #include "iot154_radio.h"
 
@@ -1017,51 +1018,42 @@ static bool transmit_pending_command(void)
     return true;
 }
 
-/// @brief Outcome of a host-command intake attempt, precise enough to keep RegistryUnavailable
-/// distinguishable from an unknown identity per section 5.1's precedence rule (COORD-REG-011).
-typedef enum
-{
-    HOST_COMMAND_START_OK = 0,
-    HOST_COMMAND_START_PENDING,
-    HOST_COMMAND_START_INVALID_ADDR,
-    HOST_COMMAND_START_REGISTRY_UNAVAILABLE,
-    HOST_COMMAND_START_UNKNOWN_DEVICE,
-} host_command_start_result_t;
-
-static host_command_start_result_t start_host_command(const char *host_device_id,
-                               const char *host_request_device_id,
-                               const char *capability_name,
-                               const char *host_value,
-                               uint8_t endpoint_id,
-                               uint8_t event_type,
-                               uint8_t value)
+static device_registry_host_command_action_t start_host_command(const char *host_device_id,
+                                                                  const char *host_request_device_id,
+                                                                  const char *capability_name,
+                                                                  const char *host_value,
+                                                                  uint8_t endpoint_id,
+                                                                  uint8_t event_type,
+                                                                  uint8_t value)
 {
     uint8_t ext_addr[IOT154_EXT_ADDR_LEN] = {0};
-    if (s_pending_command.active)
+    const bool address_valid = parse_host_ext_addr(host_device_id, ext_addr);
+    const device_registry_state_t registry_state = device_registry_state();
+    uint32_t known_device_id = 0;
+    const bool target_known = address_valid && registry_state == DEVICE_REGISTRY_STATE_READY &&
+                              device_registry_find(ext_addr, &known_device_id, NULL);
+    const device_registry_host_command_action_t action = device_registry_policy_host_command(
+        address_valid, registry_state, s_pending_command.active, target_known);
+
+    if (action == DEVICE_REGISTRY_HOST_COMMAND_PENDING)
     {
         ESP_LOGW(TAG, "command rejected: another command is pending seq=%u",
                  (unsigned)s_pending_command.sequence);
-        return HOST_COMMAND_START_PENDING;
+        return action;
     }
-
-    if (!parse_host_ext_addr(host_device_id, ext_addr))
+    if (action == DEVICE_REGISTRY_HOST_COMMAND_INVALID_ADDRESS)
     {
-        return HOST_COMMAND_START_INVALID_ADDR;
+        return action;
     }
-
-    /* Section 5.1 precedence: RegistryUnavailable must be resolved before origin/identity, so a
-       lookup failure caused by an unavailable registry is never reported as an unknown device. */
-    if (device_registry_state() != DEVICE_REGISTRY_STATE_READY)
+    if (action == DEVICE_REGISTRY_HOST_COMMAND_REGISTRY_UNAVAILABLE)
     {
         ESP_LOGW("DEVICE_REGISTRY", "command rejected reason=registry_unavailable dev=%s", host_device_id);
-        return HOST_COMMAND_START_REGISTRY_UNAVAILABLE;
+        return action;
     }
-
-    uint32_t known_device_id = 0;
-    if (!device_registry_find(ext_addr, &known_device_id, NULL))
+    if (action == DEVICE_REGISTRY_HOST_COMMAND_UNKNOWN_DEVICE)
     {
         ESP_LOGW(TAG, "command target not known dev=%s", host_device_id);
-        return HOST_COMMAND_START_UNKNOWN_DEVICE;
+        return action;
     }
 
     ++s_next_command_seq;
@@ -1089,7 +1081,7 @@ static host_command_start_result_t start_host_command(const char *host_device_id
             sizeof(s_pending_command.host_value));
 
     (void)transmit_pending_command();
-    return HOST_COMMAND_START_OK;
+    return DEVICE_REGISTRY_HOST_COMMAND_START;
 }
 
 static void complete_pending_command(bool accepted, const char *error)
@@ -1206,30 +1198,30 @@ static void handle_host_line(char *line)
         return;
     }
 
-    const host_command_start_result_t start_result = start_host_command(host_device_id,
-                            device_id_text,
-                            capability_name,
-                            value,
-                            endpoint_id,
-                            event_type,
-                            event_value);
-    if (start_result != HOST_COMMAND_START_OK)
+    const device_registry_host_command_action_t start_result = start_host_command(host_device_id,
+                                                                                   device_id_text,
+                                                                                   capability_name,
+                                                                                   value,
+                                                                                   endpoint_id,
+                                                                                   event_type,
+                                                                                   event_value);
+    if (start_result != DEVICE_REGISTRY_HOST_COMMAND_START)
     {
         /* COORD-REG-011/5.1: report the precise reason so RegistryUnavailable is never surfaced
            to the host as "target not known" (unknown identity). */
         const char *reason;
         switch (start_result)
         {
-        case HOST_COMMAND_START_PENDING:
+        case DEVICE_REGISTRY_HOST_COMMAND_PENDING:
             reason = "another command is pending";
             break;
-        case HOST_COMMAND_START_REGISTRY_UNAVAILABLE:
+        case DEVICE_REGISTRY_HOST_COMMAND_REGISTRY_UNAVAILABLE:
             reason = "registry unavailable";
             break;
-        case HOST_COMMAND_START_INVALID_ADDR:
+        case DEVICE_REGISTRY_HOST_COMMAND_INVALID_ADDRESS:
             reason = "invalid issp154 device id";
             break;
-        case HOST_COMMAND_START_UNKNOWN_DEVICE:
+        case DEVICE_REGISTRY_HOST_COMMAND_UNKNOWN_DEVICE:
         default:
             reason = "target not known";
             break;
@@ -1411,13 +1403,15 @@ void app_main(void)
             {
                 char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
                 format_ext_addr(mac.src_ext, sensor_mac_text, sizeof(sensor_mac_text));
-                if (device_registry_state() != DEVICE_REGISTRY_STATE_READY)
+                const device_registry_discovery_action_t discovery_action =
+                    device_registry_policy_discovery(device_registry_state(), s_join_window_open);
+                if (discovery_action == DEVICE_REGISTRY_DISCOVERY_REJECT_UNAVAILABLE)
                 {
                     ESP_LOGW("COMMISSIONING",
                              "discovery ignored reason=registry_unavailable dev=0x%08" PRIx32,
                              packet.device_id);
                 }
-                else if (!s_join_window_open)
+                else if (discovery_action == DEVICE_REGISTRY_DISCOVERY_REJECT_WINDOW_CLOSED)
                 {
                     ESP_LOGI("COMMISSIONING",
                              "discovery ignored reason=join_window_closed dev=0x%08" PRIx32,
@@ -1427,9 +1421,7 @@ void app_main(void)
                 {
                     const device_registry_pair_result_t pair_result =
                         device_registry_pair(mac.src_ext, packet.device_id);
-                    if (pair_result == DEVICE_REGISTRY_PAIR_KNOWN ||
-                        pair_result == DEVICE_REGISTRY_PAIR_UPDATED ||
-                        pair_result == DEVICE_REGISTRY_PAIR_CREATED)
+                    if (device_registry_policy_discovery_response(pair_result))
                     {
                         ESP_LOGI("COMMISSIONING",
                                  "discovery accepted dev=0x%08" PRIx32 " seq=%u sensor=%s",
@@ -1450,49 +1442,44 @@ void app_main(void)
                      mac.src_mode == IOT154_ADDR_MODE_EXT)
             {
                 size_t registry_index = 0;
-                if (device_registry_state() != DEVICE_REGISTRY_STATE_READY)
+                const device_registry_state_t registry_state = device_registry_state();
+                const bool origin_known = registry_state == DEVICE_REGISTRY_STATE_READY &&
+                                          device_registry_find(mac.src_ext, NULL, &registry_index);
+                const bool duplicate = origin_known &&
+                                       is_known_data_duplicate(registry_index, packet.seq);
+                const device_registry_data_effects_t data_effects = device_registry_policy_data(
+                    registry_state, s_join_window_open, origin_known, duplicate);
+                if (data_effects.log_registry_unavailable)
                 {
                     ESP_LOGW("DEVICE_REGISTRY",
                              "frame ignored reason=registry_unavailable dev=0x%08" PRIx32,
                              packet.device_id);
                 }
-                else if (!device_registry_find(mac.src_ext, NULL, &registry_index))
+                else if (data_effects.log_unknown_device)
                 {
-                    if (!s_join_window_open)
-                    {
-                        char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
-                        format_ext_addr(mac.src_ext, sensor_mac_text, sizeof(sensor_mac_text));
-                        ESP_LOGI("DEVICE_REGISTRY",
-                                 "frame ignored reason=unknown_device dev=0x%08" PRIx32 " sensor=%s",
-                                 packet.device_id, sensor_mac_text);
-                        /* discarded per COORD-REG-007/008: no ACK, no host event, no registry write */
-                    }
-                    else
-                    {
-                        /* Join window open, unknown origin: acceptance policy is out of this spec's
-                           scope (section 9); preserve prior processing without creating persistence. */
-                        ESP_LOGI(TAG,
-                                 "DATA new dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u",
-                                 packet.device_id, packet.seq, packet.endpoint_id, packet.event_type, packet.value);
-                        host_send_event(mac.src_ext, packet.endpoint_id, packet.event_type, packet.value);
-                        send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
-                    }
+                    char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
+                    format_ext_addr(mac.src_ext, sensor_mac_text, sizeof(sensor_mac_text));
+                    ESP_LOGI("DEVICE_REGISTRY",
+                             "frame ignored reason=unknown_device dev=0x%08" PRIx32 " sensor=%s",
+                             packet.device_id, sensor_mac_text);
                 }
                 else
                 {
-                    const bool duplicate = is_known_data_duplicate(registry_index, packet.seq);
                     if (duplicate)
                     {
                         ESP_LOGI(TAG, "DATA duplicate dev=0x%08" PRIx32 " seq=%u", packet.device_id, packet.seq);
                     }
-                    else
+                    else if (data_effects.emit_host_event)
                     {
                         ESP_LOGI(TAG,
                                  "DATA new dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u",
                                  packet.device_id, packet.seq, packet.endpoint_id, packet.event_type, packet.value);
                         host_send_event(mac.src_ext, packet.endpoint_id, packet.event_type, packet.value);
                     }
-                    send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
+                    if (data_effects.emit_ack)
+                    {
+                        send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
+                    }
                 }
             }
             else if (packet.msg_type == IOT154_MSG_ACK &&
@@ -1504,14 +1491,16 @@ void app_main(void)
                 const bool registry_ready = device_registry_state() == DEVICE_REGISTRY_STATE_READY;
                 const bool origin_known = registry_ready &&
                                           device_registry_find(mac.src_ext, &known_device_id, NULL);
-                const bool matches_pending = s_pending_command.active &&
-                                             packet.device_id == s_pending_command.device_id &&
-                                             packet.seq == s_pending_command.sequence &&
-                                             packet.endpoint_id == s_pending_command.endpoint_id &&
-                                             iot154_ext_addr_equal(mac.src_ext,
-                                                                   s_pending_command.destination) &&
-                                             origin_known &&
-                                             known_device_id == packet.device_id;
+                const bool pending_correlations_match = s_pending_command.active &&
+                                                        packet.device_id == s_pending_command.device_id &&
+                                                        packet.seq == s_pending_command.sequence &&
+                                                        packet.endpoint_id == s_pending_command.endpoint_id &&
+                                                        iot154_ext_addr_equal(mac.src_ext,
+                                                                              s_pending_command.destination) &&
+                                                        known_device_id == packet.device_id;
+                const device_registry_ack_action_t ack_action = device_registry_policy_ack(
+                    device_registry_state(), origin_known, pending_correlations_match);
+                const bool matches_pending = ack_action == DEVICE_REGISTRY_ACK_COMPLETE;
                 ESP_LOGI(TAG,
                          "CMD ACK dev=0x%08" PRIx32 " seq=%u endpoint=%u status=%u match_pending=%s",
                          packet.device_id,
@@ -1519,7 +1508,7 @@ void app_main(void)
                          packet.endpoint_id,
                          packet.value,
                          matches_pending ? "yes" : "no");
-                if (!registry_ready)
+                if (ack_action == DEVICE_REGISTRY_ACK_REJECT_UNAVAILABLE)
                 {
                     ESP_LOGW("DEVICE_REGISTRY", "frame ignored reason=registry_unavailable");
                 }
