@@ -542,60 +542,61 @@ usar a mudança como prova prática da EKM.
 
 - direção arquitetural aprovada pelo Arquiteto (ordem recebida fora deste
   documento); a especificação permanece `Proposed` e `Not Started`;
-- Engenheiro Analista confrontou a especificação integralmente contra o
-  estado atual do repositório: `client_154/main/main.cpp`,
-  `client_154/main/CMakeLists.txt`, `client_154/CMakeLists.txt`,
-  `components/issp_app_154/include/SmartSysApp.h` e
-  `components/issp_app_154/CMakeLists.txt` foram inspecionados diretamente;
-  os valores de baseline da decisão 8 conferem exatamente com
-  `client_154/main/main.cpp` atual;
-- confirmado precedente técnico local para composição condicional por
-  `IDF_TARGET` em `components/issp_app_154/CMakeLists.txt` e o símbolo
-  `CONFIG_IDF_TARGET_ESP32H2` já presente em `client_154/sdkconfig`, o que
-  sustenta a viabilidade do mecanismo Kconfig/CMake proposto para
-  compatibilidade board/target;
-- confirmado por busca em `components/issp_core`, `components/issp_behaviors`,
-  `components/issp_transport_154` e `components/issp_app_154` que nenhum
-  símbolo `CONFIG_*` de seleção de produto ou board existe hoje nesses
-  componentes;
-- as cinco "Questões para decisão antes da implementação" da especificação
-  foram avaliadas: as quatro primeiras já são respondidas por outras seções
-  da mesma versão (identificador descritivo de board permitido; segunda
-  variante e catálogo de boards fora do recorte da primeira entrega); a
-  quinta (forma do contrato de `product_firmware.hpp`) é grau de liberdade de
-  implementação já delegado pela própria especificação, não decisão
-  normativa ausente;
-- nenhuma decisão normativa, de produto ou de arquitetura ausente foi
-  encontrada no recorte necessário para a primeira migração (tomada simples +
-  um board); a especificação é promovida para `Implementable`, preservando
-  `Not Started` e `Not Ready`;
-- observações não bloqueantes registradas na própria especificação: os
-  arquivos `client_154/sdkconfig.esp32c6`/`.esp32h2`/`.old` são artefatos
-  gerados versionados e não representam um segundo board validado; os
-  critérios de "Navegabilidade EKOM" exigem evidência de caminhada guiada, não
-  apenas asserção binária; os testes 1, 3, 4 e 5 da estratégia de validação do
-  experimento dependem de uma segunda variante ou board reais e ficam fora do
-  recorte assertável desta entrega;
+- o Engenheiro Analista confrontou a versão integral da especificação contra o
+  estado do repositório no commit `adebfa2`, tratando a análise anterior como
+  não aprovada. Resultado: `Needs Clarification`, substituindo a promoção a
+  `Implementable` registrada antes nesta transação;
+- viabilidade técnica confirmada: `client_154/main` é componente ESP-IDF
+  registrado, o que sustenta `Kconfig.projbuild`; a seleção condicional de
+  fontes tem precedente local direto em `components/issp_app_154/CMakeLists.txt`;
+  os valores de baseline da decisão 8 conferem com `client_154/main/main.cpp`; e
+  nenhum símbolo `CONFIG_*` de produto ou board existe hoje em `components/issp_*`;
+- suficiência da API pública de `SmartSysApp`: basta para a tomada simples e
+  também para tomada dupla + luz (`kMaxSwitchCapabilities = 8`); não basta para
+  sensor de porta ou de presença, que exigiriam estender a API governada por
+  `ISSP-Configurable-Bootstrap.md`, hoje `Active`/`Validated`;
+- bloqueio 1, afetando a Fase 1: a especificação não declara com quais targets a
+  fiação atual do `client_154` é compatível, e o fato não é derivável do código.
+  As fontes locais conflitam — o mapa valida apenas ESP32-H2, enquanto
+  `components/issp_app_154/CMakeLists.txt` trata `esp32h2` e `esp32c6` como
+  targets de hardware completos. Qualquer saída exige inferência de produto ou
+  torna não avaliável o critério de incompatibilidade board/target;
+- bloqueio 2, afetando a Fase 1: o critério de preservação exige comportamento
+  executado, mas a composição real não roda sob QEMU, e o conjunto de builds e
+  testes é delegado pela especificação a ela mesma. Falta declarar o oráculo
+  (equivalência estática ou hardware ESP32-H2) e nomear a validação exigida;
+- a escolha da segunda variante não bloqueia escrever a Fase 1, mas bloqueia o
+  encerramento do experimento e determina se haverá trabalho na plataforma
+  compartilhada;
+- dos seis testes da estratégia EKOM, apenas o teste 3 está integralmente
+  bloqueado; os testes 1, 2 e 4 são executáveis na Fase 1 e os testes 5 e 6 têm
+  parte executável e parte dependente dos bloqueios acima. A avaliação
+  individual está registrada na especificação;
 - nenhuma implementação, protocolo, transporte, commissioning, ACK, retry,
-  reports, NVS ou factory reset alterados nesta etapa; esta atuação não
-  autoriza início de implementação.
+  reports, NVS ou factory reset alterados nesta etapa.
 
 ### Critérios de encerramento
 
-- especificação `Implementable` recebe ordem explícita do Arquiteto para
-  implementar;
+- bloqueios 1 e 2 decididos pelo Arquiteto e refletidos na especificação;
+- especificação promovida a `Implementable` por nova análise sobre a versão
+  reconciliada;
+- ordem explícita do Arquiteto para implementar;
 - migração da tomada simples implementada conforme os pontos reais afetados;
-- critérios de aceite de seleção/build, fronteiras, preservação do produto
-  atual e navegabilidade EKOM avaliados com evidência;
+- critérios de aceite de seleção/build, fronteiras, preservação do produto atual
+  e navegabilidade EKOM avaliados com evidência e oráculo declarados;
+- segunda variante escolhida e teste 3 executado para encerrar o experimento;
 - mapa de conhecimento e especificação reconciliados;
 - Definition of Done EKM respondida integralmente.
 
 ### Evidências atuais
 
-- inspeção direta do entrypoint, `CMakeLists.txt` do `client_154` e da API
-  pública/CMake de `components/issp_app_154`;
+- inspeção direta de `client_154/main/main.cpp`, `client_154/main/CMakeLists.txt`,
+  `client_154/CMakeLists.txt`, `components/issp_app_154/{include/SmartSysApp.h,
+  CMakeLists.txt,src/smart_sys_app_impl.hpp}`, `components/issp_core/include/issp_limits.hpp`
+  e `examples/issp_minimal_client/main/main.cpp`;
 - busca por símbolos `CONFIG_*` nos componentes `issp_*`;
-- comparação byte-a-byte dos valores de baseline da decisão 8 contra
-  `client_154/main/main.cpp`;
+- comparação dos valores de baseline da decisão 8 contra o entrypoint atual;
+- confronto das fontes locais sobre targets suportados pelo `client_154`, que
+  expôs o conflito de precedentes registrado no bloqueio 1;
 - nenhuma implementação, factory reset, report inicial, wire ou persistência
   alterados nesta etapa.

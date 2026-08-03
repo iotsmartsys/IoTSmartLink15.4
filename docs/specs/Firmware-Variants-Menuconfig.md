@@ -2,7 +2,7 @@
 
 **Estado normativo:** Proposed
 **Estado da implementação:** Not Started
-**Revisão de implementabilidade:** Implementable
+**Revisão de implementabilidade:** Needs Clarification
 **Prontidão:** Not Ready
 
 ## Missão
@@ -312,91 +312,137 @@ arquitetural ou autorização para implementar.
 
 ## Revisão de implementabilidade (Engenheiro Analista)
 
-**Resultado:** Implementável [`Implementable`]. Preserva `Not Started` e
-`Not Ready`; não autoriza início de implementação.
+**Resultado:** Precisa de esclarecimento [`Needs Clarification`] para a versão
+integral. Preserva `Not Started` e `Not Ready`; não autoriza início de
+implementação.
 
-### Confronto realizado
+A Fase 1 estrutural (migração da tomada simples com um único board) é
+tecnicamente viável e tem escopo de diff determinado, mas não fica implementável
+enquanto o bloqueio 1 não for decidido, porque ele condiciona um critério de
+aceite obrigatório da própria Fase 1.
 
-- `client_154/main/main.cpp` inspecionado: os valores de baseline citados na
-  decisão 8 (`0x15400001`, GPIO 13 ativo em nível alto, GPIO 9 ativo em nível
-  baixo por 10000 ms, endpoint 1, event type 2, estado inicial desligado,
-  report inicial habilitado) conferem exatamente com o "Estado atual
-  observado";
-- `client_154/main/CMakeLists.txt` e `client_154/CMakeLists.txt` inspecionados:
-  a dependência pública hoje é somente `issp_app_154`, e
-  `EXTRA_COMPONENT_DIRS`/`MINIMAL_BUILD` já existem como declarados na tabela
-  de pontos afetados;
-- `components/issp_app_154/include/SmartSysApp.h` inspecionado: a API pública
-  (`addSwitchPlugCapability`, `configureFactoryResetButton`, `setup()`) é
-  suficiente para compor a variante tomada simples sem expor tipo privado
-  `issp_*`, conforme exigido pela seção de fronteiras;
-- `components/issp_app_154/CMakeLists.txt` inspecionado: já existe precedente
-  local de composição condicional por `IDF_TARGET` (via
-  `idf_build_get_property(... IDF_TARGET)` e comparação de string), o que
-  confirma a viabilidade técnica de restringir board/target tanto em
-  `Kconfig.projbuild` (`depends on IDF_TARGET_ESP32H2`, símbolo já presente em
-  `client_154/sdkconfig` como `CONFIG_IDF_TARGET_ESP32H2=y`) quanto em CMake
-  com `message(FATAL_ERROR ...)`;
-- `git ls-files` e busca por `CONFIG_` em `components/issp_core`,
-  `components/issp_behaviors`, `components/issp_transport_154` e
-  `components/issp_app_154` confirmam que hoje não existe símbolo `CONFIG_*`
-  de seleção de produto ou board nesses componentes (o único uso existente é
-  `CONFIG_IDF_TARGET_*`, próprio do ESP-IDF, não desta proposta) — a decisão 1
-  e o critério de fronteiras correspondente partem de uma baseline já limpa;
-- nenhum `Kconfig`/`Kconfig.projbuild` existe hoje no repositório; a proposta
-  não tem precedente local direto, mas usa mecanismo padrão do ESP-IDF já
-  referenciado pelo próprio build (`IDF_TARGET`), não introduzindo camada,
-  padrão arquitetural ou dependência nova fora do `client_154/main`, dentro do
-  que a decisão 4 já autoriza.
+### Viabilidade técnica confirmada contra o código
 
-### Decisões ausentes resolvidas por leitura integral da especificação
+- `client_154/main` é componente ESP-IDF registrado por `idf_component_register`,
+  então `main/Kconfig.projbuild` é o mecanismo padrão para criar a seção de topo
+  `IoTSmartLink15.4`. Não há `Kconfig*` no repositório hoje: a proposta não tem
+  precedente local direto, mas também não cria camada nova — fica contida em
+  `client_154/main`, dentro do que a decisão 4 autoriza;
+- a seleção condicional de fontes tem precedente local direto em
+  `components/issp_app_154/CMakeLists.txt`, que monta a lista `srcs`
+  condicionalmente e a passa a `idf_component_register`. Trocar a condição de
+  `IDF_TARGET` por símbolo `CONFIG_*` usa o mesmo padrão;
+- os valores de baseline da decisão 8 conferem exatamente com
+  `client_154/main/main.cpp`;
+- nenhum símbolo `CONFIG_*` de seleção de produto ou board existe hoje em
+  `components/issp_*`; o único uso é `CONFIG_IDF_TARGET_*`, próprio do ESP-IDF;
+- `client_154/CMakeLists.txt` não precisa de mudança: `EXTRA_COMPONENT_DIRS` já
+  aponta para `../components`, e `firmwares/`/`boards/` ficam dentro de `main`;
+- `examples/issp_minimal_client`, segundo consumidor da fachada, não é afetado.
 
-As "Questões para decisão antes da implementação" não bloqueiam a primeira
-migração porque já são respondidas por outras seções desta mesma versão:
+### Suficiência da API pública de `SmartSysApp`
 
-- nomes/revisões reais de boards e qual board representa a fiação atual: já
-  resolvido pela seção "Conceitos e fronteiras" — usar identificador
-  descritivo da fiação atual do `client_154`, sem nome comercial, até
-  confirmação;
-- segunda variante e combinações produto/board do primeiro menu: já limitado
-  pelo Escopo e pela seção "Estrutura proposta de arquivos" — a primeira
-  entrega contém somente `single_smart_plug` e o board da fiação atual;
-  demais escolhas do `choice` ficam fora até terem composição compilável;
-- forma do contrato mínimo de `product_firmware.hpp` (função livre ou
-  interface): delegada ao Implementador pela própria especificação
-  ("a opção mais simples que suportar duas variantes deve prevalecer") e pela
-  decisão 10 ("abstrações adicionais só serão criadas quando uma segunda
-  variante demonstrar a necessidade"); não é decisão normativa, de produto ou
-  de arquitetura ausente, e sim grau de liberdade de implementação já
-  autorizado.
+- suficiente para a tomada simples: `addSwitchPlugCapability`,
+  `configureFactoryResetButton` e `setup()` são exatamente o que `main.cpp` usa
+  hoje, sem expor tipo `issp_*`;
+- suficiente também para tomada dupla + luz:
+  `kMaxSwitchCapabilities = kMaxDeviceBehaviors = 8` permite múltiplas saídas
+  pela mesma API;
+- insuficiente para sensor de porta e sensor de presença: não existe capability
+  de entrada na fachada nem behavior de entrada em `issp_behaviors`. Essas
+  variantes exigiriam estender a API pública governada por
+  `docs/specs/ISSP-Configurable-Bootstrap.md`, hoje `Active`/`Validated`.
 
-Nenhuma decisão normativa, de produto ou de arquitetura ausente foi
-encontrada no recorte necessário para a primeira migração (tomada simples +
-um board).
+Consequência: a escolha da segunda variante não é indiferente. Ela determina se
+o experimento se fecha dentro do recorte atual ou se abre trabalho na plataforma
+compartilhada.
 
-### Observações não bloqueantes
+### Bloqueio 1 — compatibilidade board/`IDF_TARGET` (afeta a Fase 1)
 
-- `client_154/sdkconfig.esp32c6`, `client_154/sdkconfig.esp32h2` e
-  `client_154/sdkconfig.old` são artefatos gerados versionados na raiz de
-  `client_154` (fora do padrão de `.gitignore` usado para
-  `components/**/sdkconfig`). Nenhum deles declara um segundo board validado;
-  o Implementador não deve tratar `esp32c6` como wiring/board suportado pela
-  primeira migração, pois o único alvo validado para `client_154` no mapa de
-  conhecimento é `esp32h2`;
-- os critérios de "Navegabilidade EKOM" são avaliados por caminhada guiada
-  (pergunta/resposta usando mapa e especificação), não por asserção puramente
-  binária; a "Estratégia de validação do experimento EKOM" já define o
-  procedimento — Implementador/Revisor devem registrar a pergunta feita, a
-  resposta obtida e as fontes consultadas como evidência, em vez de apenas
-  declarar sucesso;
-- os testes 1, 3, 4 e 5 da "Estratégia de validação do experimento EKOM" que
-  dependem de uma segunda variante ou de um segundo board real permanecem
-  fora do recorte assertável nesta entrega, consistente com o Escopo; não
-  bloqueiam `Implementable` para a migração da tomada simples, mas também não
-  podem ser reivindicados como evidência de fechamento antes de existirem.
+A decisão 9 e o critério "board incompatível com `IDF_TARGET`" exigem falha
+diagnosticável, mas a especificação não declara com quais targets a fiação atual
+do `client_154` é compatível. O fato não é derivável do código — GPIO 13 e GPIO 9
+existem em ESP32-H2 e ESP32-C6 — e as fontes locais conflitam:
+
+- o mapa de conhecimento valida apenas ESP32-H2 para o `client_154`;
+- `components/issp_app_154/CMakeLists.txt` trata `esp32h2` e `esp32c6` como
+  targets de hardware completos;
+- `client_154/sdkconfig.esp32c6` e os diretórios `build_esp32c6` existem, mas são
+  anteriores à migração do bootstrap e não comprovam buildabilidade atual.
+
+Ambas as saídas exigem inferência de produto: um board apenas H2 estreita
+silenciosamente o alcance de targets do client; um board H2 + C6 elimina
+qualquer par incompatível na Fase 1 e torna o critério obrigatório não avaliável.
+Conforme a preservação arquitetural das regras comuns, o conflito de precedentes
+é registrado e a decisão devolvida ao Arquiteto.
+
+### Bloqueio 2 — conjunto de validação e oráculo da preservação
+
+- o critério "os testes e builds vigentes são executados" não nomeia nenhum
+  build ou teste, e o teste 6 da estratégia delega o conjunto "à futura
+  especificação implementável", que é esta própria versão;
+- o critério "quando o firmware inicia, então identidade, relé, reset, endpoint,
+  evento, estado inicial e report inicial são configurados com os mesmos
+  valores" exige comportamento executado. A composição real não roda sob QEMU:
+  os testes vigentes de `SmartSysApp` usam `SetupHooks` e modelo `esp32c3`, sem
+  rádio. É preciso declarar se o oráculo é equivalência estática da composição ou
+  validação em hardware ESP32-H2 pelo Arquiteto;
+- os critérios de aceite desta especificação não possuem identificadores
+  estáveis, ao contrário do precedente de `ISSP-Configurable-Bootstrap.md`
+  (`SMARTAPP-AC-*`), o que dificulta rastrear aprovação, reprovação e ausência de
+  execução.
+
+### Fase 1 e encerramento do experimento
+
+A escolha da segunda variante **não bloqueia escrever a Fase 1**:
+`Kconfig.projbuild`, seleção no CMake, `app_main.cpp` mínimo,
+`firmwares/single_smart_plug.cpp` e o board da fiação atual são determinados pelo
+estado atual do código, e o contrato mínimo por função livre selecionada no CMake
+suporta qualquer segunda variante sem retrabalho estrutural.
+
+Ela **bloqueia encerrar o experimento**: o teste 3 é exatamente essa prova, e a
+escolha muda o custo arquitetural conforme a suficiência da API acima. Não
+implementar todas as variantes autoriza entregar uma composição compilável de
+cada vez; não autoriza declarar a separação provada com uma só.
+
+### Avaliação individual dos seis testes da estratégia EKOM
+
+| # | Teste | Executável na Fase 1 | Dependência exata |
+|---|---|---|---|
+| 1 | Orientação | Sim | Nenhuma; é navegação por mapa e especificação, não exige código do sensor. Falta apenas o protocolo de evidência: pergunta feita, resposta obtida e fontes consultadas |
+| 2 | Mudança controlada | Sim | Oráculo disponível: escopo do diff contra a tabela de pontos reais afetados |
+| 3 | Segunda composição | Não | Escolha da segunda variante pelo Arquiteto; planejar também depende dela, porque tomada dupla + luz e os sensores têm consequências opostas na API pública |
+| 4 | Classificação | Sim | Nenhuma; é exercício de taxonomia contra a árvore de conhecimento |
+| 5 | Seleção | Parcial | Confirmar uma variante e um board nos artefatos de build é executável. O caso de incompatibilidade não exige segundo board — basta um target não suportado — mas depende do bloqueio 1 |
+| 6 | Preservação | Parcial | A comparação estática dos valores de baseline é executável; a parte executada e o conjunto de builds e testes dependem do bloqueio 2 |
+
+Nenhum teste é excluído por conveniência: apenas o teste 3 está integralmente
+bloqueado, e os testes 5 e 6 têm parte executável e parte dependente dos bloqueios
+registrados acima.
+
+### Decisões reservadas ao Arquiteto
+
+1. targets compatíveis com a fiação atual do `client_154` e se ESP32-C6 é target
+   suportado do client (bloqueia a Fase 1);
+2. oráculo do critério de preservação e conjunto nomeado de builds e testes
+   (bloqueia a Fase 1);
+3. qual segunda variante prova a separação e, se for um sensor, autorização
+   prévia para estender a API governada por `ISSP-Configurable-Bootstrap.md`
+   (bloqueia o encerramento do experimento, não a Fase 1);
+4. nomes e revisões reais dos boards; o identificador descritivo autorizado vira
+   símbolo `CONFIG_*` público e terá custo de renomeação posterior (não
+   bloqueante);
+5. se `client_154/sdkconfig` versionado deve receber os novos símbolos e qual é o
+   default explícito da escolha de produto (não bloqueante).
+
+As questões 1, 4 e 5 da seção "Questões para decisão antes da implementação" não
+são bloqueantes. A questão 2 é bloqueante apenas quanto à compatibilidade de
+target, não quanto ao nome. A questão 3 bloqueia somente o encerramento do
+experimento. A questão 5 é grau de liberdade de implementação já delegado pela
+própria especificação.
 
 ### Preservação de estado
 
-Esta atuação não altera código, teste ou configuração de implementação. O
-estado da implementação permanece `Not Started`; uma ordem posterior do
-Arquiteto é necessária para autorizar o início da implementação.
+Esta atuação não alterou código, teste ou configuração de implementação. O estado
+da implementação permanece `Not Started`; uma ordem posterior do Arquiteto é
+necessária após a resolução dos bloqueios registrados.
