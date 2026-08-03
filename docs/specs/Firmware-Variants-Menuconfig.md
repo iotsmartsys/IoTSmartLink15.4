@@ -2,8 +2,8 @@
 
 **Estado normativo:** Proposed
 **Estado da implementação:** Not Started
-**Revisão de implementabilidade:** Needs Clarification
-**Prontidão:** Not Ready
+**Revisão de implementabilidade:** Implementable
+**Prontidão:** Ready
 
 ## Missão
 
@@ -358,30 +358,46 @@ board ou o encerramento do experimento, conforme indicado.
 
 O Arquiteto aprovou a direção arquitetural e confirmou o recorte H2 e o conjunto
 de validação da Fase 1. O Consultor reconciliou essas decisões sem iniciar
-implementação funcional. A revisão de implementabilidade permanece `Needs
-Clarification` até novo confronto formal do Engenheiro Analista sobre esta
-versão.
+implementação funcional. O Engenheiro Analista confrontou a versão reconciliada
+e promoveu a revisão de implementabilidade para `Implementable`.
 
 ## Revisão de implementabilidade (Engenheiro Analista)
 
-**Resultado:** Precisa de esclarecimento [`Needs Clarification`] para a versão
-integral. Preserva `Not Started` e `Not Ready`; não autoriza início de
-implementação.
+**Resultado:** Implementável [`Implementable`] para a versão integral. Preserva
+`Not Started`; não constitui autorização para implementar. Uma ordem posterior
+do Arquiteto é necessária.
 
-O confronto confirmou que `Kconfig.projbuild`, a seleção condicional de fontes
-pelo CMake, o entrypoint mínimo e a API pública atual de `SmartSysApp` são
-viáveis para migrar a tomada simples. Também confirmou que nenhuma seleção de
-produto ou board existe hoje nos componentes compartilhados.
+Os dois bloqueios registrados na análise anterior estão resolvidos nesta versão:
 
-Os bloqueios apontados pelo Analista foram devolvidos ao Arquiteto. Nesta versão,
-o target do board inicial e o oráculo de preservação já estão definidos nas
-seções “Fase 1” e “Conjunto de validação da Fase 1”. A segunda variante continua
-pendente apenas para o encerramento do experimento.
+- **compatibilidade board/`IDF_TARGET`:** a seção “Fase 1” e a decisão 9 declaram
+  o board inicial compatível somente com ESP32-H2 e nomeiam ESP32-C6 como caso
+  negativo obrigatório, tornando o critério assertável;
+- **oráculo de preservação:** o “Conjunto de validação da Fase 1” nomeia os
+  builds e testes exigidos e determina validação em hardware ESP32-H2, sem
+  substituição por comparação estática.
 
-Múltiplas saídas digitais são suportadas estruturalmente pela fachada atual, mas
-isso não comprova uma capability de luz. Sensor de porta ou presença exigiria
-ampliação autorizada da API e dos behaviors compartilhados.
+O confronto contra o repositório confirmou que os valores de baseline da decisão
+8 conferem com `client_154/main/main.cpp`; que a seleção condicional de fontes
+tem precedente direto em `components/issp_app_154/CMakeLists.txt`; que nenhum
+símbolo `CONFIG_*` de produto ou board existe em `components/issp_*`, cujo único
+uso é `CONFIG_IDF_TARGET_*` do próprio ESP-IDF; que `client_154/CMakeLists.txt`
+não precisa mudar; e que a especificação identifica padrão atual, mudança,
+alcance e decisão do Arquiteto exigidos para alterar a organização.
 
-Este registro preserva o resultado formal `Needs Clarification`; somente um novo
-Engenheiro Analista pode confrontar a versão reconciliada e promover sua revisão
-de implementabilidade.
+Observações registradas, nenhuma bloqueante:
+
+- o `client_154/sdkconfig` versionado receberá os novos símbolos ao ser
+  configurado; o precedente local é build isolado por `-DSDKCONFIG`;
+- `client_154/sdkconfig.esp32c6` permanece versionado e passa a representar,
+  por decisão, uma configuração que deve falhar;
+- a validação em hardware ESP32-H2 depende de execução humana e mantém a
+  implementação fora de `Implemented` até ser observada.
+
+A segunda variante continua necessária para encerrar o experimento EKOM: o teste
+3 permanece integralmente diferido e a Fase 1 não o substitui. Múltiplas saídas
+digitais são suportadas estruturalmente pela fachada atual, mas isso não comprova
+uma capability de luz; sensor de porta ou presença exigiria ampliação autorizada
+da API e dos behaviors compartilhados, governados por
+`docs/specs/ISSP-Configurable-Bootstrap.md`.
+
+Esta atuação não alterou código, teste ou configuração de implementação.
