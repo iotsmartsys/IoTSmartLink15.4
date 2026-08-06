@@ -1,7 +1,7 @@
 # Variantes de firmware selecionáveis pelo `menuconfig`
 
 **Estado normativo:** Proposed
-**Estado da implementação:** Not Started
+**Estado da implementação:** In Progress
 **Revisão de implementabilidade:** Implementable
 **Prontidão:** Ready
 
@@ -38,6 +38,10 @@ firmware, detalhes elétricos no board model, capabilities em componentes
 reutilizáveis e runtime comum em `SmartSysApp`/`issp_*`.
 
 ## Estado atual observado
+
+> Esta seção descreve o baseline anterior à Fase 1, usado pela análise de
+> implementabilidade. O estado vigente está em “Resultado da implementação da
+> Fase 1”.
 
 Hoje `client_154/main/main.cpp` concentra o entrypoint e a composição do único
 produto existente. Ele define a identidade do dispositivo, GPIO do relé, GPIO e
@@ -409,3 +413,89 @@ da API e dos behaviors compartilhados, governados por
 `docs/specs/ISSP-Configurable-Bootstrap.md`.
 
 Esta atuação não alterou código, teste ou configuração de implementação.
+
+## Resultado da implementação da Fase 1 (Engenheiro Implementador)
+
+**Estado:** Em andamento [`In Progress`]. Código e validações automatizáveis
+estão concluídos; a validação em hardware ESP32-H2 exigida pelos critérios de
+preservação ainda não foi executada e mantém a implementação fora de
+`Implemented`.
+
+### Estrutura implementada
+
+```text
+client_154/main/
+├── Kconfig.projbuild                        menu IoTSmartLink15.4
+├── CMakeLists.txt                           traduz a escolha em fontes
+├── app_main.cpp                             entrypoint mínimo
+├── product_firmware.hpp                     contrato de seleção
+├── firmwares/single_smart_plug.cpp          composição do produto atual
+└── boards/
+    ├── board_model.hpp                      contrato elétrico
+    └── current_client_esp32h2_wiring.cpp    fiação atual, somente ESP32-H2
+```
+
+`client_154/main/main.cpp` foi removido; nenhum arquivo de variante ou board não
+suportado foi criado. `client_154/CMakeLists.txt` e os componentes `issp_*` não
+foram alterados.
+
+### Decisões de implementação
+
+- o contrato de seleção é uma única função livre,
+  `client154::startSelectedProductFirmware()`, que devolve o `SetupResult` da
+  fachada. É o menor mecanismo local que satisfaz o entrypoint mínimo e a
+  decisão 11; nenhuma classe base, registro ou abstração transversal foi criada;
+- `client154::BoardModel` transporta apenas pino e polaridade do relé e do botão
+  de reset. Tempo de retenção do reset, identidade, endpoint, tipo de evento,
+  estado inicial e report inicial permanecem no product firmware;
+- a seleção do board depende de `IDF_TARGET_ESP32H2` no `Kconfig`; quando nenhum
+  board compatível existe para o target, `main/CMakeLists.txt` emite
+  `FATAL_ERROR` nomeando o target e a incompatibilidade. O board ainda carrega um
+  `#error` defensivo para o caso de ser compilado por outro caminho;
+- as verificações de seleção ficam dentro de `if(NOT CMAKE_BUILD_EARLY_EXPANSION)`
+  porque os símbolos do próprio menu ainda não existem na expansão inicial de
+  requisitos do ESP-IDF;
+- o `TAG` de log do entrypoint passou de `iot154_switch` para `iot154_client`,
+  já que o entrypoint deixou de pertencer a um produto. As duas mensagens
+  (`ISSP runtime did not start...` e `ISSP runtime started`) e a sequência
+  configuração → `setup()` foram preservadas literalmente;
+- nenhum `sdkconfig` versionado foi alterado: todas as validações usaram builds
+  isolados por `-DSDKCONFIG`, conforme o precedente local.
+
+### Evidências executadas
+
+ESP-IDF v6.0.1, builds isolados fora da árvore do repositório.
+
+| Item do conjunto de validação | Resultado |
+|---|---|
+| `git diff --check` | sem erro; diff restrito a `client_154/main/` |
+| configuração gerada contém exatamente o produto e o board default | `CONFIG_IOTSMARTLINK154_PRODUCT_SINGLE_SMART_PLUG=y` e `CONFIG_IOTSMARTLINK154_BOARD_CURRENT_CLIENT_ESP32H2_WIRING=y` |
+| somente as fontes selecionadas entram no build | `compile_commands.json` e `build.ninja` contêm apenas `app_main.cpp`, `firmwares/single_smart_plug.cpp` e `boards/current_client_esp32h2_wiring.cpp` |
+| build `client_154` ESP32-H2 | sucesso, 0 warnings |
+| build `examples/issp_minimal_client` ESP32-H2 | sucesso, 0 warnings |
+| testes `SmartSysApp` em QEMU ESP32-C3 | 20/20 `PASS`, 0 `FAIL` |
+| build `coordinator_154` ESP32-C6 | sucesso, 0 warnings |
+| caso negativo board/target | `idf.py set-target esp32c6` falha na configuração com “No board model selected in the IoTSmartLink15.4 menu for IDF_TARGET=esp32c6…”, sem produzir binário |
+| ausência de `CONFIG_*` de produto ou board em `components/issp_*` | confirmada por varredura; o único uso remanescente é `CONFIG_IDF_TARGET_*` do ESP-IDF |
+| validação em hardware ESP32-H2 | **não executada** |
+
+O conjunto de testes automatizados de `SmartSysApp` possui hoje 20 casos, não os
+19 registrados quando a especificação foi escrita; o arquivo de teste não foi
+alterado por esta atuação. Sob QEMU, o app de teste continua exibindo o resumo
+`0 Tests 0 Failures` do Unity e um panic após o retorno de `app_main()`; ambos
+são comportamentos preexistentes do app de teste e não decorrem desta mudança. O
+resultado material são os 20 casos executados individualmente com `PASS`.
+
+### Pendências desta implementação
+
+- validação em hardware ESP32-H2 de boot até `Running`, report inicial, `ON`,
+  `OFF`, `TOGGLE`, factory reset por 10 segundos, reboot e retorno ao
+  commissioning. Sem ela, os critérios de preservação do produto atual
+  permanecem não verificados e o estado não pode passar de `In Progress`;
+- `client_154/sdkconfig` e `client_154/sdkconfig.esp32h2` continuam versionados
+  sem os novos símbolos; eles serão gravados por quem configurar o projeto no
+  local de trabalho. `client_154/sdkconfig.esp32c6` passa a representar, por
+  decisão do Arquiteto, uma configuração que deve falhar;
+- o teste 3 da estratégia EKOM (segunda composição) permanece integralmente
+  diferido e continua dependendo da escolha do Arquiteto;
+- `EKM-GAP-0006` permanece aberta e não é afetada por esta mudança.

@@ -1,0 +1,36 @@
+menu "IoTSmartLink15.4"
+
+choice IOTSMARTLINK154_PRODUCT_FIRMWARE
+    prompt "Product firmware"
+    default IOTSMARTLINK154_PRODUCT_SINGLE_SMART_PLUG
+    help
+        Selects the single product composed into this binary. The choice only
+        picks which file under main/firmwares/ is compiled; it never enables
+        product logic inside the shared ISSP components.
+
+config IOTSMARTLINK154_PRODUCT_SINGLE_SMART_PLUG
+    bool "Single smart plug"
+    help
+        One switchable power output on endpoint 1, with factory reset.
+
+endchoice
+
+choice IOTSMARTLINK154_BOARD_MODEL
+    prompt "Board model"
+    default IOTSMARTLINK154_BOARD_CURRENT_CLIENT_ESP32H2_WIRING
+    help
+        Selects the board wiring compiled into this binary. Only board models
+        compatible with the configured IDF_TARGET are offered; the menu never
+        changes IDF_TARGET itself.
+
+config IOTSMARTLINK154_BOARD_CURRENT_CLIENT_ESP32H2_WIRING
+    bool "Current client ESP32-H2 wiring"
+    depends on IDF_TARGET_ESP32H2
+    help
+        Descriptive identifier for the wiring currently used by the client_154
+        prototype: relay on GPIO 13 active high and factory reset button on
+        GPIO 9 active low. Compatible with ESP32-H2 only.
+
+endchoice
+
+endmenu

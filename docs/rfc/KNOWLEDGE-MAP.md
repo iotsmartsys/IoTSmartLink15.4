@@ -2,9 +2,9 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.13
+**Versão:** 1.14
 **Responsável:** Marcelo Miranda
-**Última atualização:** 02/08/2026
+**Última atualização:** 05/08/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -40,12 +40,12 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 
 | Área | Fonte normativa | Estado normativo | Estado da implementação | Implementação principal | Evidência atual |
 |---|---|---|---|---|---|
-| Arquitetura ISSP | `docs/specs/ISSP-Architecture.md` | Active | Validated | `components/issp_*` e `client_154/main/main.cpp` | Builds, hardware, consumidor mínimo e auditoria documental |
+| Arquitetura ISSP | `docs/specs/ISSP-Architecture.md` | Active | Validated | `components/issp_*` e a composição do client em `client_154/main/` | Builds, hardware, consumidor mínimo e auditoria documental |
 | Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
-| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main/main.cpp` e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 19/19 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |
-| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; revisão vigente `Implementable`, aguardando ordem de implementação | Não iniciada | Fase 1 definida para tomada simples e board atual somente em ESP32-H2; nenhum código funcional criado | Confronto integral do Analista contra o repositório; bloqueios de target e de oráculo resolvidos; segunda variante permanece necessária somente para encerrar o experimento |
+| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main/` (composição hoje em `firmwares/single_smart_plug.cpp`) e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 19/19 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |
+| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; revisão vigente `Implementable` | In Progress | Fase 1 implementada em `client_154/main/`: `Kconfig.projbuild`, `CMakeLists.txt` de seleção, `app_main.cpp`, `product_firmware.hpp`, `firmwares/single_smart_plug.cpp` e `boards/current_client_esp32h2_wiring.cpp`; componentes `issp_*` inalterados | Quatro builds sem warnings; 20/20 testes QEMU; seleção comprovada em `compile_commands.json`; caso negativo ESP32-C6 falha na configuração; validação em hardware ESP32-H2 ainda não executada |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | Client em `components/issp_core/src/issp_protocol.cpp`; coordenador em `coordinator_154/main/iot154_packet.h` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE funcionais; confiabilidade residual de ACK em `EKM-GAP-0006` |
@@ -53,23 +53,24 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 
 ### 3.1 Visão do repositório e conexão entre os alvos
 
-Esta árvore combina o estado observado do repositório com o ramo de variantes
-proposto para o client. O marcador `[proposto]` identifica o que ainda não está
-implementado; os demais ramos descrevem responsabilidades e fontes existentes.
+Esta árvore descreve o estado observado do repositório. O marcador `[proposto]`
+identifica o que ainda não está implementado; os demais ramos descrevem
+responsabilidades e fontes existentes.
 
 ```text
 IoTSmartLink15.4 repository
 ├── Runtime targets
 │   ├── client_154 (client IEEE 802.15.4; ESP32-H2 validado)
-│   │   ├── app_main e composição atual da tomada simples
+│   │   ├── app_main.cpp (entrypoint mínimo, sem regra de produto)
 │   │   ├── SmartSysApp e componentes ISSP compartilhados
-│   │   └── [proposto] seleção de produto e board
-│   │       ├── Product firmware (uma escolha)
-│   │       │   ├── Single smart plug (baseline)
-│   │       │   ├── Dual smart plug + light
-│   │       │   ├── Door sensor
-│   │       │   └── Motion sensor
-│   │       ├── Board model (uma escolha)
+│   │   └── seleção de produto e board (menu IoTSmartLink15.4)
+│   │       ├── Product firmware (uma escolha) — main/firmwares/
+│   │       │   ├── Single smart plug (implementado; baseline)
+│   │       │   ├── [proposto] Dual smart plug + light
+│   │       │   ├── [proposto] Door sensor
+│   │       │   └── [proposto] Motion sensor
+│   │       ├── Board model (uma escolha) — main/boards/
+│   │       │   └── Current client ESP32-H2 wiring (implementado)
 │   │       └── IDF_TARGET (definido pelo fluxo ESP-IDF)
 │   └── coordinator_154 (coordenador IEEE 802.15.4; ESP32-C6 validado)
 │       ├── janela de ingresso e resposta a discovery
@@ -123,10 +124,10 @@ uma dependência de código entre seus diretórios. Hoje o contrato lógico apar
 em implementações separadas nos dois alvos; `EKM-GAP-0002` registra a ausência
 de uma especificação wire dedicada.
 
-Para navegar dentro do ramo proposto do client: diferença de composição pertence
-ao product firmware; diferença física pertence ao board model; capacidade usada
-por mais de um produto pertence a um componente; protocolo e infraestrutura
-pertencem à plataforma compartilhada. O contrato da proposta está em
+Para navegar dentro do ramo de variantes do client: diferença de composição
+pertence ao product firmware; diferença física pertence ao board model;
+capacidade usada por mais de um produto pertence a um componente; protocolo e
+infraestrutura pertencem à plataforma compartilhada. O contrato está em
 `docs/specs/Firmware-Variants-Menuconfig.md`.
 
 ---
