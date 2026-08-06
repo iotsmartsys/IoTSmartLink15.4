@@ -179,6 +179,14 @@ incompatíveis com o target já configurado pelo ESP-IDF.
     antecipada. A implementação deve usar o menor mecanismo local que satisfaça
     o entrypoint mínimo e a seleção pelo CMake, sem criar abstração transversal.
 
+### Registro de conhecimento deste experimento
+
+Por decisão do Arquiteto, este experimento não abre nem atualiza uma transação
+`EKM-CHG`. O conhecimento material da implementação deve ser reconciliado de
+forma concisa nesta especificação e em `docs/rfc/KNOWLEDGE-MAP.md`; o Git
+preserva a linhagem técnica. Essa exceção vale somente para este experimento e
+não modifica a governança geral do repositório.
+
 ## Experiência proposta no `menuconfig`
 
 ```text
