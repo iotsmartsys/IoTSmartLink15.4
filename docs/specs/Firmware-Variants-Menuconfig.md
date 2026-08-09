@@ -2,7 +2,7 @@
 
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
-**Revisão de implementabilidade:** Implementable
+**Revisão de implementabilidade:** Implementable — decisão do Arquiteto para a versão integral
 **Prontidão:** Ready
 
 ## Missão
@@ -171,8 +171,8 @@ incompatíveis com o target já configurado pelo ESP-IDF.
    além da composição de uma única variante.
 8. A migração da tomada simples deve preservar os valores atuais: device ID
    `0x15400001`, relé no GPIO 13 ativo em nível alto, reset no GPIO 9 ativo em
-   nível baixo por 10 segundos, endpoint 1, event type 2, estado inicial
-   desligado e report inicial habilitado.
+   nível baixo por 10 segundos com polling de 20 ms, endpoint 1, event type 2,
+   estado inicial desligado e report inicial habilitado.
 9. A compatibilidade board/target deve falhar na configuração ou no build com
    mensagem clara. Não se aceita binário silenciosamente configurado para a
    placa errada. Na Fase 1, o board atual aceita somente ESP32-H2; ESP32-C6 é o
@@ -191,6 +191,13 @@ incompatíveis com o target já configurado pelo ESP-IDF.
     `factoryResetButtonPin` e `factoryResetButtonActiveLow` podem ser
     substituídos na Fase 2, quando a segunda variante revelar o vocabulário de
     recursos físicos necessário; não devem ser generalizados antecipadamente.
+14. Por decisão do Arquiteto, a versão integral é `Implementable` antes de a
+    segunda variante e o mecanismo da decisão 12 estarem definidos. Essas
+    incertezas são variáveis deliberadas do experimento, não bloqueadores de
+    implementabilidade. A ordem da Fase 2 deve identificar a variante exercitada;
+    o Implementador deve adotar o menor mecanismo local que satisfaça as decisões
+    12 e 13, registrar as consequências observadas e devolver ao Arquiteto
+    qualquer necessidade de ampliar componentes ou contratos compartilhados.
 
 ### Registro de conhecimento deste experimento
 
@@ -266,8 +273,9 @@ não autoriza criar stubs vazios.
 - **Dado** um `IDF_TARGET` suportado, **quando** o desenvolvedor abre o SDK
   Configuration Editor, **então** encontra uma seção `IoTSmartLink15.4` com uma
   escolha de product firmware e uma escolha de board model.
-- **Dado** o menu de produto, **quando** uma variante é selecionada, **então**
-  nenhuma segunda variante pode permanecer selecionada.
+- **Dado** o menu de produto com duas ou mais variantes implementadas, **quando**
+  uma variante é selecionada a partir da Fase 2, **então** nenhuma segunda
+  variante pode permanecer selecionada.
 - **Dado** um par produto/board válido, **quando** o projeto é configurado e
   compilado, **então** somente as fontes desse produto e desse board entram no
   binário.
@@ -351,7 +359,8 @@ do documento.
 - execução da suíte de testes de `SmartSysApp` em QEMU ESP32-C3;
 - build de `coordinator_154` para ESP32-C6;
 - configuração ou build negativo do board da Fase 1 com target ESP32-C6,
-  contendo o diagnóstico esperado;
+  usando `SDKCONFIG` isolado fora da configuração H2 rastreada e contendo o
+  diagnóstico esperado;
 - validação no hardware ESP32-H2 de boot até `Running`, report inicial, comandos
   `ON`, `OFF` e `TOGGLE`, pressão de factory reset por 10 segundos, reboot e
   retorno ao commissioning. Essa execução comprova a preservação da migração e
@@ -367,17 +376,23 @@ precisar vasculhar o repositório para descobrir responsabilidades, se duas
 fronteiras disputarem a mesma regra ou se o menu apenas esconder um firmware
 monolítico cheio de condicionais.
 
-## Decisões pendentes para encerrar o experimento
+## Variáveis experimentais para encerrar o experimento
 
 - nome e revisão comerciais do board podem substituir o identificador
   descritivo somente após confirmação do Arquiteto;
-- a segunda variante ainda deve ser escolhida. Múltiplas saídas digitais são
-  estruturalmente possíveis, mas isso não comprova uma semântica específica de
-  luz. Sensor de porta ou presença exige especificação e autorização próprias
-  para ampliar a API pública e os behaviors compartilhados.
+- a ordem de implementação da Fase 2 deve identificar a segunda variante a ser
+  exercitada. Múltiplas saídas digitais são estruturalmente possíveis, mas isso
+  não comprova uma semântica específica de luz. Sensor de porta ou presença
+  exige autorização explícita para ampliar a API pública e os behaviors
+  compartilhados;
+- a representação dos recursos exigidos pelo produto e oferecidos pelo board é
+  uma decisão local da implementação experimental, limitada pelas decisões 12,
+  13 e 14. O resultado deve mostrar se esse grau de liberdade acelera a evolução
+  ou apenas transfere contexto ausente para o Implementador.
 
-Essas decisões não bloqueiam a Fase 1; bloqueiam a renomeação definitiva do
-board ou o encerramento do experimento, conforme indicado.
+Essas variáveis não bloqueiam o estado `Implementable` da versão integral. Elas
+continuam impedindo a execução da Fase 2 sem uma ordem que identifique a segunda
+variante e impedem o encerramento do experimento até produzirem evidência.
 
 ## Resultado desta etapa
 
@@ -386,49 +401,15 @@ de validação da Fase 1. O Consultor reconciliou essas decisões sem iniciar
 implementação funcional. O Engenheiro Analista confrontou a versão reconciliada
 e promoveu a revisão de implementabilidade para `Implementable`.
 
-## Revisão de implementabilidade da versão pré-implementação (Engenheiro Analista)
+## Decisão vigente de implementabilidade
 
-> Esta seção registra a revisão da versão anterior à Fase 1. A revisão da versão
-> integral vigente está em “Revisão de implementabilidade da versão vigente”.
-
-**Resultado:** Implementável [`Implementable`] para a versão integral. Preserva
-`Not Started`; não constitui autorização para implementar. Uma ordem posterior
-do Arquiteto é necessária.
-
-Os dois bloqueios registrados na análise anterior estão resolvidos nesta versão:
-
-- **compatibilidade board/`IDF_TARGET`:** a seção “Fase 1” e a decisão 9 declaram
-  o board inicial compatível somente com ESP32-H2 e nomeiam ESP32-C6 como caso
-  negativo obrigatório, tornando o critério assertável;
-- **oráculo de preservação:** o “Conjunto de validação da Fase 1” nomeia os
-  builds e testes exigidos e determina validação em hardware ESP32-H2, sem
-  substituição por comparação estática.
-
-O confronto contra o repositório confirmou que os valores de baseline da decisão
-8 conferem com `client_154/main/main.cpp`; que a seleção condicional de fontes
-tem precedente direto em `components/issp_app_154/CMakeLists.txt`; que nenhum
-símbolo `CONFIG_*` de produto ou board existe em `components/issp_*`, cujo único
-uso é `CONFIG_IDF_TARGET_*` do próprio ESP-IDF; que `client_154/CMakeLists.txt`
-não precisa mudar; e que a especificação identifica padrão atual, mudança,
-alcance e decisão do Arquiteto exigidos para alterar a organização.
-
-Observações registradas, nenhuma bloqueante:
-
-- o `client_154/sdkconfig` versionado receberá os novos símbolos ao ser
-  configurado; o precedente local é build isolado por `-DSDKCONFIG`;
-- `client_154/sdkconfig.esp32c6` permanece versionado e passa a representar,
-  por decisão, uma configuração que deve falhar;
-- a validação em hardware ESP32-H2 depende de execução humana e mantém a
-  implementação fora de `Implemented` até ser observada.
-
-A segunda variante continua necessária para encerrar o experimento EKOM: o teste
-3 permanece integralmente diferido e a Fase 1 não o substitui. Múltiplas saídas
-digitais são suportadas estruturalmente pela fachada atual, mas isso não comprova
-uma capability de luz; sensor de porta ou presença exigiria ampliação autorizada
-da API e dos behaviors compartilhados, governados por
-`docs/specs/ISSP-Configurable-Bootstrap.md`.
-
-Esta atuação não alterou código, teste ou configuração de implementação.
+O Arquiteto declara a versão integral `Implementable` e `Ready`. A promoção é
+deliberadamente anterior à definição da segunda variante e do mecanismo de
+compatibilidade produto/board: o experimento deve revelar se a especificação e
+o mapa fornecem contexto suficiente para o Implementador resolver o mecanismo
+local e tornar visíveis as consequências. Essa decisão não promove a
+implementação para `Implemented`, não declara validação e não autoriza ampliar
+contratos compartilhados sem nova decisão do Arquiteto.
 
 ## Resultado da implementação da Fase 1 (Engenheiro Implementador)
 
@@ -513,94 +494,14 @@ resultado material são os 20 casos executados individualmente com `PASS`.
   commissioning. Sem ela, os critérios de preservação do produto atual
   permanecem não verificados e o estado não pode passar de `In Progress`;
 - `client_154/sdkconfig` é a configuração H2 vigente e contém os símbolos
-  default de produto e board. `client_154/sdkconfig.esp32h2`, redundante e
-  divergente, e `client_154/sdkconfig.old`, artefato gerado sem consumidor
-  declarado, devem ser removidos na ordem de implementação correspondente.
-  `client_154/sdkconfig.esp32c6` permanece como configuração negativa que deve
-  falhar enquanto não existir board compatível;
+  default de produto e board. `client_154/sdkconfig.esp32h2`,
+  `client_154/sdkconfig.esp32c6` e `client_154/sdkconfig.old` são cópias inertes,
+  sem consumo automático pelo ESP-IDF, e devem ser removidas na ordem de
+  implementação correspondente. O caso negativo C6 deve usar `SDKCONFIG`
+  isolado;
 - confirmar, nos consumidores externos conhecidos, que nenhuma ferramenta de
   host filtra logs pela tag anterior `iot154_switch`; não existe consumidor
   dessa tag dentro do repositório;
-- o teste 3 da estratégia EKOM (segunda composição) permanece integralmente
-  diferido e continua dependendo da escolha do Arquiteto;
+- o teste 3 da estratégia EKOM permanece sem evidência até uma ordem da Fase 2
+  identificar e implementar a segunda composição;
 - `EKM-GAP-0006` permanece aberta e não é afetada por esta mudança.
-
-## Revisão de implementabilidade da versão vigente (Engenheiro Analista)
-
-**Recorte:** versão integral vigente do documento, incluindo as seções
-acrescentadas após a Fase 1. **Resultado:** Implementável [`Implementable`] para
-a Fase 1, que já está implementada; **retorno à análise** para a Fase 2, cujo
-bloqueador é decisão do Arquiteto ainda não tomada. Esta atuação preserva
-`Proposed` e `In Progress`, não declara aprovação e não altera implementação,
-teste ou configuração.
-
-### Confronto contra o repositório
-
-| Afirmação da especificação | Verificação |
-|---|---|
-| estrutura implementada da Fase 1 | confere; os sete arquivos existem em `client_154/main/` e `main.cpp` não existe mais |
-| valores de baseline da decisão 8 | conferem com `main:client_154/main/main.cpp`; device ID, GPIO 13 ativo alto, GPIO 9 ativo baixo, 10 s, endpoint 1, event type 2, estado inicial e report inicial preservados |
-| ausência de `CONFIG_*` de produto/board em `components/issp_*` | confirmada; varredura de fontes, CMake e Kconfig não retorna nenhum símbolo além de `CONFIG_IDF_TARGET_*` do ESP-IDF |
-| `IOTSMARTLINK154_*` restrito à seleção | confirmado; só ocorre em `client_154/main/` e em `client_154/sdkconfig` |
-| `client_154/CMakeLists.txt` inalterado | confirmado; `EXTRA_COMPONENT_DIRS` e `MINIMAL_BUILD` preservados e fora do diff |
-| diff concentrado nos pontos afetados | confere; `git diff --stat main...HEAD` toca apenas `client_154/main/`, `client_154/sdkconfig`, o mapa e esta especificação |
-| suíte com 20 casos | confere; 20 `TEST_CASE` no app de teste de `SmartSysApp` |
-| `KNOWLEDGE-MAP.md` aponta para esta especificação | confere; entrada de domínio, ramo de variantes e regra de navegação presentes, sem duplicar o contrato |
-
-### Observações que afetam a assertabilidade
-
-Nenhuma bloqueia a Fase 1. Todas pertencem ao Autor ou ao Arquiteto.
-
-1. **`sdkconfig.esp32c6` não é o oráculo do caso negativo.** O repositório não
-   possui nenhum `sdkconfig.defaults*`; o ESP-IDF não consome automaticamente
-   `sdkconfig.<target>`. Os arquivos `sdkconfig.esp32c6`, `sdkconfig.esp32h2` e
-   `sdkconfig.old` são cópias inertes, usadas apenas se passadas por
-   `-DSDKCONFIG`. Além disso, `sdkconfig.esp32c6` não contém símbolo
-   `IOTSMARTLINK154_*` algum. A afirmação de que ele “passa a representar uma
-   configuração que deve falhar” atribui papel normativo a um artefato inerte.
-   O oráculo material é o registrado nas evidências: `idf.py set-target esp32c6`
-   falhando na configuração.
-2. **O caso negativo, como executado, mutila a configuração versionada.**
-   `idf.py set-target esp32c6` reescreve `client_154/sdkconfig`, que a própria
-   especificação passou a declarar como a configuração H2 vigente. A repetição
-   do critério de aceite exige isolamento explícito por `-DSDKCONFIG`, hoje
-   registrado como prática da implementação e não como parte do critério.
-3. **A decisão 8 omite `pollIntervalMs`.** O baseline usa 20 ms e a
-   implementação o preservou, mas a lista de valores de preservação obrigatória
-   não o inclui; uma regressão nesse parâmetro não seria detectada pelo contrato
-   como escrito.
-4. **O critério de exclusividade de variante é vacuamente satisfeito.** Com um
-   único `config` dentro do `choice`, “nenhuma segunda variante pode permanecer
-   selecionada” não é assertável na Fase 1; só se torna verificável com a
-   segunda composição.
-5. **A tag de log não é coberta pelo contrato.** A mudança de `iot154_switch`
-   para `iot154_client` está registrada como decisão e pendência de
-   implementação, mas a tabela de preservação não trata a tag como observável;
-   a verificação nos consumidores externos permanece fora de evidência.
-
-### Bloqueadores da Fase 2
-
-Ambos são dependências de decisão do Arquiteto, não de implementação.
-
-- **A segunda variante não está definida.** O Arquiteto confirmou nesta atuação
-  que a escolha permanece pendente. Sem ela, o teste 3 da estratégia EKOM
-  continua integralmente diferido e o experimento não pode ser encerrado.
-- **A decisão 12 não tem mecanismo.** A declaração de recursos exigidos pelo
-  product firmware e oferecidos pelo board model, e a rejeição diagnosticada de
-  combinações incompatíveis, não têm forma definida — nem em `Kconfig`, nem em
-  CMake, nem em contrato de código. Isso é adequado enquanto a decisão 13 mantém
-  `BoardModel` provisório, mas o critério de aceite correspondente não é
-  implementável hoje. Ele deve retornar à autoria quando a segunda variante
-  revelar o vocabulário de recursos.
-
-### Experimentos ainda necessários
-
-- validação em hardware ESP32-H2 do boot até `Running`, report inicial, `ON`,
-  `OFF`, `TOGGLE`, factory reset por 10 s, reboot e retorno ao commissioning.
-  Não é fato confirmável por leitura, build ou QEMU; enquanto não for observada,
-  os critérios de preservação do produto atual permanecem não verificados e o
-  estado da implementação não pode passar de `In Progress`;
-- reexecução isolada do caso negativo board/target, se o Arquiteto quiser o
-  critério reprodutível sem reescrever `client_154/sdkconfig`.
-
-Esta atuação não alterou código, teste ou configuração de implementação.
