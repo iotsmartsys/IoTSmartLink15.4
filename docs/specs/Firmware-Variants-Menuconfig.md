@@ -3,10 +3,10 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
 **Revisão de implementabilidade:** Implementable para a direção integral por
-decisão do Arquiteto; a análise da Fase 2 foi executada e os bloqueadores B1 a
-B4 foram resolvidos pelo Arquiteto
-**Prontidão:** Needs Analysis — requer confronto focado das resoluções antes de
-autorizar implementação
+decisão do Arquiteto; os bloqueadores B1 a B4 da Fase 2 foram resolvidos e o
+confronto focado das resoluções foi executado, sem bloqueador remanescente
+**Prontidão:** Needs Analysis até o Arquiteto avaliar o confronto focado; a
+análise recomenda prontidão condicionada aos esclarecimentos C1 a C3
 
 ## Missão
 
@@ -583,300 +583,270 @@ não altera a conclusão da Fase 1 nem declara a Fase 2 implementada ou validada
 
 ## Análise de implementabilidade da Fase 2 (Engenheiro Analista)
 
-Confronto entre o recorte da Fase 2, o repositório vigente, a arquitetura, os
-precedentes e os critérios de aceite. Esta análise não altera implementação, não
-promove estado e não declara aprovação; ela informa o Arquiteto.
+Confronto focado das resoluções normativas das decisões 20 a 26 com o
+repositório vigente, os precedentes e os critérios de aceite. Esta análise não
+altera implementação, não promove estado e não declara aprovação; ela informa o
+Arquiteto.
+
+A rodada anterior levantou os bloqueadores B1 a B4. O Arquiteto os resolveu nas
+decisões 20 a 26 e nos critérios correspondentes. Esta rodada verifica se cada
+resolução é sustentada pelo código, e registra o que ela cria de novo.
 
 ### Recomendação
 
-**Retorno ao rascunho/análise** para os bloqueadores B1 a B4. Eles são
-normativos: nenhuma escolha de implementação os resolve sem inventar requisito.
+**Prontidão recomendada**, condicionada a três esclarecimentos pequenos (C1 a
+C3). Nenhum bloqueador normativo permanece: as quatro resoluções são realizáveis
+com o repositório vigente e removem as contradições da rodada anterior.
 
-O restante do recorte é implementável com os precedentes existentes: a seleção no
-`Kconfig`, a compatibilidade por recursos no CMake, o board histórico, a
-composição do product firmware e a extensão da fachada não encontraram
-impedimento estrutural. Nenhum bloqueador exige reabrir a arquitetura de
-`SmartSysApp` nem o protocolo.
+C1 e C3 afetam a aceitação da evidência, não o início da implementação: são
+critérios com mais de uma leitura possível. C2 é um número derivável que os
+testes precisam fixar. Nenhum deles exige reabrir arquitetura.
 
-### Evidências confrontadas
+### Verificação de cada resolução
 
-- seleção vigente: `client_154/main/Kconfig.projbuild`,
-  `client_154/main/CMakeLists.txt` (verificação sob
-  `if(NOT CMAKE_BUILD_EARLY_EXPANSION)`), `client_154/sdkconfig` (dois símbolos
-  default gravados);
-- fronteiras vigentes: `client_154/main/app_main.cpp`,
-  `product_firmware.hpp`, `firmwares/single_smart_plug.cpp`,
-  `boards/board_model.hpp`, `boards/current_client_esp32h2_wiring.cpp`;
-- plataforma: `components/issp_app_154/src/smart_sys_app.cpp`,
-  `src/smart_sys_app_impl.hpp`, `src/smart_sys_app_hardware.cpp`,
-  `include/SmartSysApp.h`;
-- runtime ISSP: `components/issp_core/src/issp_device.cpp`,
-  `include/idevice_behavior.hpp`, `include/issp_limits.hpp`
-  (`kMaxDeviceBehaviors = 8`), `components/issp_transport_154/src/
-  issp154_report_executor.cpp` e `issp154_transport.c` (tarefa `issp154_rx`);
-- precedentes de observação não bloqueante:
-  `components/issp_app_154/src/reset/reset_button_monitor.cpp` (tarefa estática,
-  `vTaskDelay`, `esp_timer_get_time`) e `Issp154ReportExecutor` (tarefa estática
-  acordada por notificação);
-- behavior existente: `components/issp_behaviors/src/digital_output_behavior.cpp`
-  (publica em `begin()` e em `handle()`, nunca de forma assíncrona);
-- baseline histórico do sensor, confirmado em `0ff6a39^`:
-  `sensor_154/main/hardware/iot154_sensor_input.c` e
-  `main/config/iot154_sensor_config.h` — 5 amostras, mínimo 3 baixas, 3 ms,
-  2 janelas iguais, máximo 4 janelas, 8 ms, GPIO 14 no H2, pull-up interno,
-  `IOT154_SENSOR_LOGIC_ACTIVE = HIGH`, valor `HIGH → 1`; e
-  `sensor_154/main/main_old.c.txt`, que mostra o fluxo real: uma amostragem por
-  boot, envio e deep sleep, com detecção de mudança por wake-up EXT1;
-- coordenador: `coordinator_154/main/iot154_packet.h`
-  (`IOT154_EVENT_DOOR 1`) e `main/main.c` (`value == 1 ? "open" : "closed"`) —
-  confirmam que o protocolo e o alvo não precisam mudar;
-- consumidor externo da fachada: `examples/issp_minimal_client/main/main.cpp`
-  usa apenas `addSwitchPlugCapability` e `configureFactoryResetButton`; extensão
-  aditiva da API não o afeta;
-- `CONFIG_FREERTOS_HZ=100` em `client_154/sdkconfig` e no `sdkconfig.esp32h2`
-  histórico;
-- `SOC_GPIO_PIN_COUNT = 28` no ESP32-H2: GPIO 14 é válido como entrada, e o
-  hardware histórico já o usou.
+**Decisão 20 e 21 — debounce de 10 ms por `esp_timer`: sustentada.**
+`esp_timer` é baseado em alarme de hardware com resolução de microssegundos e
+não é quantizado pelo tick do FreeRTOS, logo o período de 10 ms é realizável com
+`CONFIG_FREERTOS_HZ=100` — que era exatamente a causa de B1. A callback padrão
+executa na tarefa `esp_timer` (`esp_timer_create_args_t::dispatch_method`,
+default de tarefa), com prioridade `ESP_TASK_TIMER_PRIO = ESP_TASK_PRIO_MAX - 3`,
+acima da tarefa `issp154_rx` (`tskIDLE_PRIORITY + 4`) e da
+`issp154_report_tx` (`tskIDLE_PRIORITY + 3`). Consequência a registrar: a
+amostragem **sempre** preempta o executor de reports, inclusive no meio do
+bookkeeping — o que confirma a necessidade da decisão 22 e não é evitável por
+ordenação.
 
-### Componentes impactados
+A latência de 150 ms é aritmeticamente consistente com o esquema especificado.
+Janelas não sobrepostas de cinco amostras a cada 10 ms ocupam 50 ms de
+escalonamento. Pior caso: a transição ocorre logo após a primeira amostra da
+janela contaminada (40 ms restantes), seguida de duas janelas limpas
+(50 + 50 ms) = **140 ms**. A margem para jitter de despacho do `esp_timer`, para
+a leitura e para a chamada de publicação é de cerca de 10 ms. É viável, mas é
+margem estreita — ver C1.
 
-| Componente | Natureza da mudança | Observação da análise |
-|---|---|---|
-| `client_154/main/Kconfig.projbuild` | aditiva | duas entradas novas; ambos os boards dependem de `IDF_TARGET_ESP32H2`, logo aparecem juntos e o default permanece a tomada |
-| `client_154/main/CMakeLists.txt` | aditiva + diagnóstico | listas de recursos exigidos/oferecidos e `list(REMOVE_ITEM)` bastam; a mensagem atual do board cita apenas o board da Fase 1 e precisa nomear os dois |
-| `client_154/main/boards/board_model.hpp` | **substitutiva** | decisão 17 expira `relayPin` e companhia; obriga editar a tomada (ver B3) |
-| `client_154/main/firmwares/single_smart_plug.cpp` | edição de adaptação | apenas renomeia o acesso ao board; valores da decisão 8 preservados |
-| `client_154/main/firmwares/door_sensor.cpp` e `boards/historical_door_sensor_esp32h2_wiring.cpp` | novos | sem impedimento |
-| `components/issp_behaviors` | aditiva + nova infraestrutura de teste | o componente não possui `test_apps` hoje; `DigitalOutputBehavior` nunca foi testado isoladamente |
-| `components/issp_app_154` | aditiva na API, **não aditiva no interior** | ver B2 e R1 |
-| `components/issp_core` | nenhuma mudança prevista | ver B2, que pode exigir decisão em contrário |
+Requisito concreto de build: `components/issp_behaviors/CMakeLists.txt` hoje
+declara apenas `issp_core` e `esp_driver_gpio`. `esp_timer` **não** está entre os
+requisitos comuns do ESP-IDF — `issp_app_154` precisa listá-lo explicitamente em
+`PRIV_REQUIRES` —, então `issp_behaviors` passará a exigi-lo.
 
-### Bloqueadores objetivos
+**Decisão 22 — serialização em `IsspDevice`: sustentada, com consequência
+arquitetural a reconhecer.**
+`components/issp_core/CMakeLists.txt` não declara **nenhum** `REQUIRES` e nenhum
+arquivo de `issp_core` inclui FreeRTOS: hoje o componente é C++ puro sobre seus
+próprios cabeçalhos. Introduzir `portMUX_TYPE` dá a `issp_core` sua primeira
+dependência de porta FreeRTOS/ESP-IDF. `freertos` está entre os requisitos
+comuns do ESP-IDF, portanto a compilação não deve exigir mudança de CMake, mas a
+propriedade “target-agnostic” do componente passa a valer só dentro do ESP-IDF. A
+decisão 22 admite “seção crítica equivalente”; a análise considera o spinlock a
+escolha correta para um alvo single-core com três contextos publicando, e apenas
+registra que o Arquiteto está aceitando essa dependência.
 
-**B1 — o debounce especificado não é realizável com o tick vigente e não é
-equivalente ao baseline que a especificação invoca.**
-`CONFIG_FREERTOS_HZ=100` (10 ms por tick) tanto hoje quanto no
-`sdkconfig.esp32h2` histórico. O baseline usa
-`vTaskDelay(pdMS_TO_TICKS(3))` e `pdMS_TO_TICKS(8)`, e ambos avaliam para **0
-ticks**: o comportamento histórico real foi cinco leituras praticamente
-consecutivas com um `yield` entre elas, não amostras separadas por 3 ms, e
-janelas sem os 8 ms de intervalo. A Fase 2 pede as duas coisas ao mesmo tempo —
-os números e a equivalência ao histórico —, e elas são incompatíveis. O
-Arquiteto precisa escolher qual é o contrato:
+Restrições concretas que a implementação precisa respeitar, todas verificáveis no
+código atual:
 
-1. equivalência literal ao histórico: manter `vTaskDelay` e assumir espaçamento
-   de 0 ms com o tick vigente, ajustando o texto da Fase 2 para descrever
-   contagem de amostras e janelas, não milissegundos;
-2. os 3 ms e 8 ms como requisito material: exige `esp_rom_delay_us`/
-   `esp_timer` — 15 ms de CPU bloqueada por janela, o que tensiona “sem
-   busy-wait” das variáveis experimentais — ou elevar `CONFIG_FREERTOS_HZ` para
-   1000, que é configuração compartilhada, altera a tomada já validada em
-   hardware e exige autorização e revalidação;
-3. outros valores, escolhidos pelo Arquiteto, coerentes com o tick.
+- `publishState()` chama `notifyPendingReport()` **dentro** do corpo que altera
+  os slots; a decisão 22 exige notificar fora da seção crítica, logo o método
+  precisa decidir sob lock e notificar depois;
+- `processingCommand_` e `reportNotificationDeferred_` participam da mesma
+  decisão e são escritos pela tarefa `issp154_rx` em `onReceive()` e
+  `finishCommandProcessing()`; ficam de fora da proteção se apenas os slots forem
+  protegidos, e o adiamento da notificação volta a ser corrida;
+- `preparePendingReport()` hoje codifica o payload e **depois** incrementa
+  `reportSequence_`. Como a codificação deve ficar fora da seção crítica, a
+  ordem precisa mudar: reservar slot e tomar a sequência sob lock, codificar
+  fora, e devolver o slot com `completePendingReport(token, false)` se a
+  codificação falhar — esse retorno reentra na seção crítica, que portanto não
+  pode ser recursiva nem estar retida;
+- `normalizePendingReportOrders()` é O(n²) sobre 8 slots e roda dentro do
+  bookkeeping; em `portENTER_CRITICAL` isso desabilita interrupções por dezenas
+  de microssegundos. Aceitável, mas é o trecho mais longo da seção crítica e vale
+  medir;
+- `publishReport()` também incrementa `reportSequence_` e **não é chamado por
+  nenhum código do repositório**. Deixá-lo sem proteção contradiz o novo
+  contrato; a recomendação é protegê-lo ou removê-lo junto com a mudança;
+- a callback do `esp_timer` **não** pode usar despacho por ISR: `publishState()`
+  passaria a rodar em contexto de interrupção e `portENTER_CRITICAL` seria a
+  variante errada. A decisão 21 já exige callback curta; o despacho por tarefa
+  precisa ser explícito na implementação.
 
-Sem essa decisão, o critério “oscilação que não satisfaz o debounce” não tem
-definição verificável e nenhum teste pode distinguir aprovação de reprovação.
+**Decisão 23 — preservação comportamental: resolve B3.**
+O critério de fronteiras foi reescrito de forma coerente com a decisão: admite
+adaptação mecânica de `single_smart_plug.cpp` e restringe `issp_core` à
+publicação concorrente. A contradição da rodada anterior desapareceu.
 
-**B2 — a Fase 2 cria um publicador assíncrono de reports, e o runtime declara
-não suportar publicação concorrente.**
-`IsspDevice` documenta em `issp_device.hpp`: “Pending-report publication,
-reservation, and completion are serial; concurrent callers are not supported”.
-`publishState()` altera `pendingReports_`, `pendingReportCount_` e
-`nextPendingReportOrder_` sem qualquer seção crítica. Hoje os publicadores são o
-contexto de `setup()` (via `IsspDevice::start()`) e a tarefa `issp154_rx`
-(comando → `handle()`), enquanto `preparePendingReport`/`completePendingReport`
-correm na tarefa `issp154_report_tx`. A Fase 2 exige “um novo report para cada
-transição estabilizada posterior, sem exigir reboot”, com mecanismo não
-bloqueante dentro do behavior: isso introduz um terceiro contexto de execução
-publicando de forma rotineira, e não mais somente em resposta a comando.
+**Decisão 24 — registro unificado: resolve R1 e é implementável com diff
+pequeno.** `setup()` itera `switchCount_` e `realRegisterCapability()` traduz o
+índice em `switchBehaviors_[index]`. Um `std::array<issp::IDeviceBehavior *,
+kMaxDeviceBehaviors>` preenchido na ordem de adição, iterado por `setup()` e
+indexado pelo hook, satisfaz a decisão preservando a assinatura
+`registerCapability(void *, std::size_t)` e, com ela, os testes vigentes que
+contam `registerCapabilityCalls` e verificam a ordem de registro. A unicidade
+endpoint/evento passa a ser verificada contra o registro unificado, substituindo
+`hasDuplicateSwitchEndpoint()`.
 
-Não existe no repositório um contexto compartilhado de polling que possa ser
-reutilizado: `IDeviceBehavior::poll()` existe em
-`idevice_behavior.hpp` mas **não é chamado por nenhum código do repositório**.
-O Arquiteto precisa decidir entre:
+**Decisão 25 — fonte de níveis injetável: resolve E1 e tem precedente exato.**
+`SmartSysApp::SetupHooks` é o precedente de junção de teste declaradamente não
+contratual, com construtor dedicado. Como `addDoorSensorCapability()` constrói o
+behavior internamente, a junção só é alcançável ao instanciar
+`DigitalInputBehavior` diretamente no app de teste de `issp_behaviors` — a
+configuração pública do produto continua com GPIO real, como a decisão exige.
 
-1. autorizar serialização em `issp_core` (por exemplo `portMUX_TYPE` em
-   `IsspDevice`), o que contraria o critério de fronteira “não altera
-   `issp_core`” e amplia o recorte;
-2. autorizar em `issp_app_154` um caminho de publicação serializado que o
-   behavior use em vez de chamar `publishState()` direto, mantendo `issp_core`
-   intocado e o behavior alheio a produto;
-3. passar a chamar `poll()` a partir de um contexto único e já existente, o que
-   transforma `poll()` em contrato ativo e é decisão arquitetural;
-4. aceitar explicitamente o risco de corrida como classe preexistente,
-   registrando-o como lacuna.
+**Decisão 26 — acessadores por recurso: resolve R3 e é verificável.**
+Hoje `selectedBoard()` é o único ponto de acesso ao board e
+`firmwares/single_smart_plug.cpp` é seu único consumidor, então a substituição
+por um acessador por classe de recurso é local. A falha de ligação como segunda
+linha de defesa funciona: um board que declare no CMake oferecer um recurso e não
+defina o acessador correspondente não liga.
 
-A análise não recomenda a opção 4 sem registro formal: a corrida deixa de ser
-eventual e passa a ser o caminho normal de operação do produto.
+**Decisão 15 revisada e factory reset do sensor: coerentes.**
+Com o sensor exigindo entrada de contato seco **e** botão de usuário, as duas
+combinações cruzadas continuam produzindo exatamente um recurso ausente cada
+(tomada no board do sensor: saída digital; sensor no board atual: entrada de
+contato seco), o que preserva o diagnóstico exigido. O botão histórico está no
+GPIO 9, o mesmo pino e a mesma polaridade já validados em hardware para o
+factory reset, e `configureFactoryResetButton()` aceita esses valores sem
+mudança. Não há conflito com a entrada no GPIO 14. Isso resolve o risco de
+repareamento levantado como R4 na rodada anterior.
 
-**B3 — contradição interna entre a decisão 17 e o critério de fronteiras.**
-O critério diz: “Dada uma nova variante, quando ela é adicionada, então sua
-composição não altera `issp_core`, `issp_transport_154` ou uma variante
-existente”. A decisão 17 determina que `relayPin` e companhia expirem nesta
-fase, e a tabela de pontos afetados manda substituir os campos em
-`board_model.hpp`. Como `firmwares/single_smart_plug.cpp` lê esses campos, a
-Fase 2 **necessariamente edita a variante existente**. O Arquiteto precisa
-escolher se o critério passa a proibir mudança de comportamento (e não de texto)
-da variante existente, ou se a decisão 17 é postergada.
+### Esclarecimentos a confirmar
 
-**B4 — a cadência de observação contínua não é especificada e não tem
-precedente no histórico.**
-A Fase 2 enumera como configuração “pino, polaridade, pull, endpoint, evento,
-report inicial e parâmetros de debounce”, mas monitoramento contínuo precisa de
-um período entre janelas de amostragem, que nenhum desses itens define. O
-histórico não fornece esse valor porque não monitorava: amostrava uma vez por
-boot e detectava mudança por wake-up EXT1 do deep sleep — mecanismo explicitamente
-fora do escopo desta fase. Logo, o mecanismo de detecção de transição é **novo**,
-não uma retomada. O precedente mais próximo é `ResetButtonMonitor`, com
-`pollIntervalMs` configurável (20 ms na tomada). Falta o Arquiteto definir se o
-período é parâmetro normativo do produto, com valor e latência máxima aceitável,
-ou escolha do Implementador com default documentado.
+**C1 — onde os 150 ms são medidos.**
+O escopo da Fase 2 fixa o limite “entre a estabilização física da entrada e a
+confirmação da transição pelo behavior”, mas o conjunto de validação lista
+“latência máxima de 150 ms” junto dos itens observados no coordenador. As duas
+leituras não são equivalentes: publicação enfileira em `pendingReports_`, e a
+entrega ao coordenador passa por `sendConfirmed` com timeout de ACK de 50 ms e
+retry de 1000 ms (`issp154_report_executor.cpp`), que estouram o orçamento por
+motivos alheios ao debounce. Recomendação: medir na fronteira do behavior, com
+log instrumentado, e deixar a observação no coordenador como evidência
+funcional sem prazo. Some-se a isso a margem de apenas 10 ms sobre o pior caso
+aritmético de 140 ms: se o Arquiteto quiser o limite medido ponta a ponta, ou
+com folga para jitter, o número precisa subir.
 
-### Riscos e incertezas
+**C2 — qual oscilação é rejeitada, em números.**
+O critério “oscilação que não satisfaz o debounce” é autorreferente e os testes
+precisam de um limiar. Ele é derivável do esquema especificado: para confirmar um
+estado são necessárias duas janelas consecutivas com maioria de três, e a menor
+perturbação capaz de produzir isso vai da terceira amostra de uma janela à
+terceira da janela seguinte — **50 ms sustentados**. Abaixo disso, nenhuma
+oscilação pode gerar report; acima, pode. Recomendação: registrar 50 ms como o
+limiar derivado, para que o teste de rejeição use um pulso comprovadamente curto
+(por exemplo 30 ms) e o de aceitação um pulso comprovadamente longo.
 
-**R1 — “extensão aditiva” vale para a API, não para o interior de
-`issp_app_154`.** `setup()` itera `switchCount_` e chama
-`hooks_.registerCapability(context, index)`; `realRegisterCapability` traduz esse
-índice diretamente em `switchBehaviors_[index]`, e
-`hasDuplicateSwitchEndpoint()` só compara switches. A Fase 2 exige “par
-endpoint/evento único entre todas as capabilities”, o que obriga um registro
-unificado de behaviors e de pares endpoint/evento dentro de `Impl`. O caminho de
-menor diff, e que preserva os testes vigentes (que contam
-`registerCapabilityCalls`), é um `std::array<issp::IDeviceBehavior *,
-kMaxDeviceBehaviors>` preenchido na ordem de adição, com `setup()` iterando esse
-vetor. Também é preciso decidir o que a linha de log
-`app_setup begin capabilities=%u` passa a contar. Nada disso muda operação
-pública, mas o Arquiteto deve saber que o diff interno não é aditivo.
+**C3 — o report inicial é publicado dentro de `begin()` ou pelo primeiro ciclo
+do timer.**
+O critério diz “quando o firmware inicia … publica”, e o escopo pede “report
+inicial do estado estabilizado”. Estabilizar exige duas janelas, isto é ~100 ms.
+`begin()` é chamado por `IsspDevice::start()`, dentro do estágio `StartDevice`,
+na tarefa do `app_main`. As duas leituras possíveis têm consequências
+observáveis diferentes:
 
-**R2 — orçamento de memória de `SmartSysApp::Impl`.**
+1. amostrar de forma síncrona em `begin()`: atrasa `setup()` em ~100 ms e publica
+   antes de `Running`, como faz `DigitalOutputBehavior` hoje; o período de 10 ms
+   equivale a exatamente um tick com `CONFIG_FREERTOS_HZ=100`, então até
+   `vTaskDelay` serve para as janelas iniciais;
+2. deixar o primeiro report para o timer: `begin()` retorna `Ok` sem publicar e o
+   report inicial aparece pouco depois de `Running`.
+
+A análise recomenda a leitura 1, por ser a que preserva a semântica do report
+inicial já validada na tomada e por dar ao critério um instante verificável.
+
+### Riscos e incertezas remanescentes
+
+**R1 — ciclo de vida do `esp_timer` dentro do behavior.**
+`IDeviceBehavior` não tem `end()` nem qualquer caminho de parada, e
+`DigitalOutputBehavior::begin()` trata falha de publicação anulando
+`publisher_` e retornando erro. O behavior de entrada precisa garantir que
+nenhum timer permaneça ativo quando não há publicador válido: em produção as
+instâncias vivem em `SmartSysApp::Impl` e nunca são destruídas, mas o app de
+teste construirá e destruirá muitas, e `setup()` pode falhar depois de
+`begin()` e disparar `rollbackTransport`. Sem parada e remoção no destrutor e no
+caminho de falha, a callback dispara sobre objeto destruído ou publica em
+publicador nulo.
+
+**R2 — o que os testes de concorrência podem provar.**
+O conjunto de validação pede “testes de concorrência do `IsspDevice`
+exercitando publicação, reserva e conclusão intercaladas”. Um teste
+determinístico intercalando as três operações comprova a integridade da máquina
+de estados; ele **não** comprova exclusão mútua, que continua sustentada por
+inspeção e pelo tipo de seção crítica escolhido. Um teste com duas tarefas em
+alvo single-core aumenta a confiança, mas não é prova. Recomendação: registrar
+essa distinção na evidência, para não converter “sem falha observada” em “corrida
+ausente”.
+
+**R3 — infraestrutura de teste nova em dois componentes.**
+Nem `issp_behaviors` nem `issp_core` possuem `test_apps`; o único precedente é
+`components/issp_app_154/test_apps/smart_sys_app_test`, esp32c3 sob QEMU com
+`MINIMAL_BUILD` e Unity. A Fase 2 exige cobertura automatizada nos dois. É custo
+de implementação previsível, não impedimento, mas é maior do que a tabela de
+pontos afetados sugere.
+
+**R4 — orçamento de memória de `Impl`.**
 `kImplStorageBytes = 10240` com `static_assert`, e `Impl` já contém
-`hardwareStorage_` de 8192 bytes mais os três arrays de 8 posições da tomada. A
-folga é da ordem de uma unidade de milhar de bytes. Replicar arrays de 8 posições
-para o sensor cabe com margem estreita; **embutir uma pilha estática de tarefa no
-behavior não cabe** (o precedente `ResetButtonMonitor` usa 2048 words). A falha
-seria de compilação, não silenciosa, mas a implementação deve dimensionar o
-sensor com o mínimo de slots necessário e manter qualquer pilha fora de `Impl`.
+`hardwareStorage_` de 8192 bytes mais os três arrays de oito posições da tomada.
+A decisão 21 remove o problema maior ao proibir pilha por behavior: o que sobra
+no behavior é a configuração, o estado do debounce e um `esp_timer_handle_t`. As
+variáveis experimentais já mandam usar o mínimo de slots comprovado pelo build,
+o que é a mitigação correta; a falha, se houver, é de compilação.
 
-**R3 — dupla fonte de verdade da compatibilidade por recursos.** A decisão 16
-coloca as listas de recursos no CMake, e a decisão 17 coloca o vocabulário
-físico no `BoardModel` em C++. Nada mantém as duas coerentes: um board pode
-declarar no CMake que oferece a entrada de contato seco e não preenchê-la em C++.
-Mitigação sugerida, sem framework: `board_model.hpp` declara um acessador por
-recurso e cada board define somente os que oferece — a combinação inválida falha
-também na ligação, com o CMake permanecendo o diagnóstico primário exigido pelos
-critérios.
+**R5 — o log de capabilities e a suíte vigente.**
+A decisão 24 muda o total informado por `app_setup begin capabilities=%u`. A
+validação em hardware da Fase 1 usou esse log como evidência (`capabilities=1`).
+A comparação de preservação da tomada deve considerar que o número passa a
+contar capabilities configuradas de qualquer tipo — para a tomada continua 1.
 
-**R4 — o sensor de porta fica sem caminho de reset de pareamento.** A Fase 2
-determina que ele não configure factory reset. Com isso,
-`realInitializePlatform` não instancia o serviço de reset e o dispositivo não tem
-como esquecer o coordenador persistido; o histórico usava o botão BOOT no GPIO 9
-para `iot154_storage_reset_pairing()`. O board histórico tem esse botão, mas a
-decisão 15 só lhe atribui a entrada de contato seco. Consequência operacional a
-aceitar explicitamente: repareamento do sensor exige apagar NVS por gravação.
-
-**R5 — o critério de rejeição de comando admite duas implementações.**
-`IsspDevice::onCommand()` chama `handle()` apenas quando `accepts()` é
-verdadeiro, e devolve `Unsupported` quando nenhum behavior aceita. Tanto
-`accepts() == false` quanto `accepts() == true` com `handle()` retornando
-`IsspCommandResult::Unsupported` satisfazem o critério. Recomendação:
-`accepts() == true` e `handle()` devolvendo `Unsupported`, para que o par
-endpoint/evento continue pertencendo ao sensor e a deduplicação por sequência de
-`IsspDevice` funcione. Escolha de implementação, não lacuna normativa.
-
-**R6 — mensagem do caso negativo de target.** Com `IDF_TARGET=esp32c6` os dois
-boards ficam ocultos e o `FATAL_ERROR` atual nomeia apenas “the only board model
-of this phase”. O texto precisa ser atualizado para os dois boards, senão o
-diagnóstico exigido pelos critérios fica incorreto.
-
-**R7 — `client_154/sdkconfig` não muda.** Os defaults permanecem tomada e board
-atual, já gravados. As validações cruzadas e negativas continuam exigindo
-`-DSDKCONFIG` isolado, como na Fase 1.
+**R6 — texto do diagnóstico de target.**
+Com `IDF_TARGET=esp32c6` os dois boards ficam ocultos e o `FATAL_ERROR` atual de
+`main/CMakeLists.txt` cita “the only board model of this phase”. O texto precisa
+nomear os dois boards, senão o diagnóstico exigido pelo caso negativo fica
+incorreto.
 
 ### Experimentos necessários
 
-Fatos que a leitura de código não certifica:
-
-**E1 — fonte de níveis controlável para os testes do `DigitalInputBehavior`.**
-`issp_behaviors` não tem `test_apps`; o precedente
-(`components/issp_app_154/test_apps/smart_sys_app_test`, esp32c3 sob QEMU) evita
-GPIO por completo usando `SetupHooks`. É preciso comprovar por experimento qual
-caminho funciona: (a) configurar o pino como `GPIO_MODE_INPUT_OUTPUT` e dirigir o
-nível com `gpio_set_level` sob QEMU esp32c3; ou (b) uma junção de teste no
-behavior, no precedente de `SetupHooks` — struct separada, fora da configuração
-normativa do produto, declaradamente não contratual. A enumeração de campos da
-configuração do sensor na Fase 2 não prevê essa junção; se (a) falhar, o
-Arquiteto deve autorizar (b) explicitamente.
-
-**E2 — custo e caimento do behavior em `Impl`.** Compilar o sensor composto e
-observar o `static_assert` de `kImplStorageBytes`, decidindo o número de slots
-antes de escrever os testes (R2).
-
-**E3 — comportamento real do debounce escolhido em B1.** Medir, em hardware
-ESP32-H2, o espaçamento efetivo entre amostras e a latência da transição, para
-que “oscilação rejeitada” tenha evidência distinguível de “report perdido”.
-
-**E4 — as duas composições no coordenador.** O protocolo não muda, mas a
-observação do evento `Door` no coordenador com o `device ID 0x15400001` só é
-verificável em execução real; note que a tomada usa **o mesmo** device ID, logo o
-experimento precisa garantir que os dois produtos não estejam ativos
-simultaneamente na mesma rede durante a validação.
-
-**E5 — builds e caso negativo.** As quatro combinações (duas válidas, duas
-cruzadas) e o caso C6 dos dois boards só se comprovam configurando e compilando
-com `SDKCONFIG` isolado.
+- **E1 — compilação de `issp_core` com seção crítica**, confirmando que
+  `freertos` como requisito comum basta e que nenhum consumidor (incluindo o app
+  de teste sob QEMU esp32c3) quebra;
+- **E2 — despacho e jitter do `esp_timer` a 10 ms no ESP32-H2**, medindo o
+  espaçamento real das amostras e a latência da transição contra o orçamento de
+  C1;
+- **E3 — fonte de níveis injetável em execução**, comprovando que a junção da
+  decisão 25 cobre período, janelas, maioria, latência, duplicatas e falha de
+  publicação sem GPIO real;
+- **E4 — `static_assert` de `kImplStorageBytes`** com o número de slots
+  escolhido para o sensor;
+- **E5 — as quatro combinações de seleção e o caso negativo C6 dos dois
+  boards**, com `SDKCONFIG` isolado;
+- **E6 — as duas composições contra o coordenador.** O protocolo não muda, mas
+  note que sensor e tomada compartilham o device ID `0x15400001`: a validação
+  precisa garantir que os dois produtos não estejam ativos na mesma rede
+  simultaneamente.
 
 ### Classificação das lacunas
 
-- **decisão normativa ausente:** B1, B2, B3, B4; autorização explícita para R4 e,
-  se E1(a) falhar, para a junção de teste de E1(b);
-- **escolha normal de implementação:** R1 (registro unificado interno), R3
-  (acessadores por recurso), R5 (forma da rejeição de comando), R6 (texto do
-  diagnóstico), número de slots do sensor;
-- **dependência externa pendente:** nenhuma. ESP-IDF 6.0.1, o coordenador, o
-  GPIO 14 do ESP32-H2 e o `event type 1` já estão disponíveis e confirmados.
+- **decisão normativa ausente:** nenhuma que impeça a implementação. C1 e C3 são
+  escolhas de leitura de critério que o Arquiteto deve confirmar antes de a
+  evidência ser aceita; C2 é a fixação de um número derivado;
+- **escolha normal de implementação:** forma da seção crítica e reordenação de
+  `preparePendingReport()`, ciclo de vida do timer (R1), número de slots do
+  sensor, texto do diagnóstico (R6), forma dos acessadores de recurso;
+- **dependência externa pendente:** nenhuma. ESP-IDF 6.0.1, `esp_timer`, o
+  GPIO 14 e o GPIO 9 do ESP32-H2, o `event type 1` e o coordenador estão
+  disponíveis e confirmados.
 
 ### Resultado da análise
 
-A Fase 2 é estruturalmente compatível com as fronteiras da Fase 1 e não exige
-condicionais internas nos componentes, mudança de protocolo nem duplicação de
-runtime — os três sintomas de falha do teste 3 da estratégia EKOM. Os
-impedimentos são de contrato, não de arquitetura: dois deles (B1 e B4) vêm de o
-recorte pedir comportamento contínuo a partir de um baseline de disparo único, e
-os outros dois (B2 e B3) de o recorte tocar limites que os próprios critérios
-declaram intocáveis. Cabe ao Arquiteto decidir B1 a B4 e a suficiência deste
-confronto.
+As resoluções das decisões 20 a 26 são sustentadas pelo repositório e coerentes
+entre si. B1 deixou de existir porque `esp_timer` não depende do tick; B2 passou
+a ter mecanismo autorizado e localizado; B3 foi resolvido tornando a preservação
+comportamental; B4 recebeu período, janelas e limite de latência normativos. O
+recorte continua não exigindo condicionais internas nos componentes, mudança de
+protocolo nem duplicação de runtime.
 
-### Resoluções arquiteturais posteriores à análise
-
-O Arquiteto considerou o confronto suficiente para decidir os bloqueadores. As
-decisões abaixo substituem as lacunas normativas registradas em B1 a B4, sem
-apagar a análise que as motivou:
-
-- **B1 e B4 resolvidos:** período de 10 ms por `esp_timer`, duas janelas não
-  sobrepostas de cinco amostras, maioria de três, duas classificações iguais e
-  latência máxima de 150 ms. A equivalência ao histórico limita-se à topologia
-  da votação, GPIO e polaridade; atrasos de 3 ms e 8 ms não são contrato;
-- **B2 resolvido:** `IsspDevice` passa a proteger internamente o bookkeeping de
-  pending reports com `portMUX_TYPE` ou seção crítica equivalente, mantendo
-  callbacks, notificações, codificação e transporte fora da região protegida;
-- **B3 resolvido:** a proibição passa a ser de mudança comportamental na
-  variante existente. Adaptação mecânica de `single_smart_plug.cpp` ao novo
-  vocabulário do board é autorizada com preservação integral da decisão 8;
-- **R1:** registro interno de behaviors e unicidade endpoint/evento tornam-se
-  unificados; o log informa o total de capabilities;
-- **R3:** CMake fornece o diagnóstico primário e acessadores C++ por recurso
-  fornecem defesa de ligação contra drift;
-- **R4:** o board histórico oferece também o botão do GPIO 9 e o sensor configura
-  factory reset por 10 segundos, com polling de 20 ms;
-- **R5:** o behavior reconhece o par endpoint/evento e `handle()` devolve
-  `Unsupported`;
-- **E1:** está autorizada uma fonte de níveis injetável, reservada a testes e
-  ausente da configuração pública de produção;
-- `IDeviceBehavior::poll()` não é ativado e nenhuma tarefa ou pilha própria é
-  criada pelo behavior.
-
-Essas resoluções ainda precisam de confronto focado. Elas não constituem ordem
-de implementação nem evidência de funcionamento.
+O que a Fase 2 cria de novo, e que o Arquiteto deve reconhecer, é uma
+dependência de porta FreeRTOS em `issp_core`, um contexto de execução de alta
+prioridade publicando reports a cada 10 ms e infraestrutura de teste em dois
+componentes que ainda não a possuem. Cabe ao Arquiteto confirmar C1 a C3, a
+suficiência deste confronto e a promoção do recorte.
 
 ## Resultado da implementação da Fase 1 (Engenheiro Implementador)
 
