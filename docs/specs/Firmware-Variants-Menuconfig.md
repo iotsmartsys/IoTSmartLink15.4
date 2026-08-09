@@ -43,20 +43,20 @@ reutilizáveis e runtime comum em `SmartSysApp`/`issp_*`.
 > implementabilidade. O estado vigente está em “Resultado da implementação da
 > Fase 1”.
 
-Hoje `client_154/main/main.cpp` concentra o entrypoint e a composição do único
-produto existente. Ele define a identidade do dispositivo, GPIO do relé, GPIO e
-tempos do factory reset, endpoint e tipo de evento; registra uma capability de
-tomada e inicia `SmartSysApp`.
+Antes da Fase 1, `client_154/main/main.cpp` concentrava o entrypoint e a
+composição do único produto existente. Ele definia a identidade do dispositivo,
+GPIO do relé, GPIO e tempos do factory reset, endpoint e tipo de evento;
+registrava uma capability de tomada e iniciava `SmartSysApp`.
 
 `components/issp_app_154` já fornece a fachada compartilhada `SmartSysApp` e
 compõe internamente core, behavior, transporte, commissioning, reports e reset.
-Os componentes `issp_core`, `issp_transport_154` e `issp_behaviors` já possuem
-fronteiras CMake e contratos públicos. Não existe hoje `Kconfig.projbuild` no
+Os componentes `issp_core`, `issp_transport_154` e `issp_behaviors` já possuíam
+fronteiras CMake e contratos públicos. Não existia `Kconfig.projbuild` no
 `client_154`, catálogo de boards ou pasta de variantes.
 
-Esse estado fornece um bom ponto de corte: a futura mudança extrai de
-`main.cpp` somente a composição específica do produto; não reabre a arquitetura
-interna validada de `SmartSysApp` ou dos componentes ISSP.
+Esse estado forneceu um bom ponto de corte: a mudança extraiu de `main.cpp`
+somente a composição específica do produto; não reabriu a arquitetura interna
+validada de `SmartSysApp` ou dos componentes ISSP.
 
 ## Escopo
 
@@ -182,6 +182,15 @@ incompatíveis com o target já configurado pelo ESP-IDF.
 11. A forma interna do contrato de seleção não é uma decisão arquitetural
     antecipada. A implementação deve usar o menor mecanismo local que satisfaça
     o entrypoint mínimo e a seleção pelo CMake, sem criar abstração transversal.
+12. A partir da segunda variante ou do segundo board, cada product firmware deve
+    declarar os recursos físicos de que depende e cada board model deve declarar
+    os recursos que oferece. A seleção de build deve rejeitar combinações
+    incompatíveis com diagnóstico claro antes de produzir o binário.
+13. A forma atual de `BoardModel` é local e provisória para a Fase 1, não um
+    contrato estável. Os campos `relayPin`, `relayActiveHigh`,
+    `factoryResetButtonPin` e `factoryResetButtonActiveLow` podem ser
+    substituídos na Fase 2, quando a segunda variante revelar o vocabulário de
+    recursos físicos necessário; não devem ser generalizados antecipadamente.
 
 ### Registro de conhecimento deste experimento
 
@@ -265,6 +274,10 @@ não autoriza criar stubs vazios.
 - **Dado** o board atual da Fase 1 e `IDF_TARGET=esp32c6`, **quando** a
   configuração ou o build é executado, **então** a combinação é impedida com
   diagnóstico claro de que esse board aceita somente ESP32-H2.
+- **Dado** um product firmware cujos recursos exigidos não são oferecidos pelo
+  board selecionado, **quando** a configuração ou o build é executado a partir
+  da Fase 2, **então** a combinação é impedida com diagnóstico que identifica o
+  produto, o board e o recurso ausente.
 
 ### Fronteiras
 
@@ -335,7 +348,7 @@ do documento.
   as fontes selecionadas entram no build;
 - build do `client_154` para ESP32-H2 com ESP-IDF 6.0.1;
 - build de `examples/issp_minimal_client` para ESP32-H2;
-- execução dos 19 testes de `SmartSysApp` em QEMU ESP32-C3;
+- execução da suíte de testes de `SmartSysApp` em QEMU ESP32-C3;
 - build de `coordinator_154` para ESP32-C6;
 - configuração ou build negativo do board da Fase 1 com target ESP32-C6,
   contendo o diagnóstico esperado;
@@ -447,7 +460,9 @@ foram alterados.
   decisão 11; nenhuma classe base, registro ou abstração transversal foi criada;
 - `client154::BoardModel` transporta apenas pino e polaridade do relé e do botão
   de reset. Tempo de retenção do reset, identidade, endpoint, tipo de evento,
-  estado inicial e report inicial permanecem no product firmware;
+  estado inicial e report inicial permanecem no product firmware. Essa forma e
+  seus nomes orientados ao produto são provisórios da Fase 1, conforme a decisão
+  13;
 - a seleção do board depende de `IDF_TARGET_ESP32H2` no `Kconfig`; quando nenhum
   board compatível existe para o target, `main/CMakeLists.txt` emite
   `FATAL_ERROR` nomeando o target e a incompatibilidade. O board ainda carrega um
@@ -459,8 +474,10 @@ foram alterados.
   já que o entrypoint deixou de pertencer a um produto. As duas mensagens
   (`ISSP runtime did not start...` e `ISSP runtime started`) e a sequência
   configuração → `setup()` foram preservadas literalmente;
-- nenhum `sdkconfig` versionado foi alterado: todas as validações usaram builds
-  isolados por `-DSDKCONFIG`, conforme o precedente local.
+- as validações desta implementação usaram builds isolados por `-DSDKCONFIG` e
+  não alteraram configuração versionada. Posteriormente,
+  `client_154/sdkconfig` recebeu os símbolos default de produto e board e passou
+  a representar a configuração H2 vigente.
 
 ### Evidências executadas
 
@@ -492,10 +509,15 @@ resultado material são os 20 casos executados individualmente com `PASS`.
   `OFF`, `TOGGLE`, factory reset por 10 segundos, reboot e retorno ao
   commissioning. Sem ela, os critérios de preservação do produto atual
   permanecem não verificados e o estado não pode passar de `In Progress`;
-- `client_154/sdkconfig` e `client_154/sdkconfig.esp32h2` continuam versionados
-  sem os novos símbolos; eles serão gravados por quem configurar o projeto no
-  local de trabalho. `client_154/sdkconfig.esp32c6` passa a representar, por
-  decisão do Arquiteto, uma configuração que deve falhar;
+- `client_154/sdkconfig` é a configuração H2 vigente e contém os símbolos
+  default de produto e board. `client_154/sdkconfig.esp32h2`, redundante e
+  divergente, e `client_154/sdkconfig.old`, artefato gerado sem consumidor
+  declarado, devem ser removidos na ordem de implementação correspondente.
+  `client_154/sdkconfig.esp32c6` permanece como configuração negativa que deve
+  falhar enquanto não existir board compatível;
+- confirmar, nos consumidores externos conhecidos, que nenhuma ferramenta de
+  host filtra logs pela tag anterior `iot154_switch`; não existe consumidor
+  dessa tag dentro do repositório;
 - o teste 3 da estratégia EKOM (segunda composição) permanece integralmente
   diferido e continua dependendo da escolha do Arquiteto;
 - `EKM-GAP-0006` permanece aberta e não é afetada por esta mudança.
