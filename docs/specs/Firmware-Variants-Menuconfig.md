@@ -413,10 +413,13 @@ contratos compartilhados sem nova decisão do Arquiteto.
 
 ## Resultado da implementação da Fase 1 (Engenheiro Implementador)
 
-**Estado:** Em andamento [`In Progress`]. Código e validações automatizáveis
-estão concluídos; a validação em hardware ESP32-H2 exigida pelos critérios de
-preservação ainda não foi executada e mantém a implementação fora de
-`Implemented`.
+**Estado da Fase 1:** Implementação concluída. Código, validações automatizáveis
+e a validação em hardware ESP32-H2 exigida pelos critérios de preservação estão
+executados; o Arquiteto declarou a execução em hardware aceitável.
+
+A especificação integral permanece Em andamento [`In Progress`]: a Fase 2 e o
+teste 3 da estratégia EKOM continuam sem implementação e sem evidência. A
+conclusão da Fase 1 não representa a especificação integral como implementada.
 
 ### Estrutura implementada
 
@@ -478,7 +481,46 @@ ESP-IDF v6.0.1, builds isolados fora da árvore do repositório.
 | build `coordinator_154` ESP32-C6 | sucesso, 0 warnings |
 | caso negativo board/target | `idf.py set-target esp32c6` falha na configuração com “No board model selected in the IoTSmartLink15.4 menu for IDF_TARGET=esp32c6…”, sem produzir binário |
 | ausência de `CONFIG_*` de produto ou board em `components/issp_*` | confirmada por varredura; o único uso remanescente é `CONFIG_IDF_TARGET_*` do ESP-IDF |
-| validação em hardware ESP32-H2 | **não executada** |
+| validação em hardware ESP32-H2 | executada pelo Arquiteto e declarada aceitável |
+
+#### Validação em hardware ESP32-H2
+
+Executada pelo Arquiteto em placa física e declarada aceitável por ele, que
+detém a autoridade sobre a suficiência das evidências. O Implementador não
+operou o hardware; registra abaixo o que o log entregue comprova diretamente e o
+que se apoia na observação direta do Arquiteto.
+
+Binário observado: ESP-IDF v6.0.1, projeto `sensor_154` — nome de projeto
+preexistente do `client_154`, não um firmware de outro produto —, versão de app
+`ff3a003`, o commit da Fase 1. Entre `ff3a003` e a versão vigente houve apenas
+documentação e a gravação, em `client_154/sdkconfig`, dos dois símbolos default
+de produto e board, que o `Kconfig` já aplicava por padrão no build validado. O
+binário validado é, portanto, materialmente equivalente ao vigente.
+
+Comprovado diretamente pelo log:
+
+- boot até `Running` pelo caminho novo: `app_setup begin capabilities=1
+  factory_reset=configured`, estágios 1 a 6 e `app_setup completed
+  state=running`;
+- entrypoint mínimo emitindo `iot154_client: ISSP runtime started`, com a
+  sequência configuração → `setup()` preservada;
+- report inicial com os valores de baseline: `DIGITAL_OUTPUT_START:
+  initial_report endpoint=1 event=2 value=0 result=0`, isto é, endpoint 1,
+  event type 2, estado inicial desligado e report inicial habilitado;
+- factory reset configurado com os valores de baseline: `RESET_BUTTON:
+  initialized gpio=9 hold_ms=10000`;
+- commissioning persistido recarregado e rádio ativo, com duas recepções
+  posteriores validadas em `COMMAND_ORIGIN`.
+
+Apoiado na observação direta do Arquiteto, fora do trecho de log entregue: os
+comandos `ON`, `OFF` e `TOGGLE`, a pressão de factory reset por 10 segundos, o
+reboot e o retorno ao commissioning. O device ID `0x15400001` e o relé no GPIO
+13 ativo em nível alto também não aparecem no trecho; permanecem comprovados
+apenas pela inspeção estática de `firmwares/single_smart_plug.cpp` e
+`boards/current_client_esp32h2_wiring.cpp` contra a decisão 8.
+
+Esta execução comprova a preservação da migração e não declara resolvida a
+lacuna preexistente de ACK/retry (`EKM-GAP-0006`).
 
 O conjunto de testes automatizados de `SmartSysApp` possui hoje 20 casos, não os
 19 registrados quando a especificação foi escrita; o arquivo de teste não foi
@@ -489,10 +531,6 @@ resultado material são os 20 casos executados individualmente com `PASS`.
 
 ### Pendências desta implementação
 
-- validação em hardware ESP32-H2 de boot até `Running`, report inicial, `ON`,
-  `OFF`, `TOGGLE`, factory reset por 10 segundos, reboot e retorno ao
-  commissioning. Sem ela, os critérios de preservação do produto atual
-  permanecem não verificados e o estado não pode passar de `In Progress`;
 - `client_154/sdkconfig` é a configuração H2 vigente e contém os símbolos
   default de produto e board. `client_154/sdkconfig.esp32h2`,
   `client_154/sdkconfig.esp32c6` e `client_154/sdkconfig.old` são cópias inertes,
