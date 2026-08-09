@@ -2,7 +2,7 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.15
+**Versão:** 1.16
 **Responsável:** Marcelo Miranda
 **Última atualização:** 09/08/2026
 **Escopo:** Todo o repositório
@@ -45,7 +45,7 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
 | API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main/` (composição hoje em `firmwares/single_smart_plug.cpp`) e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 20/20 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |
-| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; direção integral `Implementable`; Fase 2 analisada, com recomendação de retorno ao rascunho por quatro decisões normativas | In Progress; Fase 1 concluída e Fase 2 especificada | Fase 1 implementada em `client_154/main/`; Fase 2 define `Door sensor`, board histórico ESP32-H2, compatibilidade por recursos e entrada digital reutilizável | Quatro builds sem warnings; 20/20 testes QEMU; seleção e caso negativo comprovados; tomada validada em hardware; Fase 2 ainda sem evidência e com bloqueadores B1 a B4 registrados na especificação |
+| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; direção integral `Implementable`; B1 a B4 da Fase 2 resolvidos pelo Arquiteto e aguardando confronto focado | In Progress; Fase 1 concluída e Fase 2 especificada | Fase 1 em `client_154/main/`; Fase 2 define `Door sensor`, segundo board H2, entrada digital, registro unificado e serialização interna dos pending reports | Evidências da Fase 1 preservadas; análise da Fase 2 registrada; resoluções ainda sem implementação ou evidência |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | Client em `components/issp_core/src/issp_protocol.cpp`; coordenador em `coordinator_154/main/iot154_packet.h` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE funcionais; confiabilidade residual de ACK em `EKM-GAP-0006` |
@@ -87,9 +87,11 @@ IoTSmartLink15.4 repository
 │   └── lacuna: especificação wire dedicada ainda inexistente
 ├── Shared client platform
 │   ├── issp_app_154 / SmartSysApp
+│   │   └── [especificado] capability de porta e registro unificado
 │   ├── issp_behaviors
 │   │   └── [especificado] DigitalInputBehavior (Fase 2)
 │   ├── issp_core
+│   │   └── [especificado] proteção concorrente dos pending reports
 │   └── issp_transport_154
 ├── Integration evidence
 │   └── examples/issp_minimal_client

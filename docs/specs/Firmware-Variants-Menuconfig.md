@@ -3,10 +3,10 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
 **Revisão de implementabilidade:** Implementable para a direção integral por
-decisão do Arquiteto; a análise do recorte concretizado da Fase 2 foi executada
-e recomenda retorno ao rascunho para quatro decisões normativas
-**Prontidão:** Needs Analysis para a Fase 2 — a análise abaixo recomenda ao
-Arquiteto resolver os bloqueadores B1 a B4 antes de autorizar implementação
+decisão do Arquiteto; a análise da Fase 2 foi executada e os bloqueadores B1 a
+B4 foram resolvidos pelo Arquiteto
+**Prontidão:** Needs Analysis — requer confronto focado das resoluções antes de
+autorizar implementação
 
 ## Missão
 
@@ -113,30 +113,34 @@ A Fase 2 contém:
 - board model descritivo `Historical door sensor ESP32-H2 wiring`, compatível
   somente com `IDF_TARGET=esp32h2`;
 - entrada de contato seco no GPIO 14, pull-up interno e estado lógico ativo em
-  nível alto;
-- debounce equivalente ao baseline histórico: cinco amostras separadas por 3
-  ms, classificação em nível baixo com ao menos três amostras baixas e leitura
-  aceita após duas janelas consecutivas iguais, limitadas a quatro janelas com
-  intervalo de 8 ms;
+  nível alto, e botão de usuário no GPIO 9, ativo em nível baixo;
+- amostragem periódica a cada 10 ms, em janelas não sobrepostas de cinco
+  amostras; cada janela é classificada pela maioria de três níveis e o estado é
+  confirmado após duas janelas consecutivas com a mesma classificação;
+- latência máxima de 150 ms entre a estabilização física da entrada e a
+  confirmação da transição pelo behavior;
 - report inicial do estado estabilizado e um novo report para cada transição
   estabilizada posterior, sem exigir reboot;
 - `DigitalInputBehavior` reutilizável em `components/issp_behaviors` e a
   operação pública `SmartSysApp::addDoorSensorCapability()`;
 - configuração do sensor contendo pino, polaridade, pull, endpoint, evento,
-  report inicial e parâmetros de debounce; a variante combina os valores do
-  board com suas constantes de produto;
+  report inicial, período de 10 ms e parâmetros de debounce; a variante combina
+  os valores do board com suas constantes de produto;
 - as mesmas regras de ciclo de vida da fachada vigente: capability adicionada
   antes de `setup()`, par endpoint/evento único entre todas as capabilities e
   falha observável por retorno e `lastConfigurationResult()`;
 - ausência de tratamento de comandos pelo sensor de porta: comandos dirigidos
-  a esse endpoint/evento permanecem `Unsupported` e não alteram a entrada;
-- o sensor de porta não configura factory reset nesta fase;
+  a esse endpoint/evento são reconhecidos pelo behavior, retornam `Unsupported`
+  e não alteram a entrada;
+- factory reset pelo botão de usuário, com retenção de 10 segundos e polling de
+  20 ms, como no produto vigente;
 - seleção e build exclusivos da tomada ou do sensor, nunca dos dois no mesmo
   binário.
 
-O mecanismo de observação da entrada deve ser não bloqueante e permanecer no
-behavior reutilizável. O product firmware apenas fornece semântica, parâmetros
-de debounce e composição; o board fornece pino, pull e polaridade elétrica.
+O mecanismo de observação usa `esp_timer` periódico dentro do behavior, sem
+busy-wait, tarefa ou pilha próprias e sem ativar globalmente
+`IDeviceBehavior::poll()`. O product firmware fornece semântica, parâmetros e
+composição; o board fornece pino, pull e polaridade elétrica.
 
 Bateria, ADC, deep sleep, wake-up por GPIO e métricas de consumo existentes no
 histórico não pertencem a esta Fase 2. A retomada desses comportamentos exige
@@ -147,7 +151,8 @@ produto de baixo consumo.
 
 - implementar qualquer variante nesta etapa de especificação;
 - alterar protocolo wire, transporte, commissioning, ACK, retry, formato ou
-  pipeline de reports, NVS ou factory reset;
+  pipeline de reports, NVS ou o comportamento interno do factory reset; a Fase
+  2 apenas compõe o serviço vigente com os parâmetros já validados;
 - selecionar ou mudar o chip alvo do ESP-IDF pelo `menuconfig`;
 - tornar componentes conscientes de produto ou placa;
 - carregar duas variantes no mesmo binário ou selecionar produto em runtime;
@@ -249,9 +254,9 @@ incompatíveis com o target já configurado pelo ESP-IDF.
     a promoção anterior não substitui esse confronto.
 15. Na Fase 2, produto e board são compatíveis por classes e quantidades de
     recursos físicos. `Single smart plug` exige uma saída digital e um botão de
-    usuário; `Door sensor` exige uma entrada para contato seco. O board atual
-    oferece a saída e o botão; o board histórico do sensor oferece a entrada de
-    contato seco.
+    usuário; `Door sensor` exige uma entrada para contato seco e um botão de
+    usuário. O board atual oferece a saída e o botão; o board histórico do
+    sensor oferece a entrada e o botão.
 16. Cada ramo de seleção no CMake declara uma lista de recursos exigidos pelo
     produto ou oferecidos pelo board. O CMake calcula os recursos ausentes e
     rejeita a composição quando a diferença não é vazia. O diagnóstico deve
@@ -263,11 +268,40 @@ incompatíveis com o target já configurado pelo ESP-IDF.
     como `relayPin`, expiram nesta fase; a representação C++ concreta deve ser
     a menor que expresse esses recursos sem criar um framework genérico.
 18. `DigitalInputBehavior` é genérico quanto a produto e evento. Ele estabiliza
-    uma entrada, publica estado inicial e transições e rejeita comandos. A
-    fachada dá a semântica pública de sensor de porta; o behavior não conhece
-    `menuconfig`, board ou nome de produto.
+    uma entrada, publica estado inicial e transições e reconhece seu par
+    endpoint/evento para responder `Unsupported` a comandos. A fachada dá a
+    semântica pública de sensor de porta; o behavior não conhece `menuconfig`,
+    board ou nome de produto.
 19. O protocolo wire e o coordenador não mudam: `event type 1` e os valores
     aberto/fechado já são compreendidos pelo alvo coordenador.
+20. O debounce da Fase 2 não reivindica equivalência temporal ao código
+    histórico. Preserva a votação por cinco amostras e maioria de três, agora
+    com período normativo de 10 ms, janelas não sobrepostas, duas classificações
+    consecutivas iguais e latência máxima observável de 150 ms.
+21. `DigitalInputBehavior` usa um `esp_timer` periódico para observar a entrada.
+    A callback deve ser curta e não bloqueante; não se cria tarefa ou pilha por
+    behavior e `IDeviceBehavior::poll()` permanece fora deste recorte.
+22. `IsspDevice` passa a garantir segurança entre publicação, reserva e
+    conclusão de pending reports com `portMUX_TYPE` interno ou seção crítica
+    equivalente. Somente o bookkeeping compartilhado fica protegido; callback,
+    notificação, codificação e transporte executam fora da seção crítica. O
+    comentário que exige chamadores seriais deve ser atualizado para o novo
+    contrato.
+23. A preservação de uma variante existente é comportamental. Alterações
+    mecânicas necessárias para migrar `single_smart_plug.cpp` ao vocabulário
+    físico do board são permitidas, desde que todos os valores da decisão 8 e o
+    comportamento observado permaneçam inalterados.
+24. `issp_app_154` mantém um registro unificado de behaviors e de pares
+    endpoint/evento, independentemente do tipo de capability. `setup()` registra
+    esse vetor na ordem de adição e o log de capabilities informa o total de
+    capabilities configuradas.
+25. `DigitalInputBehavior` pode receber uma fonte de níveis injetável em
+    construção reservada a testes, análoga a `SetupHooks`. A configuração
+    pública do produto continua usando GPIO real e não expõe essa junção.
+26. O CMake permanece como diagnóstico primário de compatibilidade. O contrato
+    C++ fornece um acessador por classe de recurso e cada board define somente
+    os recursos que oferece, produzindo também falha de ligação se os metadados
+    divergirem, sem introduzir geração de código ou framework de boards.
 
 ### Registro de conhecimento deste experimento
 
@@ -330,9 +364,10 @@ Somente arquivos de variantes e boards realmente suportados devem existir. A
 | `client_154/main/CMakeLists.txt` | selecionar as novas fontes e validar requisitos contra recursos oferecidos | uma variante, um board e diagnóstico antes do binário |
 | `client_154/main/firmwares/door_sensor.cpp` | compor identidade, endpoint, evento e debounce do sensor | nenhuma pinagem literal ou lógica de transporte |
 | `client_154/main/boards/board_model.hpp` | substituir campos orientados ao relé por recursos físicos | preservar a composição da tomada e evitar framework genérico |
-| `client_154/main/boards/historical_door_sensor_esp32h2_wiring.cpp` | declarar a entrada de contato seco | nenhuma regra de produto ou protocolo |
-| `components/issp_behaviors` | adicionar `DigitalInputBehavior` | reutilizável, sem produto, board ou `CONFIG_*` |
-| `components/issp_app_154` | expor e compor `addDoorSensorCapability()` | não expor tipos privados do ISSP nem mudar as operações vigentes |
+| `client_154/main/boards/historical_door_sensor_esp32h2_wiring.cpp` | declarar entrada de contato seco e botão de usuário | nenhuma regra de produto ou protocolo |
+| `components/issp_behaviors` | adicionar `DigitalInputBehavior` e observação por `esp_timer` | reutilizável, sem produto, board, `CONFIG_*`, tarefa ou pilha própria |
+| `components/issp_app_154` | expor `addDoorSensorCapability()` e unificar o registro interno | não expor tipos privados do ISSP nem mudar as operações vigentes |
+| `components/issp_core` | serializar o bookkeeping dos pending reports | nenhuma regra de produto; callbacks e transporte fora da seção crítica |
 | testes de `issp_behaviors` e `issp_app_154` | cobrir estabilização, reports, rejeição de comandos e regressão | doubles devem preservar leitura e transição material |
 | `docs/rfc/KNOWLEDGE-MAP.md` | marcar sensor e board como especificados | apontar para este contrato sem duplicá-lo |
 
@@ -363,8 +398,9 @@ Somente arquivos de variantes e boards realmente suportados devem existir. A
 ### Fronteiras
 
 - **Dada** uma nova variante, **quando** ela é adicionada, **então** sua
-  composição não altera `issp_core`, `issp_transport_154` ou uma variante
-  existente; a extensão de `issp_app_154` fica limitada à nova capability.
+  composição não altera protocolo nem `issp_transport_154`; `issp_core` muda
+  somente para garantir publicação concorrente segura e variantes existentes
+  admitem adaptações mecânicas sem mudança de comportamento.
 - **Dado** o código compartilhado, **quando** ele é inspecionado, **então** não
   há símbolo `CONFIG_*` de seleção de produto ou board em `components/issp_*`.
 - **Dado** um product firmware, **quando** sua composição é inspecionada,
@@ -395,14 +431,22 @@ build isolado não substituem a observação do firmware em execução.
   **quando** o firmware inicia, **então** publica endpoint 1, evento 1 e valor 0
   (`closed`).
 - **Dado** o firmware em execução, **quando** a entrada muda e satisfaz o
-  debounce especificado, **então** publica uma vez o novo estado sem reboot.
+  debounce especificado, **então** publica uma vez o novo estado sem reboot e
+  em até 150 ms após a estabilização física.
 - **Dada** uma oscilação que não satisfaz o debounce, **quando** a entrada volta
   ao estado anterior, **então** nenhum novo report é publicado.
 - **Dado** um estado já publicado, **quando** novas leituras estabilizam no
   mesmo valor, **então** nenhum report duplicado é criado.
 - **Dado** um comando para endpoint 1 e evento 1, **quando** ele chega ao sensor
-  de porta, **então** recebe resultado `Unsupported`, não altera a entrada e não
-  cria report de mudança.
+  de porta, **então** o behavior reconhece o par, devolve `Unsupported`, não
+  altera a entrada e não cria report de mudança.
+- **Dado** o sensor pareado, **quando** o botão de usuário permanece pressionado
+  por 10 segundos, **então** o factory reset remove o pareamento e permite novo
+  commissioning após reboot.
+- **Dadas** publicação de uma transição e transmissão de reports em contextos
+  concorrentes, **quando** pending reports são publicados, reservados e
+  concluídos, **então** contagem, ordem, geração e conteúdo permanecem íntegros,
+  sem report perdido, duplicado ou slot corrompido.
 - **Dada** a seleção da tomada com o board do sensor ou do sensor com o board da
   tomada, **quando** o build é configurado, **então** ele falha antes de gerar
   binário e identifica respectivamente os recursos físicos ausentes.
@@ -473,9 +517,12 @@ do documento.
 - configuração negativa das duas combinações cruzadas, sem produção de
   binário e com diagnóstico do recurso ausente;
 - caso negativo ESP32-C6 para os dois boards, sempre com `SDKCONFIG` isolado;
-- testes automatizados do `DigitalInputBehavior` cobrindo estado inicial,
-  debounce, transição, supressão de duplicatas, falha de publicação e comandos
-  não aceitos;
+- testes automatizados do `DigitalInputBehavior`, com fonte de níveis injetável,
+  cobrindo período de 10 ms, janelas, maioria, latência, estado inicial,
+  transição, supressão de duplicatas, falha de publicação e comando
+  `Unsupported` reconhecido pelo par;
+- testes de concorrência do `IsspDevice` exercitando publicação, reserva e
+  conclusão intercaladas e confirmando a integridade dos pending reports;
 - testes da adição de `addDoorSensorCapability()` e regressão integral da suíte
   vigente de `SmartSysApp`;
 - build de `examples/issp_minimal_client` e de `coordinator_154`, sem mudança
@@ -483,7 +530,8 @@ do documento.
 - hardware da tomada simples repetindo a preservação da Fase 1;
 - hardware do sensor ESP32-H2 comprovando boot até `Running`, report inicial
   aberto e fechado, transições nos dois sentidos sem reboot, ausência de report
-  por oscilação rejeitada e evento correspondente observado no coordenador.
+  por oscilação rejeitada, latência máxima de 150 ms, factory reset e evento
+  correspondente observado no coordenador.
 
 Para cada item, falha, execução não iniciada ou resultado desconhecido não
 constitui aprovação. A evidência deve permitir distinguir aprovação, reprovação
@@ -501,36 +549,37 @@ monolítico cheio de condicionais.
   descritivo somente após confirmação do Arquiteto;
 - a representação C++ concreta dos recursos continua local à implementação,
   limitada pelo vocabulário e pelo mecanismo de compatibilidade das decisões
-  15 a 17;
-- o mecanismo não bloqueante de observação pode ser escolhido pelo
-  Implementador, desde que permaneça no behavior, seja verificável com níveis
-  controlados e satisfaça os critérios funcionais sem busy-wait;
+  15 a 17 e 26;
+- o número de slots reservado ao sensor deve ser o mínimo comprovado pelo build,
+  sem ampliar preventivamente `kImplStorageBytes`;
 - a implementação deve registrar se a extensão aditiva de `SmartSysApp` e a
   compatibilidade por recursos confirmaram as fronteiras ou revelaram contexto
   ainda ausente no mapa.
 
-Essas variáveis não autorizam implementação antes da análise do recorte
-concretizado. O experimento permanece aberto até a Fase 2 produzir evidência e
-o Arquiteto avaliar seu resultado.
+Essas variáveis não autorizam implementação antes do confronto focado das
+resoluções arquiteturais. O experimento permanece aberto até a Fase 2 produzir
+evidência e o Arquiteto avaliar seu resultado.
 
 ## Resultado desta etapa
 
-O Arquiteto aprovou o sensor de porta como segunda composição e autorizou a
-extensão aditiva da fachada e dos behaviors dentro deste recorte. O Consultor
-reconciliou a Fase 2 nesta especificação e no mapa, sem iniciar implementação.
-A análise anterior continua sustentando a direção integral; o conteúdo concreto
-da Fase 2 requer nova análise de implementabilidade. O Arquiteto confirmou o
-registro documental produzido pelo Consultor; essa confirmação não representa
-aprovação técnica nem autorização para implementar a Fase 2.
+O Arquiteto aprovou o sensor de porta como segunda composição. A análise de
+implementabilidade confirmou a direção estrutural e identificou B1 a B4. O
+Arquiteto resolveu esses bloqueadores e autorizou as mudanças compartilhadas
+descritas nas decisões 20 a 26. O Consultor reconciliou as decisões nesta
+especificação e no mapa, sem iniciar implementação. O recorte requer confronto
+focado antes de ser promovido para implementação.
+
+O Arquiteto confirmou o registro documental produzido pelo Consultor e
+autorizou seu commit e envio à branch do experimento. Essa confirmação não
+representa aprovação da implementação nem substitui o confronto focado da Fase
+2.
 
 ## Decisão vigente de implementabilidade
 
-O Arquiteto mantém a direção integral como `Implementable`, decisão tomada antes
-da concretização da segunda variante. A Fase 2 agora define o sensor de porta,
-o board, a ampliação autorizada da API e o mecanismo de compatibilidade; esse
-novo recorte está em `Needs Analysis` e não deve iniciar implementação até que
-sua implementabilidade seja confrontada. Isso não altera a conclusão da Fase 1
-nem declara a Fase 2 implementada ou validada.
+O Arquiteto mantém a direção integral como `Implementable`. Para a Fase 2, B1 a
+B4 estão normativamente resolvidos, mas o estado permanece `Needs Analysis` até
+um Analista confrontar especificamente essas resoluções com o repositório. Isso
+não altera a conclusão da Fase 1 nem declara a Fase 2 implementada ou validada.
 
 ## Análise de implementabilidade da Fase 2 (Engenheiro Analista)
 
@@ -796,6 +845,38 @@ recorte pedir comportamento contínuo a partir de um baseline de disparo único,
 os outros dois (B2 e B3) de o recorte tocar limites que os próprios critérios
 declaram intocáveis. Cabe ao Arquiteto decidir B1 a B4 e a suficiência deste
 confronto.
+
+### Resoluções arquiteturais posteriores à análise
+
+O Arquiteto considerou o confronto suficiente para decidir os bloqueadores. As
+decisões abaixo substituem as lacunas normativas registradas em B1 a B4, sem
+apagar a análise que as motivou:
+
+- **B1 e B4 resolvidos:** período de 10 ms por `esp_timer`, duas janelas não
+  sobrepostas de cinco amostras, maioria de três, duas classificações iguais e
+  latência máxima de 150 ms. A equivalência ao histórico limita-se à topologia
+  da votação, GPIO e polaridade; atrasos de 3 ms e 8 ms não são contrato;
+- **B2 resolvido:** `IsspDevice` passa a proteger internamente o bookkeeping de
+  pending reports com `portMUX_TYPE` ou seção crítica equivalente, mantendo
+  callbacks, notificações, codificação e transporte fora da região protegida;
+- **B3 resolvido:** a proibição passa a ser de mudança comportamental na
+  variante existente. Adaptação mecânica de `single_smart_plug.cpp` ao novo
+  vocabulário do board é autorizada com preservação integral da decisão 8;
+- **R1:** registro interno de behaviors e unicidade endpoint/evento tornam-se
+  unificados; o log informa o total de capabilities;
+- **R3:** CMake fornece o diagnóstico primário e acessadores C++ por recurso
+  fornecem defesa de ligação contra drift;
+- **R4:** o board histórico oferece também o botão do GPIO 9 e o sensor configura
+  factory reset por 10 segundos, com polling de 20 ms;
+- **R5:** o behavior reconhece o par endpoint/evento e `handle()` devolve
+  `Unsupported`;
+- **E1:** está autorizada uma fonte de níveis injetável, reservada a testes e
+  ausente da configuração pública de produção;
+- `IDeviceBehavior::poll()` não é ativado e nenhuma tarefa ou pilha própria é
+  criada pelo behavior.
+
+Essas resoluções ainda precisam de confronto focado. Elas não constituem ordem
+de implementação nem evidência de funcionamento.
 
 ## Resultado da implementação da Fase 1 (Engenheiro Implementador)
 
