@@ -386,7 +386,10 @@ de validação da Fase 1. O Consultor reconciliou essas decisões sem iniciar
 implementação funcional. O Engenheiro Analista confrontou a versão reconciliada
 e promoveu a revisão de implementabilidade para `Implementable`.
 
-## Revisão de implementabilidade (Engenheiro Analista)
+## Revisão de implementabilidade da versão pré-implementação (Engenheiro Analista)
+
+> Esta seção registra a revisão da versão anterior à Fase 1. A revisão da versão
+> integral vigente está em “Revisão de implementabilidade da versão vigente”.
 
 **Resultado:** Implementável [`Implementable`] para a versão integral. Preserva
 `Not Started`; não constitui autorização para implementar. Uma ordem posterior
@@ -521,3 +524,83 @@ resultado material são os 20 casos executados individualmente com `PASS`.
 - o teste 3 da estratégia EKOM (segunda composição) permanece integralmente
   diferido e continua dependendo da escolha do Arquiteto;
 - `EKM-GAP-0006` permanece aberta e não é afetada por esta mudança.
+
+## Revisão de implementabilidade da versão vigente (Engenheiro Analista)
+
+**Recorte:** versão integral vigente do documento, incluindo as seções
+acrescentadas após a Fase 1. **Resultado:** Implementável [`Implementable`] para
+a Fase 1, que já está implementada; **retorno à análise** para a Fase 2, cujo
+bloqueador é decisão do Arquiteto ainda não tomada. Esta atuação preserva
+`Proposed` e `In Progress`, não declara aprovação e não altera implementação,
+teste ou configuração.
+
+### Confronto contra o repositório
+
+| Afirmação da especificação | Verificação |
+|---|---|
+| estrutura implementada da Fase 1 | confere; os sete arquivos existem em `client_154/main/` e `main.cpp` não existe mais |
+| valores de baseline da decisão 8 | conferem com `main:client_154/main/main.cpp`; device ID, GPIO 13 ativo alto, GPIO 9 ativo baixo, 10 s, endpoint 1, event type 2, estado inicial e report inicial preservados |
+| ausência de `CONFIG_*` de produto/board em `components/issp_*` | confirmada; varredura de fontes, CMake e Kconfig não retorna nenhum símbolo além de `CONFIG_IDF_TARGET_*` do ESP-IDF |
+| `IOTSMARTLINK154_*` restrito à seleção | confirmado; só ocorre em `client_154/main/` e em `client_154/sdkconfig` |
+| `client_154/CMakeLists.txt` inalterado | confirmado; `EXTRA_COMPONENT_DIRS` e `MINIMAL_BUILD` preservados e fora do diff |
+| diff concentrado nos pontos afetados | confere; `git diff --stat main...HEAD` toca apenas `client_154/main/`, `client_154/sdkconfig`, o mapa e esta especificação |
+| suíte com 20 casos | confere; 20 `TEST_CASE` no app de teste de `SmartSysApp` |
+| `KNOWLEDGE-MAP.md` aponta para esta especificação | confere; entrada de domínio, ramo de variantes e regra de navegação presentes, sem duplicar o contrato |
+
+### Observações que afetam a assertabilidade
+
+Nenhuma bloqueia a Fase 1. Todas pertencem ao Autor ou ao Arquiteto.
+
+1. **`sdkconfig.esp32c6` não é o oráculo do caso negativo.** O repositório não
+   possui nenhum `sdkconfig.defaults*`; o ESP-IDF não consome automaticamente
+   `sdkconfig.<target>`. Os arquivos `sdkconfig.esp32c6`, `sdkconfig.esp32h2` e
+   `sdkconfig.old` são cópias inertes, usadas apenas se passadas por
+   `-DSDKCONFIG`. Além disso, `sdkconfig.esp32c6` não contém símbolo
+   `IOTSMARTLINK154_*` algum. A afirmação de que ele “passa a representar uma
+   configuração que deve falhar” atribui papel normativo a um artefato inerte.
+   O oráculo material é o registrado nas evidências: `idf.py set-target esp32c6`
+   falhando na configuração.
+2. **O caso negativo, como executado, mutila a configuração versionada.**
+   `idf.py set-target esp32c6` reescreve `client_154/sdkconfig`, que a própria
+   especificação passou a declarar como a configuração H2 vigente. A repetição
+   do critério de aceite exige isolamento explícito por `-DSDKCONFIG`, hoje
+   registrado como prática da implementação e não como parte do critério.
+3. **A decisão 8 omite `pollIntervalMs`.** O baseline usa 20 ms e a
+   implementação o preservou, mas a lista de valores de preservação obrigatória
+   não o inclui; uma regressão nesse parâmetro não seria detectada pelo contrato
+   como escrito.
+4. **O critério de exclusividade de variante é vacuamente satisfeito.** Com um
+   único `config` dentro do `choice`, “nenhuma segunda variante pode permanecer
+   selecionada” não é assertável na Fase 1; só se torna verificável com a
+   segunda composição.
+5. **A tag de log não é coberta pelo contrato.** A mudança de `iot154_switch`
+   para `iot154_client` está registrada como decisão e pendência de
+   implementação, mas a tabela de preservação não trata a tag como observável;
+   a verificação nos consumidores externos permanece fora de evidência.
+
+### Bloqueadores da Fase 2
+
+Ambos são dependências de decisão do Arquiteto, não de implementação.
+
+- **A segunda variante não está definida.** O Arquiteto confirmou nesta atuação
+  que a escolha permanece pendente. Sem ela, o teste 3 da estratégia EKOM
+  continua integralmente diferido e o experimento não pode ser encerrado.
+- **A decisão 12 não tem mecanismo.** A declaração de recursos exigidos pelo
+  product firmware e oferecidos pelo board model, e a rejeição diagnosticada de
+  combinações incompatíveis, não têm forma definida — nem em `Kconfig`, nem em
+  CMake, nem em contrato de código. Isso é adequado enquanto a decisão 13 mantém
+  `BoardModel` provisório, mas o critério de aceite correspondente não é
+  implementável hoje. Ele deve retornar à autoria quando a segunda variante
+  revelar o vocabulário de recursos.
+
+### Experimentos ainda necessários
+
+- validação em hardware ESP32-H2 do boot até `Running`, report inicial, `ON`,
+  `OFF`, `TOGGLE`, factory reset por 10 s, reboot e retorno ao commissioning.
+  Não é fato confirmável por leitura, build ou QEMU; enquanto não for observada,
+  os critérios de preservação do produto atual permanecem não verificados e o
+  estado da implementação não pode passar de `In Progress`;
+- reexecução isolada do caso negativo board/target, se o Arquiteto quiser o
+  critério reprodutível sem reescrever `client_154/sdkconfig`.
+
+Esta atuação não alterou código, teste ou configuração de implementação.
