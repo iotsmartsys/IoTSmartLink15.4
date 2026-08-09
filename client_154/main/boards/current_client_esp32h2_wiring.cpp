@@ -1,4 +1,5 @@
 #include "boards/board_model.hpp"
+#include "sdkconfig.h"
 
 // Descriptive identifier for the wiring currently used by the client_154
 // prototype. It is not a commercial board name: renaming it depends on the

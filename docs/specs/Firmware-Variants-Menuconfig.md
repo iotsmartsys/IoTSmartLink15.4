@@ -479,7 +479,8 @@ ESP-IDF v6.0.1, builds isolados fora da árvore do repositório.
 | build `examples/issp_minimal_client` ESP32-H2 | sucesso, 0 warnings |
 | testes `SmartSysApp` em QEMU ESP32-C3 | 20/20 `PASS`, 0 `FAIL` |
 | build `coordinator_154` ESP32-C6 | sucesso, 0 warnings |
-| caso negativo board/target | `idf.py set-target esp32c6` falha na configuração com “No board model selected in the IoTSmartLink15.4 menu for IDF_TARGET=esp32c6…”, sem produzir binário |
+| build isolado `client_154` ESP32-H2 após manutenção pré-Fase 2 | sucesso com `-DSDKCONFIG` temporário; produto e board default selecionados, sem alterar `client_154/sdkconfig` |
+| caso negativo board/target isolado após manutenção pré-Fase 2 | build ESP32-C6 com `-DSDKCONFIG` temporário falha na configuração com “No board model selected in the IoTSmartLink15.4 menu for IDF_TARGET=esp32c6…”, sem produzir binário e sem alterar `client_154/sdkconfig` |
 | ausência de `CONFIG_*` de produto ou board em `components/issp_*` | confirmada por varredura; o único uso remanescente é `CONFIG_IDF_TARGET_*` do ESP-IDF |
 | validação em hardware ESP32-H2 | executada pelo Arquiteto e declarada aceitável |
 
@@ -531,15 +532,20 @@ resultado material são os 20 casos executados individualmente com `PASS`.
 
 ### Pendências desta implementação
 
-- `client_154/sdkconfig` é a configuração H2 vigente e contém os símbolos
-  default de produto e board. `client_154/sdkconfig.esp32h2`,
-  `client_154/sdkconfig.esp32c6` e `client_154/sdkconfig.old` são cópias inertes,
-  sem consumo automático pelo ESP-IDF, e devem ser removidas na ordem de
-  implementação correspondente. O caso negativo C6 deve usar `SDKCONFIG`
-  isolado;
-- confirmar, nos consumidores externos conhecidos, que nenhuma ferramenta de
-  host filtra logs pela tag anterior `iot154_switch`; não existe consumidor
-  dessa tag dentro do repositório;
 - o teste 3 da estratégia EKOM permanece sem evidência até uma ordem da Fase 2
   identificar e implementar a segunda composição;
 - `EKM-GAP-0006` permanece aberta e não é afetada por esta mudança.
+
+### Manutenção concluída antes da Fase 2
+
+- `client_154/sdkconfig` permanece como a única configuração rastreada e como a
+  configuração H2 vigente; as três cópias inertes foram removidas;
+- os builds de validação H2 e do caso negativo C6 usam `SDKCONFIG` temporário,
+  sem reescrever a configuração rastreada;
+- a pinagem deixou de ser duplicada no help do Kconfig e permanece somente no
+  arquivo do board;
+- o arquivo do board inclui `sdkconfig.h` explicitamente;
+- a varredura dos consumidores conhecidos no código-fonte local sob
+  `/source/IoT` não encontrou ferramenta de host que filtre pela antiga tag
+  `iot154_switch`; as únicas ocorrências remanescentes estão nesta especificação
+  e em um worktree histórico, sem participação no build atual.

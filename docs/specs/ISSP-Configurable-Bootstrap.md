@@ -710,7 +710,7 @@ Engenheiro Analista contra o estado atual do repositório (`client_154/main`,
 | privada | `issp_core` | usada somente pela composição interna proposta, sem tipo `Issp*` exposto em header público da fachada |
 | privada | `issp_behaviors` | usada somente pela composição interna proposta |
 | privada | `issp_transport_154` | usada somente pela composição interna proposta |
-| privada | `nvs_flash` | usada somente pela inicialização interna de plataforma, como hoje em `client_154/main/main.cpp` |
+| privada | `nvs_flash` | usada somente pela inicialização interna de plataforma em `components/issp_app_154/src/smart_sys_app_hardware.cpp` |
 | privada | `esp_timer` | necessária porque `reset_button_monitor.cpp`, ao ser realocado para o componente, inclui `esp_timer.h` diretamente |
 | privada | `esp_hw_support` | usada somente pela leitura interna do endereço IEEE via `esp_read_mac` |
 

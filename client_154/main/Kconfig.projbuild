@@ -28,8 +28,8 @@ config IOTSMARTLINK154_BOARD_CURRENT_CLIENT_ESP32H2_WIRING
     depends on IDF_TARGET_ESP32H2
     help
         Descriptive identifier for the wiring currently used by the client_154
-        prototype: relay on GPIO 13 active high and factory reset button on
-        GPIO 9 active low. Compatible with ESP32-H2 only.
+        prototype. Electrical details belong exclusively to the selected board
+        source. Compatible with ESP32-H2 only.
 
 endchoice
 
