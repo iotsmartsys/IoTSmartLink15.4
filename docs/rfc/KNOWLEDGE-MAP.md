@@ -2,9 +2,9 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.14
+**Versão:** 1.15
 **Responsável:** Marcelo Miranda
-**Última atualização:** 05/08/2026
+**Última atualização:** 09/08/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -44,8 +44,8 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 | Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
-| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main/` (composição hoje em `firmwares/single_smart_plug.cpp`) e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 19/19 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |
-| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; revisão vigente `Implementable` | In Progress; Fase 1 com implementação concluída | Fase 1 implementada em `client_154/main/`: `Kconfig.projbuild`, `CMakeLists.txt` de seleção, `app_main.cpp`, `product_firmware.hpp`, `firmwares/single_smart_plug.cpp` e `boards/current_client_esp32h2_wiring.cpp`; componentes `issp_*` inalterados; Fase 2 e segunda composição pendentes | Quatro builds sem warnings; 20/20 testes QEMU; seleção comprovada em `compile_commands.json`; caso negativo ESP32-C6 falha na configuração; validação em hardware ESP32-H2 executada e aceita pelo Arquiteto |
+| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main/` (composição hoje em `firmwares/single_smart_plug.cpp`) e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 20/20 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |
+| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; direção integral `Implementable`; recorte concreto da Fase 2 aguarda análise | In Progress; Fase 1 concluída e Fase 2 especificada | Fase 1 implementada em `client_154/main/`; Fase 2 define `Door sensor`, board histórico ESP32-H2, compatibilidade por recursos e entrada digital reutilizável | Quatro builds sem warnings; 20/20 testes QEMU; seleção e caso negativo comprovados; tomada validada em hardware; Fase 2 ainda sem evidência |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | Client em `components/issp_core/src/issp_protocol.cpp`; coordenador em `coordinator_154/main/iot154_packet.h` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE funcionais; confiabilidade residual de ACK em `EKM-GAP-0006` |
@@ -53,9 +53,10 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 
 ### 3.1 Visão do repositório e conexão entre os alvos
 
-Esta árvore descreve o estado observado do repositório. O marcador `[proposto]`
-identifica o que ainda não está implementado; os demais ramos descrevem
-responsabilidades e fontes existentes.
+Esta árvore descreve o estado observado do repositório. `[especificado]` indica
+contrato aprovado para análise, ainda não implementado; `[proposto]` identifica
+possibilidade ainda sem recorte vigente. Os demais ramos descrevem fontes e
+responsabilidades existentes.
 
 ```text
 IoTSmartLink15.4 repository
@@ -67,10 +68,11 @@ IoTSmartLink15.4 repository
 │   │       ├── Product firmware (uma escolha) — main/firmwares/
 │   │       │   ├── Single smart plug (implementado; baseline)
 │   │       │   ├── [proposto] Dual smart plug + light
-│   │       │   ├── [proposto] Door sensor
+│   │       │   ├── [especificado] Door sensor (Fase 2)
 │   │       │   └── [proposto] Motion sensor
 │   │       ├── Board model (uma escolha) — main/boards/
-│   │       │   └── Current client ESP32-H2 wiring (implementado)
+│   │       │   ├── Current client ESP32-H2 wiring (implementado)
+│   │       │   └── [especificado] Historical door sensor ESP32-H2 wiring
 │   │       └── IDF_TARGET (definido pelo fluxo ESP-IDF)
 │   └── coordinator_154 (coordenador IEEE 802.15.4; ESP32-C6 validado)
 │       ├── janela de ingresso e resposta a discovery
@@ -86,6 +88,7 @@ IoTSmartLink15.4 repository
 ├── Shared client platform
 │   ├── issp_app_154 / SmartSysApp
 │   ├── issp_behaviors
+│   │   └── [especificado] DigitalInputBehavior (Fase 2)
 │   ├── issp_core
 │   └── issp_transport_154
 ├── Integration evidence

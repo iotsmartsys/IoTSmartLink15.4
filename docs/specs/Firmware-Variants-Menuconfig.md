@@ -2,8 +2,9 @@
 
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
-**Revisão de implementabilidade:** Implementable — decisão do Arquiteto para a versão integral
-**Prontidão:** Ready
+**Revisão de implementabilidade:** Implementable para a direção integral por
+decisão do Arquiteto; o recorte concretizado da Fase 2 aguarda nova análise
+**Prontidão:** Needs Analysis para a Fase 2
 
 ## Missão
 
@@ -66,14 +67,16 @@ validada de `SmartSysApp` ou dos componentes ISSP.
 - composição em build somente da variante e do board escolhidos;
 - entrypoint mínimo, sem regras de produto;
 - módulos separados para product firmwares e definições de board;
-- uso das APIs públicas existentes de `SmartSysApp` e dos componentes;
+- uso das operações vigentes e extensão aditiva de `SmartSysApp` somente para
+  a capability concreta da Fase 2;
 - compatibilidade explícita entre product firmware, board model e
   `IDF_TARGET`;
 - primeira migração do produto atual de tomada simples como prova de
   preservação;
-- espaço arquitetural para as variantes tomada dupla + luz, sensor de porta e
-  sensor de presença, sem exigir que todas sejam implementadas na primeira
-  entrega funcional.
+- segunda variante `Door sensor` e segundo board ESP32-H2 como prova de
+  evolução da composição e da compatibilidade por recursos físicos;
+- espaço arquitetural para tomada dupla + luz e sensor de presença, sem
+  incluí-los nesta entrega.
 
 ### Fase 1 — recorte funcional inicial
 
@@ -93,25 +96,72 @@ A Fase 1 comprova a seleção, as fronteiras e a preservação do produto atual.
 não encerra o experimento de múltiplas variantes: esse encerramento exige uma
 segunda composição escolhida pelo Arquiteto e o teste 3 da estratégia EKOM.
 
+### Fase 2 — segunda composição: sensor de porta
+
+A segunda variante é `Door sensor`. A escolha é sustentada por dois fatos do
+repositório: o coordenador vigente já interpreta o evento `Door` (`event type
+1`) e o histórico do antigo `sensor_154` contém a fiação e o comportamento de
+entrada usados como referência. O histórico informa contexto; este recorte é o
+contrato vigente.
+
+A Fase 2 contém:
+
+- product firmware `Door sensor`, com device ID `0x15400001`, endpoint 1,
+  event type 1, `1 = open`, `0 = closed` e report inicial habilitado;
+- board model descritivo `Historical door sensor ESP32-H2 wiring`, compatível
+  somente com `IDF_TARGET=esp32h2`;
+- entrada de contato seco no GPIO 14, pull-up interno e estado lógico ativo em
+  nível alto;
+- debounce equivalente ao baseline histórico: cinco amostras separadas por 3
+  ms, classificação em nível baixo com ao menos três amostras baixas e leitura
+  aceita após duas janelas consecutivas iguais, limitadas a quatro janelas com
+  intervalo de 8 ms;
+- report inicial do estado estabilizado e um novo report para cada transição
+  estabilizada posterior, sem exigir reboot;
+- `DigitalInputBehavior` reutilizável em `components/issp_behaviors` e a
+  operação pública `SmartSysApp::addDoorSensorCapability()`;
+- configuração do sensor contendo pino, polaridade, pull, endpoint, evento,
+  report inicial e parâmetros de debounce; a variante combina os valores do
+  board com suas constantes de produto;
+- as mesmas regras de ciclo de vida da fachada vigente: capability adicionada
+  antes de `setup()`, par endpoint/evento único entre todas as capabilities e
+  falha observável por retorno e `lastConfigurationResult()`;
+- ausência de tratamento de comandos pelo sensor de porta: comandos dirigidos
+  a esse endpoint/evento permanecem `Unsupported` e não alteram a entrada;
+- o sensor de porta não configura factory reset nesta fase;
+- seleção e build exclusivos da tomada ou do sensor, nunca dos dois no mesmo
+  binário.
+
+O mecanismo de observação da entrada deve ser não bloqueante e permanecer no
+behavior reutilizável. O product firmware apenas fornece semântica, parâmetros
+de debounce e composição; o board fornece pino, pull e polaridade elétrica.
+
+Bateria, ADC, deep sleep, wake-up por GPIO e métricas de consumo existentes no
+histórico não pertencem a esta Fase 2. A retomada desses comportamentos exige
+recorte próprio para não confundir a prova de variantes com a reconstrução do
+produto de baixo consumo.
+
 ## Fora de escopo
 
 - implementar qualquer variante nesta etapa de especificação;
-- alterar protocolo wire, transporte, commissioning, ACK, retry, reports, NVS
-  ou factory reset;
+- alterar protocolo wire, transporte, commissioning, ACK, retry, formato ou
+  pipeline de reports, NVS ou factory reset;
 - selecionar ou mudar o chip alvo do ESP-IDF pelo `menuconfig`;
 - tornar componentes conscientes de produto ou placa;
 - carregar duas variantes no mesmo binário ou selecionar produto em runtime;
 - criar geração de código, sistema próprio de plugins ou framework genérico de
   boards;
 - definir nomes comerciais de placas que ainda não estejam confirmados;
-- alterar o coordenador, publicar firmware, fazer deploy ou merge na `main`.
+- alterar o coordenador, publicar firmware, fazer deploy ou merge na `main`;
+- restaurar bateria, ADC, deep sleep, wake-up por GPIO ou métricas do antigo
+  `sensor_154`.
 
 ## Conceitos e fronteiras
 
 | Conceito | Responsabilidade | Conhece | Não conhece |
 |---|---|---|---|
 | Plataforma compartilhada | ciclo de vida da aplicação, ISSP, transporte, commissioning, reports, persistência e reset | contratos técnicos e infraestrutura | modelo comercial, combinação de features ou pinagem de um produto |
-| Componente reutilizável | uma capability ou behavior isolado e configurável, como saída digital | seu contrato, configuração e abstrações da plataforma | qual produto o usa e qual opção do `menuconfig` o selecionou |
+| Componente reutilizável | uma capability ou behavior isolado e configurável, como saída ou entrada digital | seu contrato, configuração e abstrações da plataforma | qual produto o usa e qual opção do `menuconfig` o selecionou |
 | Product firmware / variant | identidade e composição de capabilities e serviços que definem um produto | APIs públicas, contrato do board e regras do próprio produto | detalhes privados do ISSP, rádio ou outra variante |
 | Board model | pinagem, polaridade, recursos físicos e compatibilidade com o chip alvo | propriedades elétricas da placa | protocolo, regras do produto e fluxo do `menuconfig` |
 | Seleção de build | escolhe exatamente uma composição válida e informa o CMake | símbolos de variante, board e `IDF_TARGET` | estado em runtime ou lógica interna dos componentes |
@@ -191,13 +241,31 @@ incompatíveis com o target já configurado pelo ESP-IDF.
     `factoryResetButtonPin` e `factoryResetButtonActiveLow` podem ser
     substituídos na Fase 2, quando a segunda variante revelar o vocabulário de
     recursos físicos necessário; não devem ser generalizados antecipadamente.
-14. Por decisão do Arquiteto, a versão integral é `Implementable` antes de a
-    segunda variante e o mecanismo da decisão 12 estarem definidos. Essas
-    incertezas são variáveis deliberadas do experimento, não bloqueadores de
-    implementabilidade. A ordem da Fase 2 deve identificar a variante exercitada;
-    o Implementador deve adotar o menor mecanismo local que satisfaça as decisões
-    12 e 13, registrar as consequências observadas e devolver ao Arquiteto
-    qualquer necessidade de ampliar componentes ou contratos compartilhados.
+14. A direção integral foi promovida a `Implementable` pelo Arquiteto antes de
+    a segunda variante ser definida, como variável deliberada do experimento.
+    O recorte concreto da Fase 2 agora exige nova análise antes da implementação;
+    a promoção anterior não substitui esse confronto.
+15. Na Fase 2, produto e board são compatíveis por classes e quantidades de
+    recursos físicos. `Single smart plug` exige uma saída digital e um botão de
+    usuário; `Door sensor` exige uma entrada para contato seco. O board atual
+    oferece a saída e o botão; o board histórico do sensor oferece a entrada de
+    contato seco.
+16. Cada ramo de seleção no CMake declara uma lista de recursos exigidos pelo
+    produto ou oferecidos pelo board. O CMake calcula os recursos ausentes e
+    rejeita a composição quando a diferença não é vazia. O diagnóstico deve
+    nomear produto, board e recurso ausente. Essa validação pertence à
+    composição do build; não autoriza símbolos `CONFIG_*` dentro dos componentes
+    nem tenta extrair metadados do código C++.
+17. O vocabulário físico de `BoardModel` passa a distinguir saída digital,
+    botão de usuário e entrada de contato seco. Campos orientados ao produto,
+    como `relayPin`, expiram nesta fase; a representação C++ concreta deve ser
+    a menor que expresse esses recursos sem criar um framework genérico.
+18. `DigitalInputBehavior` é genérico quanto a produto e evento. Ele estabiliza
+    uma entrada, publica estado inicial e transições e rejeita comandos. A
+    fachada dá a semântica pública de sensor de porta; o behavior não conhece
+    `menuconfig`, board ou nome de produto.
+19. O protocolo wire e o coordenador não mudam: `event type 1` e os valores
+    aberto/fechado já são compreendidos pelo alvo coordenador.
 
 ### Registro de conhecimento deste experimento
 
@@ -212,13 +280,15 @@ não modifica a governança geral do repositório.
 ```text
 IoTSmartLink15.4
 ├── Product firmware
-│   └── Single smart plug (default da Fase 1)
+│   ├── Single smart plug (default)
+│   └── Door sensor (Fase 2)
 └── Board model
-    └── Current client ESP32-H2 wiring (default da Fase 1)
+    ├── Current client ESP32-H2 wiring (default)
+    └── Historical door sensor ESP32-H2 wiring (Fase 2)
 ```
 
-Dual smart plug + light, door sensor e motion sensor permanecem fora do `choice`
-até possuírem composição compilável e decisão arquitetural aplicável. O menu não
+Dual smart plug + light e motion sensor permanecem fora do `choice` até
+possuírem composição compilável e decisão arquitetural aplicável. O menu não
 deve oferecer uma seleção que inevitavelmente falhe por ausência de código.
 
 ## Estrutura proposta de arquivos
@@ -233,38 +303,36 @@ client_154/
     ├── product_firmware.hpp
     ├── firmwares/
     │   ├── single_smart_plug.cpp
-    │   ├── dual_smart_plug_light.cpp
-    │   ├── door_sensor.cpp
-    │   └── motion_sensor.cpp
+    │   └── door_sensor.cpp
     └── boards/
         ├── board_model.hpp
-        └── <board_model>.cpp
+        ├── current_client_esp32h2_wiring.cpp
+        └── historical_door_sensor_esp32h2_wiring.cpp
 
 components/
 ├── issp_app_154/
 ├── issp_behaviors/
+│   └── digital_input_behavior.{hpp,cpp}
 ├── issp_core/
 └── issp_transport_154/
 ```
 
-Na primeira implementação, somente arquivos de variantes e boards realmente
-suportados devem existir. A árvore completa mostra o destino do conhecimento,
-não autoriza criar stubs vazios.
+Somente arquivos de variantes e boards realmente suportados devem existir. A
+árvore mostra o destino do conhecimento e não autoriza criar stubs vazios.
 
-## Pontos reais do código afetados na implementação futura
+## Pontos reais do código afetados pela Fase 2
 
-| Ponto atual | Mudança futura esperada | Preservação obrigatória |
+| Ponto atual | Mudança esperada na Fase 2 | Preservação obrigatória |
 |---|---|---|
-| `client_154/main/main.cpp` | tornar-se `app_main.cpp` mínimo e mover a composição atual para `firmwares/single_smart_plug.cpp` | sequência observável de configuração e `setup()` |
-| `client_154/main/CMakeLists.txt` | selecionar somente as fontes da variante e do board configurados | dependência pública apenas em `issp_app_154`, salvo necessidade comprovada |
-| `client_154/main/Kconfig.projbuild` | novo menu com escolhas exclusivas e restrições de target | seleção concentrada, sem lógica funcional |
-| `client_154/main/product_firmware.hpp` | contrato mínimo comum para iniciar a composição selecionada | não expor tipos privados `issp_*` |
-| `client_154/main/firmwares/` | composição, identidade e regras de cada produto | nenhuma pinagem literal e nenhuma lógica de transporte |
-| `client_154/main/boards/` | pinagem, polaridade, recursos e compatibilidade | nenhuma regra de produto ou protocolo |
-| `client_154/CMakeLists.txt` | somente se necessário para localizar novos componentes locais | preservar `EXTRA_COMPONENT_DIRS` compartilhado e `MINIMAL_BUILD` |
-| `components/issp_app_154` | nenhuma mudança prevista para a primeira migração | API pública e comportamento validados |
-| `components/issp_behaviors` | ampliar apenas quando uma nova capability concreta exigir | independência de variante, board e `Kconfig` |
-| `docs/rfc/KNOWLEDGE-MAP.md` | apontar para esta especificação e, depois, para a implementação validada | não duplicar o contrato |
+| `client_154/main/Kconfig.projbuild` | adicionar as escolhas de sensor e board histórico | escolha exclusiva e ausência de lógica funcional |
+| `client_154/main/CMakeLists.txt` | selecionar as novas fontes e validar requisitos contra recursos oferecidos | uma variante, um board e diagnóstico antes do binário |
+| `client_154/main/firmwares/door_sensor.cpp` | compor identidade, endpoint, evento e debounce do sensor | nenhuma pinagem literal ou lógica de transporte |
+| `client_154/main/boards/board_model.hpp` | substituir campos orientados ao relé por recursos físicos | preservar a composição da tomada e evitar framework genérico |
+| `client_154/main/boards/historical_door_sensor_esp32h2_wiring.cpp` | declarar a entrada de contato seco | nenhuma regra de produto ou protocolo |
+| `components/issp_behaviors` | adicionar `DigitalInputBehavior` | reutilizável, sem produto, board ou `CONFIG_*` |
+| `components/issp_app_154` | expor e compor `addDoorSensorCapability()` | não expor tipos privados do ISSP nem mudar as operações vigentes |
+| testes de `issp_behaviors` e `issp_app_154` | cobrir estabilização, reports, rejeição de comandos e regressão | doubles devem preservar leitura e transição material |
+| `docs/rfc/KNOWLEDGE-MAP.md` | marcar sensor e board como especificados | apontar para este contrato sem duplicá-lo |
 
 ## Critérios de aceite
 
@@ -279,6 +347,9 @@ não autoriza criar stubs vazios.
 - **Dado** um par produto/board válido, **quando** o projeto é configurado e
   compilado, **então** somente as fontes desse produto e desse board entram no
   binário.
+- **Dadas** as combinações `Single smart plug` + board atual e `Door sensor` +
+  board histórico, **quando** cada build H2 é configurado, **então** ambas são
+  aceitas e as escolhas default continuam sendo a tomada e o board atual.
 - **Dado** o board atual da Fase 1 e `IDF_TARGET=esp32c6`, **quando** a
   configuração ou o build é executado, **então** a combinação é impedida com
   diagnóstico claro de que esse board aceita somente ESP32-H2.
@@ -290,8 +361,8 @@ não autoriza criar stubs vazios.
 ### Fronteiras
 
 - **Dada** uma nova variante, **quando** ela é adicionada, **então** sua
-  composição não exige alterar lógica interna de `issp_core`,
-  `issp_transport_154`, `issp_app_154` ou uma variante existente.
+  composição não altera `issp_core`, `issp_transport_154` ou uma variante
+  existente; a extensão de `issp_app_154` fica limitada à nova capability.
 - **Dado** o código compartilhado, **quando** ele é inspecionado, **então** não
   há símbolo `CONFIG_*` de seleção de produto ou board em `components/issp_*`.
 - **Dado** um product firmware, **quando** sua composição é inspecionada,
@@ -306,11 +377,37 @@ não autoriza criar stubs vazios.
   endpoint, evento, estado inicial e report inicial são configurados com os
   mesmos valores do baseline observado.
 - **Dada** a migração estrutural, **quando** os testes e builds vigentes são
-  executados, **então** a API de `SmartSysApp`, o protocolo e o comportamento
-  compartilhado permanecem inalterados.
+  executados, **então** as operações vigentes de `SmartSysApp`, o protocolo e o
+  comportamento compartilhado permanecem compatíveis; a API muda somente pela
+  adição da capability de sensor de porta.
 
 O primeiro cenário exige validação no hardware ESP32-H2. Comparação estática ou
 build isolado não substituem a observação do firmware em execução.
+
+### Sensor de porta
+
+- **Dada** a composição `Door sensor` com o board histórico, **quando** o
+  firmware inicia com a entrada estabilizada em nível alto, **então** publica
+  endpoint 1, evento 1 e valor 1 (`open`).
+- **Dada** a mesma composição com a entrada estabilizada em nível baixo,
+  **quando** o firmware inicia, **então** publica endpoint 1, evento 1 e valor 0
+  (`closed`).
+- **Dado** o firmware em execução, **quando** a entrada muda e satisfaz o
+  debounce especificado, **então** publica uma vez o novo estado sem reboot.
+- **Dada** uma oscilação que não satisfaz o debounce, **quando** a entrada volta
+  ao estado anterior, **então** nenhum novo report é publicado.
+- **Dado** um estado já publicado, **quando** novas leituras estabilizam no
+  mesmo valor, **então** nenhum report duplicado é criado.
+- **Dado** um comando para endpoint 1 e evento 1, **quando** ele chega ao sensor
+  de porta, **então** recebe resultado `Unsupported`, não altera a entrada e não
+  cria report de mudança.
+- **Dada** a seleção da tomada com o board do sensor ou do sensor com o board da
+  tomada, **quando** o build é configurado, **então** ele falha antes de gerar
+  binário e identifica respectivamente os recursos físicos ausentes.
+
+Os três primeiros cenários exigem validação no hardware ESP32-H2. Debounce,
+supressão de duplicatas e rejeição de comandos também devem possuir evidência
+automatizada com uma fonte de níveis controlável.
 
 ### Navegabilidade EKOM
 
@@ -334,11 +431,11 @@ do documento.
 2. **Teste de mudança controlada:** migrar primeiro a tomada simples. O diff
    deve permanecer concentrado nos pontos reais listados acima e não alterar a
    plataforma compartilhada.
-3. **Teste de segunda composição:** depois da Fase 1, planejar ou criar a segunda
-   variante escolhida pelo Arquiteto. Se isso exigir condicionais internas nos
-   componentes ou duplicação de runtime, a arquitetura ou o mapa falhou e deve
-   ser revisto. Este é o único teste integralmente diferido para o encerramento
-   do experimento.
+3. **Teste de segunda composição:** implementar o sensor de porta usando o
+   product firmware, o board histórico, a capability pública e o behavior
+   reutilizável definidos nesta Fase 2. Se isso exigir condicionais internas
+   nos componentes, alteração do protocolo ou duplicação de runtime, a
+   arquitetura ou o mapa deve voltar ao Arquiteto.
 4. **Teste de classificação:** avaliar onde seriam colocados “GPIO da placa”,
    “composição de capabilities do sensor” e “retry do rádio”. A árvore deve
    conduzir respectivamente a board model, product firmware e plataforma.
@@ -366,6 +463,26 @@ do documento.
   retorno ao commissioning. Essa execução comprova a preservação da migração e
   não declara resolvida a lacuna preexistente de ACK/retry (`EKM-GAP-0006`).
 
+### Conjunto de validação da Fase 2
+
+- `git diff --check` e inspeção contra os pontos afetados desta fase;
+- builds H2 isolados das duas combinações válidas, com inspeção das fontes
+  selecionadas;
+- configuração negativa das duas combinações cruzadas, sem produção de
+  binário e com diagnóstico do recurso ausente;
+- caso negativo ESP32-C6 para os dois boards, sempre com `SDKCONFIG` isolado;
+- testes automatizados do `DigitalInputBehavior` cobrindo estado inicial,
+  debounce, transição, supressão de duplicatas, falha de publicação e comandos
+  não aceitos;
+- testes da adição de `addDoorSensorCapability()` e regressão integral da suíte
+  vigente de `SmartSysApp`;
+- build de `examples/issp_minimal_client` e de `coordinator_154`, sem mudança
+  funcional nesses consumidores;
+- hardware da tomada simples repetindo a preservação da Fase 1;
+- hardware do sensor ESP32-H2 comprovando boot até `Running`, report inicial
+  aberto e fechado, transições nos dois sentidos sem reboot, ausência de report
+  por oscilação rejeitada e evento correspondente observado no coordenador.
+
 Para cada item, falha, execução não iniciada ou resultado desconhecido não
 constitui aprovação. A evidência deve permitir distinguir aprovação, reprovação
 e ausência de execução.
@@ -380,36 +497,38 @@ monolítico cheio de condicionais.
 
 - nome e revisão comerciais do board podem substituir o identificador
   descritivo somente após confirmação do Arquiteto;
-- a ordem de implementação da Fase 2 deve identificar a segunda variante a ser
-  exercitada. Múltiplas saídas digitais são estruturalmente possíveis, mas isso
-  não comprova uma semântica específica de luz. Sensor de porta ou presença
-  exige autorização explícita para ampliar a API pública e os behaviors
-  compartilhados;
-- a representação dos recursos exigidos pelo produto e oferecidos pelo board é
-  uma decisão local da implementação experimental, limitada pelas decisões 12,
-  13 e 14. O resultado deve mostrar se esse grau de liberdade acelera a evolução
-  ou apenas transfere contexto ausente para o Implementador.
+- a representação C++ concreta dos recursos continua local à implementação,
+  limitada pelo vocabulário e pelo mecanismo de compatibilidade das decisões
+  15 a 17;
+- o mecanismo não bloqueante de observação pode ser escolhido pelo
+  Implementador, desde que permaneça no behavior, seja verificável com níveis
+  controlados e satisfaça os critérios funcionais sem busy-wait;
+- a implementação deve registrar se a extensão aditiva de `SmartSysApp` e a
+  compatibilidade por recursos confirmaram as fronteiras ou revelaram contexto
+  ainda ausente no mapa.
 
-Essas variáveis não bloqueiam o estado `Implementable` da versão integral. Elas
-continuam impedindo a execução da Fase 2 sem uma ordem que identifique a segunda
-variante e impedem o encerramento do experimento até produzirem evidência.
+Essas variáveis não autorizam implementação antes da análise do recorte
+concretizado. O experimento permanece aberto até a Fase 2 produzir evidência e
+o Arquiteto avaliar seu resultado.
 
 ## Resultado desta etapa
 
-O Arquiteto aprovou a direção arquitetural e confirmou o recorte H2 e o conjunto
-de validação da Fase 1. O Consultor reconciliou essas decisões sem iniciar
-implementação funcional. O Engenheiro Analista confrontou a versão reconciliada
-e promoveu a revisão de implementabilidade para `Implementable`.
+O Arquiteto aprovou o sensor de porta como segunda composição e autorizou a
+extensão aditiva da fachada e dos behaviors dentro deste recorte. O Consultor
+reconciliou a Fase 2 nesta especificação e no mapa, sem iniciar implementação.
+A análise anterior continua sustentando a direção integral; o conteúdo concreto
+da Fase 2 requer nova análise de implementabilidade. O Arquiteto confirmou o
+registro documental produzido pelo Consultor; essa confirmação não representa
+aprovação técnica nem autorização para implementar a Fase 2.
 
 ## Decisão vigente de implementabilidade
 
-O Arquiteto declara a versão integral `Implementable` e `Ready`. A promoção é
-deliberadamente anterior à definição da segunda variante e do mecanismo de
-compatibilidade produto/board: o experimento deve revelar se a especificação e
-o mapa fornecem contexto suficiente para o Implementador resolver o mecanismo
-local e tornar visíveis as consequências. Essa decisão não promove a
-implementação para `Implemented`, não declara validação e não autoriza ampliar
-contratos compartilhados sem nova decisão do Arquiteto.
+O Arquiteto mantém a direção integral como `Implementable`, decisão tomada antes
+da concretização da segunda variante. A Fase 2 agora define o sensor de porta,
+o board, a ampliação autorizada da API e o mecanismo de compatibilidade; esse
+novo recorte está em `Needs Analysis` e não deve iniciar implementação até que
+sua implementabilidade seja confrontada. Isso não altera a conclusão da Fase 1
+nem declara a Fase 2 implementada ou validada.
 
 ## Resultado da implementação da Fase 1 (Engenheiro Implementador)
 
@@ -532,8 +651,8 @@ resultado material são os 20 casos executados individualmente com `PASS`.
 
 ### Pendências desta implementação
 
-- o teste 3 da estratégia EKOM permanece sem evidência até uma ordem da Fase 2
-  identificar e implementar a segunda composição;
+- o teste 3 da estratégia EKOM permanece sem evidência até o sensor de porta da
+  Fase 2 ser implementado e validado;
 - `EKM-GAP-0006` permanece aberta e não é afetada por esta mudança.
 
 ### Manutenção concluída antes da Fase 2
