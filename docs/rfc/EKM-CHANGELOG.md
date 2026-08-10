@@ -1164,7 +1164,32 @@ independentemente de o test app substituir hardware por fakes.
 - revisão confirma preservação dos casos, ausência de alegação operacional
   indevida e consistência do mapa.
 
+### Resultado da análise de implementabilidade (Engenheiro Analista, 10/08/2026)
+
+- confrontados TESTEXEC-001 a 008, AC-001 a 010, matriz e inventário contra os
+  artefatos versionados, os test apps, as especificações dependentes e o mapa;
+- confirmadas por leitura direta a fonte de 20 casos `SmartSysApp` e 24 casos
+  do registry, e a materialização de `esp32c3` em `sdkconfig.defaults`,
+  runners e comentários dos dois test apps, além das listas genéricas de
+  `README.md` e `pytest_hello_world.py`;
+- identificado precedente de rejeição na configuração em
+  `cmake/require_idf_6_0_1.cmake`, suficiente para TESTEXEC-008/AC-010 sem
+  criar camada nova, e precedente host-native vigente em
+  `device_registry_policy_host_test`;
+- resultado `Not Implementable` na forma atual, com três bloqueadores
+  normativos: prescrições vigentes de ESP32-C3 em Bootstrap v1.5 e Registry
+  v0.4, cujo ajuste é ato de autoria (B1); colisão entre TESTEXEC-008 e o
+  alvo `linux` usado pela execução host-native (B2); inventário incompleto e
+  leitura ambígua da matriz perante `sdkconfig` versionados, incluindo
+  `coordinator_154/sdkconfig.old` com target `esp32` (B3);
+- registrados os experimentos ainda necessários: build de `smart_sys_app_test`
+  em ESP32-H2, build de `device_registry_test` em ESP32-C6, comprovação do
+  guard de allowlist antes do binário e provisão do runner `pytest`;
+- estados preservados: normativo `Proposed`, implementação `Regressed`,
+  prontidão `Not Ready` e esta transação `Open`. A análise não alterou código,
+  configuração ou runner e não autorizou build, flash ou execução.
+
 ### Próxima etapa
 
-Análise independente de implementabilidade antes de alterar código,
-configuração, runners ou evidências.
+Decisão do Arquiteto sobre B1, B2 e B3, com nova autoria da política e das
+especificações dependentes antes de qualquer ordem de implementação.
