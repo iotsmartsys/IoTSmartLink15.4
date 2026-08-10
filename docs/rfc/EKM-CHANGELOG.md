@@ -1320,3 +1320,27 @@ de configuração e build.
 - estados: implementação passa de `Regressed` a `In Progress`; normativo
   `Proposed`, prontidão `Ready` e `EKM-CHG-0010` `Open` permanecem. A promoção a
   `Implemented` e o encerramento são decisão do Arquiteto.
+
+### Correção arquitetural v0.4 após revisão do commit `ad5777b`
+
+- a revisão consultiva identificou que a exceção global para
+  `IDF_TARGET=linux` retornava antes da verificação de `ISSP_TARGET_BINDING` e,
+  portanto, não distinguia host-native de projeto físico;
+- o Arquiteto decidiu remover os dois casos Linux herdados do template, pois
+  não eram construtíveis e não protegiam comportamento do domínio;
+- os seis projetos ESP-IDF e `issp_app_154` passam a admitir exclusivamente
+  ESP32-H2 e ESP32-C6; host-native vigente permanece no precedente de toolchain
+  de host puro, sem `IDF_TARGET`;
+- um uso futuro do target Linux do ESP-IDF dependerá de especificação e projeto
+  dedicados, sem ampliar a allowlist física;
+- E1 foi descrita com precisão: `nm -u` comprova ausência de referência direta
+  no objeto e a independência material é confrontada também pelos `SetupHooks`;
+- E3 foi ampliada com seis configurações negativas isoladas por `-DSDKCONFIG`
+  temporário, uma por projeto ESP-IDF, com `IDF_TARGET=linux`: todas retornaram
+  código 2 no guard, exibiram H2/C6 no diagnóstico e geraram zero binários;
+- E1 e E2 foram recompiladas sem executar casos: H2 e C6 terminaram com código
+  0, zero warnings e os mesmos tamanhos anteriores, 261424 e 156064 bytes;
+- nenhuma suíte foi coletada ou executada; `pytest`, flash e monitor continuam
+  fora da atuação sob TESTEXEC-009;
+- estados preservados: política `Proposed`, implementação `In Progress`,
+  prontidão `Ready` e `EKM-CHG-0010` `Open`.

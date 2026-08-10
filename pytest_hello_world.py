@@ -35,20 +35,3 @@ def test_hello_world(app: IdfApp, dut: IdfDut, log_minimum_free_heap_size: Calla
     verify_elf_sha256_embedding(app, sha256_reported)
     dut.expect('Hello world!')
     log_minimum_free_heap_size()
-
-
-# The two cases below run host-native. The ESP-IDF `linux` target does define
-# CONFIG_IDF_TARGET="linux", but TESTEXEC-003 admits it as an explicit host
-# exception to the physical allowlist: it builds no firmware, needs no board and
-# proves nothing about IEEE 802.15.4 compatibility.
-@pytest.mark.host_test
-@idf_parametrize('target', ['linux'], indirect=['target'])
-def test_hello_world_linux(dut: IdfDut) -> None:
-    dut.expect('Hello world!')
-
-
-@pytest.mark.host_test
-@pytest.mark.macos_shell
-@idf_parametrize('target', ['linux'], indirect=['target'])
-def test_hello_world_macos(dut: IdfDut) -> None:
-    dut.expect('Hello world!')

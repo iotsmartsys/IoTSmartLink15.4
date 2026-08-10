@@ -19,24 +19,12 @@ if(NOT IDF_TARGET)
         "${ISSP_SUPPORTED_TARGETS}")
 endif()
 
-# Exceção host explícita de TESTEXEC-003: o alvo `linux` do ESP-IDF define
-# CONFIG_IDF_TARGET="linux" e é admitido apenas como ambiente de execução de
-# lógica pura. Não é firmware, não é placa e não sustenta nenhuma alegação de
-# compatibilidade IEEE 802.15.4, por isso também não responde ao vínculo por
-# alvo verificado adiante.
-if(IDF_TARGET STREQUAL "linux")
-    message(STATUS
-        "IoTSmartLink15.4 host-native exception: IDF_TARGET 'linux' builds pure "
-        "logic only; physical targets remain ${ISSP_SUPPORTED_TARGETS}")
-    return()
-endif()
-
 if(NOT IDF_TARGET IN_LIST ISSP_SUPPORTED_TARGETS)
     message(FATAL_ERROR
         "IoTSmartLink15.4 does not support IDF_TARGET '${IDF_TARGET}'; admitted "
         "targets are ${ISSP_SUPPORTED_TARGETS}. Both carry an IEEE 802.15.4 radio; "
-        "no other chip is a target of this repository, and host-native logic tests "
-        "are a separate strategy that never builds firmware.")
+        "no other IDF target is admitted. Host-native logic tests use a separate "
+        "host toolchain and never configure an ESP-IDF firmware project.")
 endif()
 
 if(NOT DEFINED ISSP_TARGET_BINDING)

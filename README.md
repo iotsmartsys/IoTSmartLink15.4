@@ -10,8 +10,10 @@ This is the repository's root diagnostic project, kept from the ESP-IDF
 configured for, per `docs/specs/Repository-Test-Execution-Policy.md`
 (TESTEXEC-008). The repository as a whole admits ESP32-H2 and ESP32-C6 only;
 the generic target table of the original template was never this project's
-policy. The `linux` cases in `pytest_hello_world.py` are the host-native
-exception of TESTEXEC-003: pure logic, no firmware, no board.
+policy. The Linux cases inherited from that template were not constructible and
+did not protect repository behavior, so they were removed. Host-native tests,
+when specified, use a separate host toolchain and do not configure an ESP-IDF
+firmware target.
 
 ## How to use example
 

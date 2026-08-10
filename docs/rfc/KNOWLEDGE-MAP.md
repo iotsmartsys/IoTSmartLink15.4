@@ -2,7 +2,7 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.17
+**Versão:** 1.18
 **Responsável:** Marcelo Miranda
 **Última atualização:** 10/08/2026
 **Escopo:** Todo o repositório
@@ -29,7 +29,7 @@ classificação e estado.
 | Histórico de mudanças EKM | `docs/rfc/EKM-CHANGELOG.md` | Operacional | Active |
 | Manual da IA Executora | `docs/rfc/MAN-0001.md` | Normativo complementar | Active |
 | Instruções do Copilot | `.github/copilot-instructions.md` | Adaptador | Active |
-| Targets suportados e execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | Correção v0.3 Proposed; implementação `In Progress` (seção 18); allowlist H2/C6 imposta por `cmake/require_supported_target.cmake` nos seis projetos, exceção host `linux`, vínculo client→H2 e coordenador→C6; E1, E2, E3 e E5 aprovadas; suítes deliberadamente `Not Executed` sob TESTEXEC-009; `EKM-CHG-0010` Open |
+| Targets suportados e execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | Correção v0.4 Proposed; implementação `In Progress` (seção 18); os seis projetos ESP-IDF aceitam somente H2/C6 com vínculo client→H2 e coordenador→C6; casos `IDF_TARGET=linux` inoperantes removidos, host-native restrito a toolchain de host puro; E1/E2 revalidadas, E3 ampliada e E5 aprovada; suítes deliberadamente `Not Executed` sob TESTEXEC-009; `EKM-CHG-0010` Open |
 
 Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferença,
 `EKM-GUIDELINES.md` é a fonte canônica das regras EKM.

@@ -6,9 +6,9 @@
 validada por E1, E2, E3 e E5 na seção 18; execução comportamental permanece
 `Not Executed` por decisão de TESTEXEC-009
 **Prontidão:** Ready — promoção do Arquiteto registrada na seção 17
-**Revisão de implementabilidade:** Implementable — confronto focado da v0.3 na
-seção 16, com validações obrigatórias E1 a E3 e E5
-**Versão:** 0.3
+**Revisão de implementabilidade:** Implementable — baseline v0.3 confrontada na
+seção 16; correção v0.4 autorizada pelo Arquiteto e registrada na seção 18.6
+**Versão:** 0.4
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 10/08/2026
 **Escopo:** Targets admitidos e estratégias de execução de testes em todo o
@@ -85,11 +85,14 @@ Se tornar o teste host-native exigir duplicar a política de produção ou omiti
 semântica material, essa estratégia reprova o gate e deve ser substituída por
 execução em placa física.
 
-Execução host-native pode usar toolchain de host puro, sem `IDF_TARGET`, ou o
-target `linux` do ESP-IDF, que define `CONFIG_IDF_TARGET="linux"`. As duas formas
-são permitidas exclusivamente para lógica pura: não representam firmware
-físico, placa ou evidência de compatibilidade IEEE 802.15.4 e constituem exceção
-host explícita à allowlist física de TESTEXEC-008.
+Execução host-native usa projeto e toolchain de host puro, sem `IDF_TARGET` e
+sem configurar um projeto de firmware ESP-IDF. Ela é permitida exclusivamente
+para lógica pura, não representa firmware, placa ou evidência de compatibilidade
+IEEE 802.15.4 e deve preservar toda a semântica material do critério.
+
+O target `linux` do ESP-IDF não é admitido pelos projetos atuais. Sua introdução
+futura exige especificação própria, projeto host dedicado, fronteira explícita
+contra firmware e validação que justifique seu custo.
 
 ### TESTEXEC-004 — Execução em target físico
 
@@ -137,10 +140,9 @@ excluir qualquer artefato necessário à cobertura.
 
 Somente `esp32h2` e `esp32c6` podem aparecer como `IDF_TARGET` em builds de
 firmware ESP-IDF, test apps de firmware, runners físicos ou configurações
-versionadas deste repositório. Seleções fora dessa allowlist devem falhar na
-configuração com diagnóstico explícito, sem gerar binário. O target `linux` do
-ESP-IDF é exceção exclusiva para host-native de TESTEXEC-003; não pode entrar em
-firmware, runner físico ou evidência de compatibilidade.
+versionadas deste repositório. Seleções fora dessa allowlist, inclusive
+`IDF_TARGET=linux`, devem falhar na configuração com diagnóstico explícito, sem
+gerar binário. Host-native de TESTEXEC-003 não configura projeto ESP-IDF.
 
 Além da allowlist do repositório, cada alvo possui vínculo exclusivo: client,
 `SmartSysApp`, exemplo mínimo e projeto diagnóstico da raiz usam ESP32-H2;
@@ -196,11 +198,10 @@ allowlist, com qual target é compatível.
   falha, condição de borda ou gate por causa da retirada do emulador.
 - **TESTEXEC-AC-007:** registros QEMU históricos estão claramente separados
   da evidência vigente e não são agregados como aprovação nova.
-- **TESTEXEC-AC-008:** nenhum build ESP-IDF, runner físico, configuração de
-  firmware ou documentação operacional apresenta `IDF_TARGET` fora de
-  `esp32h2` e `esp32c6`; o target `linux`, quando usado, está identificado como
-  exceção host sem firmware, e ocorrências históricas restantes como erro e
-  evidência inválida.
+- **TESTEXEC-AC-008:** nenhum build ESP-IDF, runner, configuração de firmware ou
+  documentação operacional apresenta `IDF_TARGET` fora de `esp32h2` e
+  `esp32c6`; host-native atual não usa `IDF_TARGET`, e ocorrências históricas
+  restantes estão classificadas como erro e evidência inválida.
 - **TESTEXEC-AC-009:** os 20 casos `SmartSysApp` e os 24 casos do registry
   permanecem presentes e identificáveis, sem coleta, flash ou execução nesta
   correção e sem alegação de resultado comportamental novo.
@@ -804,9 +805,9 @@ gravar ou executar as suítes preservadas.
 
 As imprecisões não bloqueadoras foram resolvidas no texto vigente:
 
-- `linux` é reconhecido como `IDF_TARGET` possível do ESP-IDF, permitido somente
-  como exceção host de TESTEXEC-003 e sem qualquer alegação de compatibilidade
-  física;
+- host-native atual usa apenas toolchain de host puro, sem `IDF_TARGET`; a
+  correção v0.4 retirou dos projetos atuais a exceção para o target `linux` do
+  ESP-IDF;
 - AC-004 cobre todos os artefatos da seção 7.2, não apenas os originados por
   QEMU;
 - AC-005 é verificado documentalmente por contagem das fontes e inspeção dos
@@ -854,11 +855,9 @@ flash, monitor, `pytest` ou execução comportamental foi iniciado.
   precisou ser acionada;
 - **allowlist no componente.** `components/issp_app_154/CMakeLists.txt` passou
   a reprovar target fora da allowlist, protegendo o componente perante um
-  consumidor que não inclua o guard de projeto. Como todo target físico
-  admitido possui rádio IEEE 802.15.4, a antiga condicional de fontes deixou de
-  discriminar entre eles: `smart_sys_app_hardware.cpp` e `src/reset/*.cpp`
-  entram sempre no build físico. A exceção host `linux` de TESTEXEC-003
-  compila somente o núcleo de lógica pura;
+  consumidor que não inclua o guard de projeto. Como todo target admitido
+  possui rádio IEEE 802.15.4, `smart_sys_app_hardware.cpp` e
+  `src/reset/*.cpp` entram em todo build do componente;
 - **test apps migrados.** `sdkconfig.defaults` de `smart_sys_app_test` passou a
   `esp32h2` e o de `device_registry_test` a `esp32c6`. Os runners
   `pytest_smart_sys_app.py` e `pytest_device_registry.py` passaram a
@@ -895,16 +894,22 @@ flash, monitor, `pytest` ou execução comportamental foi iniciado.
 | Validação | Comando/meio | Resultado |
 |---|---|---|
 | E1 | `idf.py -D IDF_TARGET=esp32h2 build` de `smart_sys_app_test`, build fora da árvore | código 0, 0 warnings, sem símbolo duplicado ou referência indefinida; `smart_sys_app_test.bin` 261424 bytes, SHA-256 `1f10c5438bf3974049f3f1c5c2ed6bc63fc3470fb73071bc8d746a2d885e29f2` |
-| E1 (rádio) | `riscv32-esp-elf-nm -u` no objeto `test_smart_sys_app.cpp.obj` | 16 símbolos indefinidos, **zero** citando `ieee802154`, transporte ou rádio: nenhum dos 20 casos passou a depender de rádio |
+| E1 (rádio) | `riscv32-esp-elf-nm -u` no objeto `test_smart_sys_app.cpp.obj`, combinado à inspeção dos `SetupHooks` e da composição do test app | 16 símbolos indefinidos, **zero** referências diretas citando `ieee802154`, transporte ou rádio; os hooks substituem os passos materiais de hardware |
 | E2 | `idf.py -D IDF_TARGET=esp32c6 build` de `device_registry_test`, build fora da árvore | código 0, 0 warnings; `device_registry_test.bin` 156064 bytes, SHA-256 `e9283d8b0393e2c12466ecdcf9d85d6eabce12251cc96d994b8f520d2fe95fb3`; partição `nvs` real de 24K presente em `0x9000` |
-| E3 | 10 configurações com target indevido nos seis projetos | todas reprovaram com código 2 e **zero** binários gerados; diagnóstico nomeia os targets admitidos |
+| E3 | 16 configurações com target indevido nos seis projetos | as dez provas originais e seis casos adicionais com `IDF_TARGET=linux` reprovaram com código 2, diagnóstico da allowlist e **zero** binários; nenhuma suíte foi coletada ou executada |
 | E5 | diff `CONFIG_` de cada `sdkconfig` autoritativo contra cada cópia, antes da remoção | nenhuma configuração intencional existia apenas na cópia removida |
 
 **E3 em detalhe.** Seis casos usaram `esp32c3`, fora da allowlist, na raiz, em
 `client_154`, `coordinator_154`, `examples/issp_minimal_client` e nos dois test
 apps; quatro casos usaram target dentro da allowlist mas fora do vínculo
 (`client_154` e `smart_sys_app_test` com `esp32c6`; `coordinator_154` e
-`device_registry_test` com `esp32h2`). Diagnóstico observado no primeiro grupo:
+`device_registry_test` com `esp32h2`). A correção v0.4 acrescenta seis casos com
+`IDF_TARGET=linux`, um por projeto ESP-IDF, para provar que a antiga exceção
+global foi encerrada. As seis configurações usaram `-DSDKCONFIG` temporário fora
+da árvore, pois os quatro projetos de produto possuem `sdkconfig` autoritativo
+H2/C6 que corretamente impediria a troca antes de o guard ser alcançado. Todos
+os seis casos retornaram código 2 pelo guard, exibiram os targets admitidos e
+produziram zero binários. Diagnóstico observado no primeiro grupo:
 
 ```
 CMake Error at cmake/require_supported_target.cmake:35 (message):
@@ -946,25 +951,18 @@ diagnóstico da raiz (H2) compilaram com código 0 e 0 warnings.
 | TESTEXEC-AC-005 | verificação documental: 20 e 24 `TEST_CASE` contados na fonte; oráculos terminais inspecionados nos dois runners; sem coleta ou execução | Approved |
 | TESTEXEC-AC-006 | diff não remove requisito, AC, cenário, falha, borda ou gate | Approved |
 | TESTEXEC-AC-007 | registros QEMU e ESP32-C3 permanecem apenas em seções de ciclo, classificados como evidência inválida | Approved |
-| TESTEXEC-AC-008 | nenhum `CONFIG_IDF_TARGET` versionado fora de `esp32h2`/`esp32c6`; `linux` presente apenas como exceção host identificada em `pytest_hello_world.py` e no guard | Approved |
+| TESTEXEC-AC-008 | nenhum `CONFIG_IDF_TARGET` versionado fora de `esp32h2`/`esp32c6`; casos Linux inoperantes removidos e host-native vigente restrito a toolchain de host puro | Approved |
 | TESTEXEC-AC-009 | as 20 e as 24 descrições de caso estão presentes e identificáveis nos ELF de E1 e E2; nenhum caso coletado, gravado ou executado | Approved |
-| TESTEXEC-AC-010 | E3: 10 configurações reprovadas antes do binário, com os targets admitidos no diagnóstico | Approved |
+| TESTEXEC-AC-010 | E3: dez configurações originais e seis rejeições adicionais de `linux` reprovadas antes do binário, com os targets admitidos no diagnóstico | Approved |
 
 ### 18.4 Limitações e desvios
 
-- **Desvio registrado — alcance do guard sobre `linux`.** A primeira forma da
-  allowlist no componente `issp_app_154` reprovava `linux` e quebrava a
-  configuração do projeto raiz, que descobre `components/` automaticamente.
-  A forma entregue admite `linux` compilando somente o núcleo de lógica pura,
-  que é exatamente a fronteira de TESTEXEC-003. Sem esse ajuste, cumprir
-  TESTEXEC-008 custaria os dois casos `host_test` preservados por TESTEXEC-002;
-- **limitação pré-existente, não introduzida por esta atuação.** A configuração
-  do projeto raiz com `IDF_TARGET=linux` falha em
-  `Failed to resolve component 'esp_adc' required by component 'main'`. O
-  comportamento foi confrontado com a árvore anterior a esta implementação e é
-  idêntico: os dois casos `host_test` de `pytest_hello_world.py` já não eram
-  construtíveis neste repositório. Eles foram preservados, conforme
-  TESTEXEC-002, e a correção de `main/CMakeLists.txt` está fora deste recorte;
+- **desvio `linux` encerrado na v0.4.** Os dois casos `host_test` herdados do
+  template foram removidos porque não eram construtíveis, não protegiam cenário
+  do domínio e não justificavam uma exceção global. O guard e
+  `issp_app_154` agora rejeitam todo target diferente de H2/C6. Host-native
+  continua disponível pelo precedente de host puro do registry; um uso futuro
+  de ESP-IDF/Linux depende de especificação e projeto dedicados;
 - **`Not Executed` por decisão, não por falha.** Nenhum dos 44 casos foi
   coletado, gravado ou executado, conforme TESTEXEC-009. `pytest` e os plugins
   ESP-IDF continuam ausentes do ambiente, e isso deixou de ser pendência desta
@@ -976,10 +974,32 @@ diagnóstico da raiz (H2) compilaram com código 0 e 0 warnings.
 
 ### 18.5 Estado
 
-Implementação `In Progress`. A migração de targets está completa e validada por
-E1, E2, E3 e E5; nenhum ativo versionado vigente materializa target fora da
-allowlist, o que encerra a condição `Regressed`. Não há trabalho técnico
-pendente neste recorte. A promoção para `Implemented`, bem como o encerramento
-da política e de `EKM-CHG-0010`, é decisão do Arquiteto, com a limitação
-`Not Executed` de TESTEXEC-009 preservada. Estados não promovidos por esta
-atuação: normativo `Proposed`, prontidão `Ready`, `EKM-CHG-0010` `Open`.
+Implementação `In Progress`. A migração de targets e a correção da fronteira
+Linux estão completas; E3 foi ampliada para os seis projetos, sem pendência
+técnica neste recorte. A promoção para `Implemented` e o encerramento de
+`EKM-CHG-0010` permanecem decisão do Arquiteto. A limitação `Not Executed` de
+TESTEXEC-009 continua: nenhuma das 44 suítes fez parte desta validação. Estados
+não promovidos: normativo `Proposed`, prontidão `Ready` e `EKM-CHG-0010` `Open`.
+
+### 18.6 Correção arquitetural v0.4
+
+A revisão do commit `ad5777b` identificou que o retorno antecipado para
+`IDF_TARGET=linux` pulava a verificação de `ISSP_TARGET_BINDING` nos seis
+projetos. A decisão arquitetural foi fechar os projetos ESP-IDF exclusivamente
+em H2/C6, remover os dois casos Linux inoperantes do runner raiz e preservar
+host-native somente pelo precedente de toolchain de host puro.
+
+A correção não altera os 20 casos `SmartSysApp`, os 24 casos do registry,
+firmware, protocolo ou comportamento de runtime. Sua validação se limita a
+inspeção, consistência do diff e seis configurações negativas adicionais; não
+autoriza coleta, execução, flash, monitor ou `pytest`.
+
+As seis configurações foram executadas com ESP-IDF 6.0.1, build e `sdkconfig`
+temporários fora da árvore. Todas terminaram com código 2 no guard, diagnóstico
+nomeando ESP32-H2 e ESP32-C6 e zero arquivos `.bin`.
+
+Como a correção simplificou a composição CMake de `issp_app_154`, E1 e E2
+foram recompiladas, sem executar os casos. O build H2 terminou com código 0,
+zero warnings e binário de 261424 bytes; o build C6 terminou com código 0, zero
+warnings e binário de 156064 bytes. Os tamanhos permanecem idênticos aos da
+implementação original.
