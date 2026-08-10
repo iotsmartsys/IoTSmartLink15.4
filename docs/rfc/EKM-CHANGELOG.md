@@ -1252,3 +1252,24 @@ Confronto focado da v0.3 antes de qualquer ordem de implementação.
 
 Ordem separada de implementação, com E1, E2, E3 e E5 como evidência obrigatória
 de configuração e build.
+
+### Promoção arquitetural da v0.3 (10/08/2026)
+
+- o Arquiteto considerou suficiente o confronto e promoveu a política para
+  `Implementable / Ready`; a implementação permanece `Regressed` e a transação
+  `Open`;
+- `linux` foi corrigido factualmente como possível `IDF_TARGET` do ESP-IDF,
+  permitido somente como exceção host sem firmware físico;
+- AC-004 passou a cobrir todos os artefatos locais inventariados e AC-005 passou
+  a exigir verificação documental, sem execução;
+- E3 alcança raiz, client, coordenador, exemplo mínimo e os dois test apps;
+- E5 exige diff e classificação das configurações antes de remover qualquer
+  cópia; valor intencional é reconciliado no `sdkconfig` autoritativo e dúvida
+  material retorna à autoria;
+- E1, E2, E3 e E5 não autorizam execução comportamental; E4, pytest, flash e
+  monitor continuam fora do encerramento e dependem de especificação futura;
+- nenhum código, runner, configuração, build ou teste foi alterado ou executado
+  nesta promoção documental.
+- o Arquiteto confirmou o registro e autorizou seu commit e envio à branch; a
+  confirmação não autoriza implementação, execução das suítes, pytest, flash ou
+  monitor.

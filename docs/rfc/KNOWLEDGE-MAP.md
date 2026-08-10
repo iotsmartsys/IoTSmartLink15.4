@@ -2,7 +2,7 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.16
+**Versão:** 1.17
 **Responsável:** Marcelo Miranda
 **Última atualização:** 10/08/2026
 **Escopo:** Todo o repositório
@@ -29,7 +29,7 @@ classificação e estado.
 | Histórico de mudanças EKM | `docs/rfc/EKM-CHANGELOG.md` | Operacional | Active |
 | Manual da IA Executora | `docs/rfc/MAN-0001.md` | Normativo complementar | Active |
 | Instruções do Copilot | `.github/copilot-instructions.md` | Adaptador | Active |
-| Targets suportados e execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | Correção v0.3 Proposed; implementação Regressed; allowlist H2/C6 e vínculo client→H2, coordenador→C6; B1–B3 resolvidos e verificados; `Implementable` com validações E1–E3 e E5 (seção 16); `EKM-CHG-0010` Open |
+| Targets suportados e execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | Correção v0.3 Proposed; implementação Regressed; `Implementable / Ready`; allowlist H2/C6, exceção host `linux` e vínculo client→H2, coordenador→C6; E1–E3/E5 obrigatórios; suítes sem execução; `EKM-CHG-0010` Open |
 
 Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferença,
 `EKM-GUIDELINES.md` é a fonte canônica das regras EKM.

@@ -4,7 +4,7 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** Regressed — existem runners e configurações para
 target não suportado
-**Prontidão:** Not Ready
+**Prontidão:** Ready — promoção do Arquiteto registrada na seção 17
 **Revisão de implementabilidade:** Implementable — confronto focado da v0.3 na
 seção 16, com validações obrigatórias E1 a E3 e E5
 **Versão:** 0.3
@@ -84,10 +84,11 @@ Se tornar o teste host-native exigir duplicar a política de produção ou omiti
 semântica material, essa estratégia reprova o gate e deve ser substituída por
 execução em placa física.
 
-Linux e toolchains de host são ambientes de execução de lógica pura, não
-`IDF_TARGET`, firmware, placa ou evidência de compatibilidade física. Eles são
-permitidos por este requisito e estão fora da allowlist de firmware definida em
-TESTEXEC-008.
+Execução host-native pode usar toolchain de host puro, sem `IDF_TARGET`, ou o
+target `linux` do ESP-IDF, que define `CONFIG_IDF_TARGET="linux"`. As duas formas
+são permitidas exclusivamente para lógica pura: não representam firmware
+físico, placa ou evidência de compatibilidade IEEE 802.15.4 e constituem exceção
+host explícita à allowlist física de TESTEXEC-008.
 
 ### TESTEXEC-004 — Execução em target físico
 
@@ -133,11 +134,12 @@ excluir qualquer artefato necessário à cobertura.
 
 ### TESTEXEC-008 — Allowlist de targets
 
-Somente `esp32h2` e `esp32c6` podem aparecer como `IDF_TARGET` em builds
-ESP-IDF, test apps de firmware, runners físicos ou configurações versionadas
-deste repositório. Seleções fora dessa allowlist devem falhar na configuração
-com diagnóstico explícito, sem gerar binário. Execuções host-native de
-TESTEXEC-003 não definem `IDF_TARGET` e não pertencem a esta regra.
+Somente `esp32h2` e `esp32c6` podem aparecer como `IDF_TARGET` em builds de
+firmware ESP-IDF, test apps de firmware, runners físicos ou configurações
+versionadas deste repositório. Seleções fora dessa allowlist devem falhar na
+configuração com diagnóstico explícito, sem gerar binário. O target `linux` do
+ESP-IDF é exceção exclusiva para host-native de TESTEXEC-003; não pode entrar em
+firmware, runner físico ou evidência de compatibilidade.
 
 Além da allowlist do repositório, cada alvo possui vínculo exclusivo: client,
 `SmartSysApp`, exemplo mínimo e projeto diagnóstico da raiz usam ESP32-H2;
@@ -182,20 +184,22 @@ allowlist, com qual target é compatível.
 - **TESTEXEC-AC-003:** dependências, imports, markers e runners específicos de
   QEMU estão ausentes do inventário versionado depois da atuação de
   implementação.
-- **TESTEXEC-AC-004:** diretórios e imagens locais de build QEMU identificados
-  no inventário foram removidos sem afetar fontes de teste preservadas.
+- **TESTEXEC-AC-004:** todos os artefatos locais ou gerados da seção 7.2 foram
+  removidos sem afetar fontes de teste preservadas; a verificação cobre também
+  builds, configurações e caches que não sejam de QEMU.
 - **TESTEXEC-AC-005:** os 20 cenários `SmartSysApp` e os 24 cenários do registry
-  permanecem rastreados e podem terminar em runner permitido com quantidade
-  maior que zero.
+  permanecem rastreados. Nesta correção, a verificação é exclusivamente
+  documental: contagem na fonte e inspeção dos oráculos declarados nos runners,
+  sem coleta ou execução.
 - **TESTEXEC-AC-006:** nenhuma matriz funcional perdeu requisito, cenário,
   falha, condição de borda ou gate por causa da retirada do emulador.
 - **TESTEXEC-AC-007:** registros QEMU históricos estão claramente separados
   da evidência vigente e não são agregados como aprovação nova.
 - **TESTEXEC-AC-008:** nenhum build ESP-IDF, runner físico, configuração de
   firmware ou documentação operacional apresenta `IDF_TARGET` fora de
-  `esp32h2` e `esp32c6`; execuções host-native estão identificadas como ambiente
-  sem firmware, e ocorrências históricas restantes como erro e evidência
-  inválida.
+  `esp32h2` e `esp32c6`; o target `linux`, quando usado, está identificado como
+  exceção host sem firmware, e ocorrências históricas restantes como erro e
+  evidência inválida.
 - **TESTEXEC-AC-009:** os 20 casos `SmartSysApp` e os 24 casos do registry
   permanecem presentes e identificáveis, sem coleta, flash ou execução nesta
   correção e sem alegação de resultado comportamental novo.
@@ -786,3 +790,35 @@ AC-004, AC-005 e AC-008 ficam parcialmente verificáveis por interpretação.
 Estados preservados: normativo `Proposed`, implementação `Regressed`, prontidão
 `Not Ready` e `EKM-CHG-0010` `Open`. Esta análise não promove estado, não
 autoriza programar, remover artefatos, executar testes nem realizar flash.
+
+## 17. Decisão arquitetural posterior ao confronto (10/08/2026)
+
+O Arquiteto considerou suficiente o confronto da seção 16 e promoveu a v0.3
+para `Implementable / Ready`. A promoção autoriza uma ordem separada de
+implementação; não declara a correção implementada e não autoriza coletar,
+gravar ou executar as suítes preservadas.
+
+As imprecisões não bloqueadoras foram resolvidas no texto vigente:
+
+- `linux` é reconhecido como `IDF_TARGET` possível do ESP-IDF, permitido somente
+  como exceção host de TESTEXEC-003 e sem qualquer alegação de compatibilidade
+  física;
+- AC-004 cobre todos os artefatos da seção 7.2, não apenas os originados por
+  QEMU;
+- AC-005 é verificado documentalmente por contagem das fontes e inspeção dos
+  oráculos, sem execução dos casos.
+
+E1, E2, E3 e E5 são evidências obrigatórias da implementação:
+
+- E1 e E2 compilam os test apps respectivamente em ESP32-H2 e ESP32-C6, sem
+  iniciar seus casos;
+- E3 deve comprovar o guard de allowlist no projeto da raiz, `client_154`,
+  `coordinator_154`, `examples/issp_minimal_client` e nos dois test apps;
+- E5 deve comparar cada `sdkconfig` autoritativo com toda cópia sufixada ou
+  `.old` antes da remoção. Cada diferença é classificada como intencional,
+  gerada, default ou obsoleta. Configuração intencional ainda necessária deve
+  ser reconciliada no arquivo autoritativo; dúvida material interrompe a
+  remoção e retorna à autoria.
+
+E4 permanece fora do encerramento. Somente especificação futura pode autorizar
+execução comportamental, pytest, flash ou monitor das suítes.
