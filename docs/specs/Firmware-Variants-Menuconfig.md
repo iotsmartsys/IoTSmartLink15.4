@@ -5,8 +5,8 @@
 **Revisão de implementabilidade:** Implementable para a direção integral por
 decisão do Arquiteto; os bloqueadores B1 a B4 da Fase 2 foram resolvidos e o
 confronto focado das resoluções foi executado, sem bloqueador remanescente
-**Prontidão:** Needs Analysis até o Arquiteto avaliar o confronto focado; a
-análise recomenda prontidão condicionada aos esclarecimentos C1 a C3
+**Prontidão:** Ready — o Arquiteto considerou o confronto suficiente, resolveu
+C1 a C3 e autorizou a implementação da Fase 2
 
 ## Missão
 
@@ -118,9 +118,11 @@ A Fase 2 contém:
   amostras; cada janela é classificada pela maioria de três níveis e o estado é
   confirmado após duas janelas consecutivas com a mesma classificação;
 - latência máxima de 150 ms entre a estabilização física da entrada e a
-  confirmação da transição pelo behavior;
-- report inicial do estado estabilizado e um novo report para cada transição
-  estabilizada posterior, sem exigir reboot;
+  confirmação da transição pelo behavior; transporte, ACK, retry e observação
+  no coordenador não pertencem a esse orçamento;
+- report inicial estabilizado e publicado sincronamente por `begin()`, antes de
+  iniciar o timer periódico, e um novo report para cada transição estabilizada
+  posterior, sem exigir reboot;
 - `DigitalInputBehavior` reutilizável em `components/issp_behaviors` e a
   operação pública `SmartSysApp::addDoorSensorCapability()`;
 - configuração do sensor contendo pino, polaridade, pull, endpoint, evento,
@@ -141,6 +143,11 @@ O mecanismo de observação usa `esp_timer` periódico dentro do behavior, sem
 busy-wait, tarefa ou pilha próprias e sem ativar globalmente
 `IDeviceBehavior::poll()`. O product firmware fornece semântica, parâmetros e
 composição; o board fornece pino, pull e polaridade elétrica.
+
+O timer usa despacho pela tarefa `esp_timer`, nunca por ISR. O behavior é dono
+do handle e deve parar e excluir o timer no destrutor e em qualquer caminho de
+falha posterior à sua criação, impedindo callback sobre objeto destruído ou
+publicação sem publisher válido.
 
 Bateria, ADC, deep sleep, wake-up por GPIO e métricas de consumo existentes no
 histórico não pertencem a esta Fase 2. A retomada desses comportamentos exige
@@ -302,6 +309,30 @@ incompatíveis com o target já configurado pelo ESP-IDF.
     C++ fornece um acessador por classe de recurso e cada board define somente
     os recursos que oferece, produzindo também falha de ligação se os metadados
     divergirem, sem introduzir geração de código ou framework de boards.
+27. O limite de 150 ms termina quando o `DigitalInputBehavior` confirma a
+    transição e solicita sua publicação. A chegada ao coordenador é evidência
+    funcional separada, sem esse limite, porque inclui fila, transporte, ACK e
+    retry.
+28. O oráculo normativo do debounce é a sequência de classificações: uma
+    oscilação é rejeitada quando não produz duas janelas consecutivas com
+    maioria do novo nível. Cinquenta milissegundos são apenas o menor intervalo
+    teórico capaz de abranger as seis amostras necessárias em alinhamento
+    favorável; não são limiar universal independente da fase de amostragem. Os
+    testes controlados devem declarar diretamente os níveis de cada amostra.
+29. `begin()` estabiliza e publica o estado inicial de forma síncrona usando o
+    mesmo classificador de duas janelas. Somente depois inicia o `esp_timer`
+    periódico. A espera inicial pode usar um tick por período de 10 ms com a
+    configuração vigente, sem alterar o contrato periódico do timer.
+30. `DigitalInputBehavior` é responsável pelo ciclo de vida do `esp_timer`.
+    Usa despacho por tarefa, para e exclui o timer no destrutor e desfaz sua
+    criação em todo caminho de falha; despacho por ISR não é permitido.
+31. A dependência interna de `issp_core` em FreeRTOS é aceita neste recorte. A
+    proteção abrange slots, `processingCommand_`,
+    `reportNotificationDeferred_`, reserva de sequência e qualquer caminho que
+    altere `reportSequence_`, inclusive `publishReport()` enquanto existir.
+    Reserva e transição de estado ocorrem atomicamente; codificação, callback,
+    notificação e transporte permanecem fora da seção crítica, e falha de
+    codificação libera a reserva pelo fluxo normal protegido.
 
 ### Registro de conhecimento deste experimento
 
@@ -348,8 +379,10 @@ client_154/
 components/
 ├── issp_app_154/
 ├── issp_behaviors/
-│   └── digital_input_behavior.{hpp,cpp}
+│   ├── digital_input_behavior.{hpp,cpp}
+│   └── test_apps/digital_input_behavior_test/
 ├── issp_core/
+│   └── test_apps/issp_device_concurrency_test/
 └── issp_transport_154/
 ```
 
@@ -365,10 +398,11 @@ Somente arquivos de variantes e boards realmente suportados devem existir. A
 | `client_154/main/firmwares/door_sensor.cpp` | compor identidade, endpoint, evento e debounce do sensor | nenhuma pinagem literal ou lógica de transporte |
 | `client_154/main/boards/board_model.hpp` | substituir campos orientados ao relé por recursos físicos | preservar a composição da tomada e evitar framework genérico |
 | `client_154/main/boards/historical_door_sensor_esp32h2_wiring.cpp` | declarar entrada de contato seco e botão de usuário | nenhuma regra de produto ou protocolo |
-| `components/issp_behaviors` | adicionar `DigitalInputBehavior` e observação por `esp_timer` | reutilizável, sem produto, board, `CONFIG_*`, tarefa ou pilha própria |
+| `components/issp_behaviors` | adicionar `DigitalInputBehavior`, dependência explícita de `esp_timer` e ciclo de vida do timer | reutilizável, sem produto, board, `CONFIG_*`, tarefa ou pilha própria |
 | `components/issp_app_154` | expor `addDoorSensorCapability()` e unificar o registro interno | não expor tipos privados do ISSP nem mudar as operações vigentes |
-| `components/issp_core` | serializar o bookkeeping dos pending reports | nenhuma regra de produto; callbacks e transporte fora da seção crítica |
-| testes de `issp_behaviors` e `issp_app_154` | cobrir estabilização, reports, rejeição de comandos e regressão | doubles devem preservar leitura e transição material |
+| `components/issp_core` | serializar o bookkeeping dos pending reports e assumir dependência interna de FreeRTOS | nenhuma regra de produto; codificação, callbacks, notificações e transporte fora da seção crítica |
+| novos `test_apps` de `issp_behaviors` e `issp_core` | provar debounce controlado e integridade concorrente | distinguir comportamento observado de prova de exclusão mútua |
+| testes de `issp_app_154` | cobrir adição, registro unificado e regressão | preservar assinatura e ordem do hook vigente |
 | `docs/rfc/KNOWLEDGE-MAP.md` | marcar sensor e board como especificados | apontar para este contrato sem duplicá-lo |
 
 ## Critérios de aceite
@@ -432,9 +466,14 @@ build isolado não substituem a observação do firmware em execução.
   (`closed`).
 - **Dado** o firmware em execução, **quando** a entrada muda e satisfaz o
   debounce especificado, **então** publica uma vez o novo estado sem reboot e
-  em até 150 ms após a estabilização física.
-- **Dada** uma oscilação que não satisfaz o debounce, **quando** a entrada volta
-  ao estado anterior, **então** nenhum novo report é publicado.
+  o behavior confirma a transição em até 150 ms após a estabilização física; o
+  prazo não inclui fila, transporte, ACK, retry ou recepção pelo coordenador.
+- **Dada** uma sequência controlada que não produz duas janelas consecutivas
+  com maioria do novo nível, **quando** a entrada volta ao estado anterior,
+  **então** nenhum novo report é publicado.
+- **Dadas** duas janelas consecutivas com ao menos três amostras do novo nível
+  em cada uma, **quando** a segunda janela é classificada, **então** a transição
+  é confirmada uma única vez.
 - **Dado** um estado já publicado, **quando** novas leituras estabilizam no
   mesmo valor, **então** nenhum report duplicado é criado.
 - **Dado** um comando para endpoint 1 e evento 1, **quando** ele chega ao sensor
@@ -518,11 +557,14 @@ do documento.
   binário e com diagnóstico do recurso ausente;
 - caso negativo ESP32-C6 para os dois boards, sempre com `SDKCONFIG` isolado;
 - testes automatizados do `DigitalInputBehavior`, com fonte de níveis injetável,
-  cobrindo período de 10 ms, janelas, maioria, latência, estado inicial,
-  transição, supressão de duplicatas, falha de publicação e comando
-  `Unsupported` reconhecido pelo par;
+  cobrindo período de 10 ms, sequências explícitas por janela, maioria, limite
+  de 150 ms na fronteira do behavior, estado inicial síncrono, transição,
+  supressão de duplicatas, falha de publicação, destruição com timer ativo e
+  comando `Unsupported` reconhecido pelo par;
 - testes de concorrência do `IsspDevice` exercitando publicação, reserva e
-  conclusão intercaladas e confirmando a integridade dos pending reports;
+  conclusão intercaladas e confirmando a integridade dos pending reports; a
+  evidência deve distinguir integridade observada da garantia de exclusão
+  mútua fornecida pela seção crítica e pela inspeção do código;
 - testes da adição de `addDoorSensorCapability()` e regressão integral da suíte
   vigente de `SmartSysApp`;
 - build de `examples/issp_minimal_client` e de `coordinator_154`, sem mudança
@@ -530,8 +572,9 @@ do documento.
 - hardware da tomada simples repetindo a preservação da Fase 1;
 - hardware do sensor ESP32-H2 comprovando boot até `Running`, report inicial
   aberto e fechado, transições nos dois sentidos sem reboot, ausência de report
-  por oscilação rejeitada, latência máxima de 150 ms, factory reset e evento
-  correspondente observado no coordenador.
+  por sequência rejeitada, latência máxima de 150 ms medida até a confirmação
+  pelo behavior, factory reset e evento correspondente observado no
+  coordenador sem limite de entrega associado ao debounce.
 
 Para cada item, falha, execução não iniciada ou resultado desconhecido não
 constitui aprovação. A evidência deve permitir distinguir aprovação, reprovação
@@ -556,9 +599,9 @@ monolítico cheio de condicionais.
   compatibilidade por recursos confirmaram as fronteiras ou revelaram contexto
   ainda ausente no mapa.
 
-Essas variáveis não autorizam implementação antes do confronto focado das
-resoluções arquiteturais. O experimento permanece aberto até a Fase 2 produzir
-evidência e o Arquiteto avaliar seu resultado.
+Essas variáveis são escolhas locais dentro do recorte agora implementável; não
+autorizam ampliar protocolo, targets ou produtos. O experimento permanece
+aberto até a Fase 2 produzir evidência e o Arquiteto avaliar seu resultado.
 
 ## Resultado desta etapa
 
@@ -566,20 +609,31 @@ O Arquiteto aprovou o sensor de porta como segunda composição. A análise de
 implementabilidade confirmou a direção estrutural e identificou B1 a B4. O
 Arquiteto resolveu esses bloqueadores e autorizou as mudanças compartilhadas
 descritas nas decisões 20 a 26. O Consultor reconciliou as decisões nesta
-especificação e no mapa, sem iniciar implementação. O recorte requer confronto
-focado antes de ser promovido para implementação.
+especificação e no mapa, sem iniciar implementação. Naquele momento, o recorte
+ainda requeria confronto focado antes de ser promovido para implementação.
 
 O Arquiteto confirmou o registro documental produzido pelo Consultor e
 autorizou seu commit e envio à branch do experimento. Essa confirmação não
-representa aprovação da implementação nem substitui o confronto focado da Fase
-2.
+representava aprovação da implementação nem substituía o confronto focado da
+Fase 2, posteriormente executado.
+
+O confronto focado posterior sustentou as decisões 20 a 26 e não encontrou
+bloqueador normativo. O Arquiteto considerou o confronto suficiente, resolveu
+C1 a C3 nas decisões 27 a 29, reconheceu as consequências de ciclo de vida,
+dependência FreeRTOS e infraestrutura de testes e promoveu a Fase 2 para
+`Implementable / Ready`. A promoção autoriza implementação, mas não declara
+execução ou validação concluída.
+
+O Arquiteto confirmou este registro e autorizou seu commit e envio à branch do
+experimento. A confirmação ratifica C1 a C3 e a promoção de prontidão, sem
+declarar a Fase 2 implementada ou validada.
 
 ## Decisão vigente de implementabilidade
 
-O Arquiteto mantém a direção integral como `Implementable`. Para a Fase 2, B1 a
-B4 estão normativamente resolvidos, mas o estado permanece `Needs Analysis` até
-um Analista confrontar especificamente essas resoluções com o repositório. Isso
-não altera a conclusão da Fase 1 nem declara a Fase 2 implementada ou validada.
+O Arquiteto mantém a direção integral como `Implementable` e promove a Fase 2
+para `Implementable / Ready`. B1 a B4 e C1 a C3 estão normativamente resolvidos;
+o Implementador pode iniciar o recorte definido. Isso não altera a conclusão da
+Fase 1 nem declara a Fase 2 implementada ou validada.
 
 ## Análise de implementabilidade da Fase 2 (Engenheiro Analista)
 
