@@ -1157,8 +1157,8 @@ independentemente de o test app substituir hardware por fakes.
 - análise independente promove a correção para `Implementable`;
 - configurações e runners usam somente ESP32-H2 ou ESP32-C6 e builds fora da
   allowlist falham antes do binário;
-- 20 casos `SmartSysApp` terminam em ESP32-H2 e 24 casos do registry terminam
-  em ESP32-C6, com resultado terminal e mais de zero casos;
+- 20 casos `SmartSysApp` e 24 casos do registry permanecem preservados, sem
+  coleta, flash ou execução nesta correção e sem alegação de resultado novo;
 - documentação operacional e especificações dependentes deixam de apresentar
   target não suportado como opção ou evidência válida;
 - revisão confirma preservação dos casos, ausência de alegação operacional
@@ -1191,5 +1191,32 @@ independentemente de o test app substituir hardware por fakes.
 
 ### Próxima etapa
 
-Decisão do Arquiteto sobre B1, B2 e B3, com nova autoria da política e das
-especificações dependentes antes de qualquer ordem de implementação.
+Confronto focado da v0.3 antes de qualquer ordem de implementação.
+
+### Resolução arquitetural e reautoria v0.3 (10/08/2026)
+
+- o Arquiteto autorizou corrigir os gates vigentes de Bootstrap v1.5 e Registry
+  v0.4: `SmartSysApp` executa em ESP32-H2 e registry/coordenador em ESP32-C6;
+- Linux e toolchains host-native foram explicitamente separados de
+  `IDF_TARGET`; permanecem válidos para lógica pura e não comprovam
+  compatibilidade física;
+- a allowlist H2/C6 e o vínculo por alvo tornam-se simultâneos; H2 e C6 não são
+  intercambiáveis entre client e coordenador;
+- somente o `sdkconfig` principal de cada projeto é autoritativo; cópias
+  `.old`, sufixadas por target e o `sdkconfig.ci` vazio entram no inventário de
+  remoção técnica posterior;
+- o diagnóstico da raiz permanece temporariamente vinculado ao ESP32-H2;
+- Bootstrap e Registry foram reconciliados nos gates normativos; referências
+  históricas incompatíveis permanecem auditáveis e inválidas como evidência;
+- experimentos E1 a E3 tornam-se validações obrigatórias da implementação por
+  envolverem apenas builds e prova do guard;
+- por decisão explícita do Arquiteto, as suítes de 20 e 24 casos não serão
+  executadas nesta correção nem como etapa automática da EKOM; E4 é retirado do
+  encerramento e somente especificação futura pode voltar a solicitá-lo;
+- nenhum código, runner, configuração, build, flash ou teste foi alterado ou
+  executado nesta reautoria;
+- estados: política v0.3 `Proposed`, implementação `Regressed`, prontidão
+  `Not Ready`, revisão `Needs Analysis` e `EKM-CHG-0010` `Open`.
+- o Arquiteto confirmou este registro e autorizou seu commit e envio à branch;
+  a confirmação não autoriza implementação nem execução das suítes, que somente
+  especificação futura poderá solicitar.

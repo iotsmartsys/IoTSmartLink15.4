@@ -3,12 +3,13 @@
 **Tipo:** Normativo
 **Estado normativo:** Proposed
 **Estado da implementação funcional v1.4:** Validated
-**Estado da migração de validação v1.5:** In Progress
+**Estado da migração de validação v1.5:** Regressed — runner configurado para
+target não suportado
 **Prontidão da v1.5:** Not Ready
 **Revisão de implementabilidade:** Pending Review
 **Versão:** 1.5
 **Responsável arquitetural:** Marcelo Miranda
-**Última atualização:** 01/08/2026
+**Última atualização:** 10/08/2026
 **Escopo:** API pública de configuração e composição do firmware `client_154`
 
 ---
@@ -828,16 +829,16 @@ QEMU não é estratégia permitida para nenhuma execução futura desta
 especificação. Os testes de configuração, estados, ordem, falhas e rollback
 devem executar host-native quando `SmartSysApp::SetupHooks` e os fakes
 preservarem toda a semântica material do critério; caso essa fidelidade não
-possa ser demonstrada, devem executar no app Unity em ESP32-C3 físico. Rádio,
+possa ser demonstrada, devem executar no app Unity em ESP32-H2 físico. Rádio,
 NVS, GPIO e factory reset continuam exigindo os targets físicos definidos por
 SMARTAPP-AC-022. Aplicam-se integralmente os contratos de
 `Repository-Test-Execution-Policy.md`.
 
 Os resultados QEMU registrados na seção 22 permanecem fatos históricos da
 versão 1.4, mas não podem ser reutilizados como evidência vigente da versão
-1.5 ou de revisões futuras. Os dezenove cenários continuam obrigatórios e
-devem receber nova execução em runner permitido antes de qualquer nova
-promoção baseada neles.
+1.5 ou de revisões futuras. Os 20 cenários permanecem preservados, mas esta
+versão não solicita nem autoriza sua execução. Somente especificação futura
+pode reativá-los com propósito, recorte e evidência explícitos.
 
 ## 19. Ativos autorizados para implementação futura
 
@@ -1146,8 +1147,8 @@ oráculos.
 A versão 1.4 e sua implementação funcional continuam registradas como baseline
 historicamente `Validated`. A versão 1.5 altera a estratégia de evidência:
 
-- os dezenove testes de `SmartSysApp::SetupHooks` devem migrar para runner
-  host-native fiel ou ESP32-C3 físico;
+- os 20 testes de `SmartSysApp::SetupHooks` devem migrar para runner
+  host-native fiel ou ESP32-H2 físico;
 - os resultados QEMU da seção 22 são evidência legada, auditável, mas não
   reutilizável para aprovação posterior;
 - o test app, seus testes e os hooks são preservados nesta autoria; imports,
@@ -1161,3 +1162,18 @@ Nenhum código, teste, configuração, runner ou artefato técnico foi alterado,
 excluído ou executado. A migração de validação v1.5 fica `Not Started`; a
 versão normativa fica `Proposed`, `Not Ready` e `Pending Review`. A próxima
 etapa é análise independente de implementabilidade.
+
+## 24. Correção de target da validação v1.5 (10/08/2026)
+
+Por decisão do Arquiteto e conforme
+`Repository-Test-Execution-Policy.md` v0.3, qualquer fallback físico do app
+Unity `SmartSysApp` executa exclusivamente em ESP32-H2. Execução host-native
+fiel permanece permitida para lógica pura e não constitui `IDF_TARGET` nem
+evidência de compatibilidade física.
+
+Os 20 casos presentes na fonte permanecem preservados. Builds ou resultados
+históricos em target não suportado continuam auditáveis, mas são evidência
+inválida para a migração v1.5. Os casos permanecem deliberadamente
+`Not Executed`: esta versão não solicita coleta, flash ou execução em ESP32-H2,
+que somente uma especificação futura poderá autorizar. Esta correção não altera
+a API nem o baseline funcional validado em hardware.

@@ -3,12 +3,14 @@
 **Tipo:** Normativo
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
-**Estado da migração de validação v0.4:** In Progress
+**Estado da migração de validação v0.4:** Regressed — runner configurado para
+target não suportado
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Implementable
+**Revisão de implementabilidade:** Implementable para o recorte funcional;
+correção de target Pending Review
 **Versão:** 0.4
 **Responsável arquitetural:** Marcelo Miranda
-**Última atualização:** 01/08/2026
+**Última atualização:** 10/08/2026
 **Escopo:** Persistência NVS dos dispositivos pareados pelo coordenador ISSP
 
 ---
@@ -597,7 +599,7 @@ de namespaces e falhas de leitura. Cobre COORD-REG-001/010/011/012.
 Para cada classe, observar `RegistryUnavailable` ou término controlado
 permitido pela seção 7, ausência de resposta/evento/ACK/transmissão/conclusão
 de comando e sentinela inalterada. Pelo menos blob corrompido, reboot e
-isolamento da sentinela devem ser executados em ESP32-C3 ou ESP32-C6 físico
+isolamento da sentinela devem ser executados em ESP32-C6 físico
 contra o adaptador NVS de produção; falhas não produzíveis pelo backend real
 podem usar substituto fiel executado host-native ou em placa física, conforme
 `Repository-Test-Execution-Policy.md`.
@@ -655,14 +657,14 @@ infraestrutura, execução não iniciada ou zero casos não constituem aprovaç�
 |---|---|---|---|
 | G1 — política integrada | executar o mesmo código de decisão usado por `main.c` com efeitos substituídos | matriz da seção 9, ordem persistência/resposta, ACK, host, comando e deduplicação | adaptador NVS real e hardware |
 | G2 — backend NVS fiel | injetar falhas por etapa e preservar staging/durable/namespaces/reboot | atomicidade sob falha, contadores e isolamento lógico | integração real do adaptador |
-| G3-N — adaptador de produção com NVS real | executar `device_registry_nvs.c` e partição NVS real em ESP32-C3 ou ESP32-C6 físico | schema, reabertura, reboot, corrupção, namespace sentinela e caminho nominal de commit | falhas de primitivas não produzidas pelo backend e rádio ponta a ponta |
+| G3-N — adaptador de produção com NVS real | executar `device_registry_nvs.c` e partição NVS real em ESP32-C6 físico | schema, reabertura, reboot, corrupção, namespace sentinela e caminho nominal de commit | falhas de primitivas não produzidas pelo backend e rádio ponta a ponta |
 | G3-F — adaptador de produção sob falha controlada | executar `device_registry_nvs.c` pelo fluxo real, substituindo somente a fronteira das primitivas NVS | ordem `set_blob`/commit, propagação do erro de commit, ausência de publicação/resposta e preservação durable | persistência nominal real, rádio e hardware |
 | G4 — build de produção | compilar/linkar a composição real ESP32-C6 | compatibilidade de build e warnings | comportamento executado |
 | G5 — hardware real | executar coordenador e devices físicos | rádio, reboot, commissioning e compatibilidade ponta a ponta | gates automatizados de falhas |
 
 G1 pode compartilhar o mesmo runner com G2 e pode executar host-native quando
 todos os substitutos preservarem a semântica material. G3-N executa
-obrigatoriamente em ESP32-C3 ou ESP32-C6 físico com partição NVS real. G3-F
+obrigatoriamente em ESP32-C6 físico com partição NVS real. G3-F
 pode executar host-native ou em placa física, mas deve compilar e executar
 `device_registry_nvs.c`, não apenas o core do registry. Em G3-F, o ponto de
 injeção pode ser uma tabela interna de operações, wrapper de link ou mecanismo
@@ -799,10 +801,11 @@ corrente é:
 
 - `Proposed`;
 - `In Progress`, porque existe implementação parcial ainda não conforme;
-- migração de validação `In Progress`, porque o runner ESP32-C3 está escrito,
-  mas ainda não foi executado;
+- migração de validação `Regressed`, porque o runner vigente está configurado
+  para target não suportado e suas evidências foram invalidadas;
 - `Not Ready`;
-- `Implementable`, conforme a análise integral da versão 0.4 na seção 16.14.
+- `Implementable` para o recorte funcional; a correção de target permanece
+  `Pending Review`, conforme a seção 16.20 e a política transversal v0.3.
 
 ### 16.1 Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
 
@@ -1416,7 +1419,7 @@ As mudanças normativas desta versão são:
 - G1 e G2 podem executar host-native quando seus substitutos preservarem toda
   a semântica material; caso contrário executam em placa física;
 - G3-N passa a executar o adaptador de produção e a NVS real exclusivamente em
-  ESP32-C3 ou ESP32-C6 físico;
+  ESP32-C6 físico;
 - G3-F continua atravessando `device_registry_nvs.c` e pode executar
   host-native ou em placa física sob primitivas controladas;
 - G4 permanece build da composição ESP32-C6 e G5 permanece hardware real
@@ -1874,3 +1877,23 @@ sentinela de namespace sob backend real. Estados preservados: normativo
 `Proposed`, implementação funcional e migração de validação `In Progress`,
 prontidão `Not Ready`, revisão de implementabilidade `Implementable` e
 `EKM-CHG-0008` `Open`.
+
+### 16.20 Correção de target da validação v0.4 (10/08/2026)
+
+Por decisão do Arquiteto e conforme
+`Repository-Test-Execution-Policy.md` v0.3, o app Unity do registry, G3-N, G4
+e G5 executam exclusivamente em ESP32-C6 quando exigirem firmware ou placa
+física. G1, G2 e G3-F podem permanecer host-native somente quando preservarem
+a semântica material definida nesta especificação; host-native não constitui
+`IDF_TARGET` nem evidência de compatibilidade física.
+
+Os 24 casos presentes na fonte permanecem preservados. Builds ou resultados
+históricos em target não suportado continuam auditáveis, mas são evidência
+inválida para a migração v0.4. Os casos permanecem deliberadamente
+`Not Executed`: esta versão não solicita coleta, flash ou execução em ESP32-C6,
+que somente uma especificação futura poderá autorizar.
+
+As cláusulas anteriores que descrevem como G1 a G5 seriam executados continuam
+definindo os oráculos, mas não constituem ordem vigente de execução. Esta
+correção não altera o contrato do registry nem promove os critérios funcionais
+ainda pendentes.

@@ -5,9 +5,9 @@
 **Estado da implementação:** Regressed — existem runners e configurações para
 target não suportado
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Not Implementable na forma atual — retorno à
-autoria (seção 14, 10/08/2026)
-**Versão:** 0.2
+**Revisão de implementabilidade:** Needs Analysis — B1 a B3 da análise da v0.2
+foram resolvidos pelo Arquiteto na seção 15
+**Versão:** 0.3
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 10/08/2026
 **Escopo:** Targets admitidos e estratégias de execução de testes em todo o
@@ -41,8 +41,8 @@ Inclui:
 - evidências futuras de implementação, revisão e validação;
 - inventário dos artefatos técnicos cuja remoção ou migração caberá a uma
   atuação posterior de Engenheiro Implementador;
-- invalidação de evidências produzidas em target não suportado e estratégia de
-  reexecução nos targets admitidos.
+- invalidação de evidências produzidas em target não suportado e preservação
+  dos casos sem executá-los nesta correção.
 
 ## 3. Fora de escopo
 
@@ -84,6 +84,11 @@ Se tornar o teste host-native exigir duplicar a política de produção ou omiti
 semântica material, essa estratégia reprova o gate e deve ser substituída por
 execução em placa física.
 
+Linux e toolchains de host são ambientes de execução de lógica pura, não
+`IDF_TARGET`, firmware, placa ou evidência de compatibilidade física. Eles são
+permitidos por este requisito e estão fora da allowlist de firmware definida em
+TESTEXEC-008.
+
 ### TESTEXEC-004 — Execução em target físico
 
 Teste dependente de ESP-IDF, FreeRTOS, NVS real, periférico ou comportamento do
@@ -94,6 +99,10 @@ target para o firmware de teste.
 
 Flash, monitor e captura automatizada em placa continuam sujeitos à ordem
 explícita do Arquiteto prevista pelo `AGENTS.md`.
+
+Esta versão define o target correto caso uma execução seja futuramente
+solicitada; ela não solicita nem autoriza executar as suítes existentes. Aplica-se
+também TESTEXEC-009.
 
 ### TESTEXEC-005 — Evidência terminal
 
@@ -112,7 +121,8 @@ critério correspondente voltar a ser confrontado.
 Builds ou execuções registrados para target fora da matriz da seção 5
 permanecem fatos históricos, mas são evidência inválida para compatibilidade ou
 aprovação. Seus critérios retornam a `Not Executed` até reexecução em target
-admitido; o resultado não pode ser renomeado ou transportado para outro target.
+admitido por uma especificação futura; o resultado não pode ser renomeado ou
+transportado para outro target.
 
 ### TESTEXEC-007 — Remoção técnica posterior
 
@@ -123,14 +133,31 @@ excluir qualquer artefato necessário à cobertura.
 
 ### TESTEXEC-008 — Allowlist de targets
 
-Somente `esp32h2` e `esp32c6` podem aparecer como `IDF_TARGET` em projetos,
-test apps, runners ou configurações versionadas deste repositório. Seleções
-fora dessa allowlist devem falhar na configuração com diagnóstico explícito,
-sem gerar binário.
+Somente `esp32h2` e `esp32c6` podem aparecer como `IDF_TARGET` em builds
+ESP-IDF, test apps de firmware, runners físicos ou configurações versionadas
+deste repositório. Seleções fora dessa allowlist devem falhar na configuração
+com diagnóstico explícito, sem gerar binário. Execuções host-native de
+TESTEXEC-003 não definem `IDF_TARGET` e não pertencem a esta regra.
+
+Além da allowlist do repositório, cada alvo possui vínculo exclusivo: client,
+`SmartSysApp`, exemplo mínimo e projeto diagnóstico da raiz usam ESP32-H2;
+coordenador e registry usam ESP32-C6. Estar na allowlist não torna H2 e C6
+intercambiáveis entre esses alvos.
 
 Listas genéricas herdadas de templates ESP-IDF, como `supported_targets` ou
 `preview_targets`, não constituem política do projeto e devem ser removidas dos
 runners e da documentação operacional.
+
+### TESTEXEC-009 — Execução somente por especificação futura
+
+Os 20 casos `SmartSysApp` e os 24 casos do registry permanecem preservados como
+ativos de engenharia, mas não devem ser coletados, gravados ou executados nesta
+correção. A EKOM não transforma sua execução em etapa automática do workflow.
+
+Somente uma especificação futura, posterior a esta decisão, pode solicitar a
+execução de casos, definindo propósito, recorte, ambiente, oráculo, custo aceito
+e autoridade para operações em hardware. Até essa solicitação, o estado correto
+é `Not Executed`, sem constituir pendência para encerrar a correção de targets.
 
 ## 5. Matriz autoritativa de targets e execução
 
@@ -138,6 +165,7 @@ runners e da documentação operacional.
 |---|---|---|---|
 | `client_154`, `SmartSysApp` e exemplo mínimo do client | ESP32-H2 | build e hardware; lógica pura pode ter teste host-native fiel | composição, estados, falhas, rádio, GPIO e resultado terminal conforme o gate |
 | `coordinator_154` e registry | ESP32-C6 | build e hardware; lógica pura pode ter teste host-native fiel | política integrada, NVS, rádio, reboot e resultado terminal conforme o gate |
+| projeto diagnóstico da raiz | ESP32-H2 | build e hardware; casos host-native independentes podem permanecer | não representa produto nem amplia a allowlist |
 | componentes compartilhados | ESP32-H2 e ESP32-C6 | build nos consumidores reais | nenhuma alegação de suporte além dos dois targets |
 
 Execução host-native é ambiente de teste de lógica, não target de firmware nem
@@ -163,13 +191,14 @@ allowlist, com qual target é compatível.
   falha, condição de borda ou gate por causa da retirada do emulador.
 - **TESTEXEC-AC-007:** registros QEMU históricos estão claramente separados
   da evidência vigente e não são agregados como aprovação nova.
-- **TESTEXEC-AC-008:** nenhum projeto, runner, configuração ou documentação
-  operacional apresenta target fora de `esp32h2` e `esp32c6`; ocorrências
-  históricas restantes estão explicitamente classificadas como erro e evidência
+- **TESTEXEC-AC-008:** nenhum build ESP-IDF, runner físico, configuração de
+  firmware ou documentação operacional apresenta `IDF_TARGET` fora de
+  `esp32h2` e `esp32c6`; execuções host-native estão identificadas como ambiente
+  sem firmware, e ocorrências históricas restantes como erro e evidência
   inválida.
-- **TESTEXEC-AC-009:** os 20 casos `SmartSysApp` terminam em ESP32-H2 e os 24
-  casos do registry terminam em ESP32-C6, com mais de zero casos, resumo Unity e
-  `OK`; até essa execução, permanecem `Not Executed`.
+- **TESTEXEC-AC-009:** os 20 casos `SmartSysApp` e os 24 casos do registry
+  permanecem presentes e identificáveis, sem coleta, flash ou execução nesta
+  correção e sem alegação de resultado comportamental novo.
 - **TESTEXEC-AC-010:** configurar um test app ou composição com target fora da
   allowlist falha antes do binário e informa os targets admitidos.
 
@@ -189,6 +218,13 @@ Nenhum item desta seção é excluído pela autoria.
   migrar runner, `sdkconfig.defaults` e comentários para ESP32-C6;
 - comentários em `components/issp_app_154/src/smart_sys_app.cpp`,
   `smart_sys_app_impl.hpp` e nos test apps que apresentam target não suportado;
+- `client_154/sdkconfig` é a configuração autoritativa H2 e
+  `coordinator_154/sdkconfig` é a configuração autoritativa C6; remover
+  `client_154/sdkconfig.esp32c6`, `client_154/sdkconfig.esp32h2`,
+  `coordinator_154/sdkconfig.esp32h2`, `coordinator_154/sdkconfig.esp32c6` e
+  todas as cópias versionadas `sdkconfig.old` ou `sdkconfig.<target>.old`;
+- o `sdkconfig` da raiz permanece autoritativo para o diagnóstico H2;
+  `sdkconfig.ci` vazio é resíduo de template e pode ser removido;
 - referências operacionais em `components/README.md`, especificações, mapa e
   changelog, distinguindo contrato vigente, erro histórico e evidência inválida.
 
@@ -196,6 +232,9 @@ Nenhum item desta seção é excluído pela autoria.
 
 - `components/issp_app_154/test_apps/smart_sys_app_test/build_qemu_c3/`;
 - `coordinator_154/test_apps/device_registry_test/build_qemu_c3/`;
+- `coordinator_154/test_apps/device_registry_test/build_impl_c3/`;
+- `components/issp_app_154/test_apps/smart_sys_app_test/sdkconfig`,
+  `sdkconfig.old` e `__pycache__/`;
 - imagens `qemu_flash.bin` e `qemu_efuse.bin` contidas nesses diretórios;
 - logs temporários de execução QEMU eventualmente mantidos fora do
   repositório.
@@ -218,18 +257,20 @@ Nenhum item desta seção é excluído pela autoria.
 | TESTEXEC-006 | AC-007 |
 | TESTEXEC-007 | AC-003, AC-004, AC-006 |
 | TESTEXEC-008 | AC-008, AC-009, AC-010 |
+| TESTEXEC-009 | AC-005, AC-009 |
 
 ## 9. Estado e próxima etapa
 
-Esta versão 0.2 registra a correção arquitetural sem alterar código, runner ou
+Esta versão 0.3 registra a correção arquitetural sem alterar código, runner ou
 configuração. A implementação atual está `Regressed` porque materializa target
 fora da allowlist e porque as execuções correspondentes não são evidência
-válida. A próxima etapa é análise independente de implementabilidade, seguida
-por ordem separada de implementação e revalidação física.
+válida. B1 a B3 da análise da v0.2 estão resolvidos na seção 15. A próxima etapa
+é confronto focado dessas resoluções, seguido, se promovidas, por ordem
+separada de implementação e revalidação física.
 
-A análise independente foi executada e está registrada na seção 14. Seu
-resultado é retorno à autoria: a implementação do recorte completo depende da
-resolução prévia dos bloqueadores B1, B2 e B3 ali descritos.
+A análise independente da v0.2 está registrada na seção 14. Seu resultado foi
+retorno à autoria; as decisões posteriores da seção 15 substituem as lacunas
+normativas identificadas sem apagar o confronto que as motivou.
 
 As seções 10 a 13 preservam o ciclo da versão 0.1 como registro histórico. As
 afirmações nelas contidas sobre target físico substituto, builds ou prontidão
@@ -584,3 +625,30 @@ de execução física.
 Estados preservados: normativo `Proposed`, implementação `Regressed`,
 prontidão `Not Ready` e `EKM-CHG-0010` `Open`. Esta análise não promove estado,
 não autoriza programar, remover artefatos, executar testes nem realizar flash.
+
+## 15. Resoluções arquiteturais da v0.3 (10/08/2026)
+
+O Arquiteto considerou procedentes B1 a B3 e decidiu:
+
+- **B1 resolvido:** esta autoria pode corrigir os gates vigentes de
+  `ISSP-Configurable-Bootstrap.md` e
+  `ISSP-Coordinator-Paired-Device-Registry.md`. O app Unity de `SmartSysApp`
+  usa ESP32-H2 e o app Unity do registry usa ESP32-C6; nenhum gate pode oferecer
+  target alternativo fora desse vínculo;
+- **B2 resolvido:** Linux e toolchains host-native permanecem permitidos para
+  lógica pura e não constituem `IDF_TARGET`. TESTEXEC-008 governa somente
+  firmware e test apps ESP-IDF;
+- **B3 resolvido:** a allowlist do repositório e o vínculo por alvo são regras
+  simultâneas. Apenas o `sdkconfig` principal de cada projeto é configuração
+  autoritativa; cópias `.old`, cópias sufixadas por target e o `sdkconfig.ci`
+  vazio da raiz são artefatos removíveis. O projeto diagnóstico da raiz fica
+  vinculado ao ESP32-H2 enquanto permanecer no repositório.
+
+Os experimentos E1 a E3 da seção 14 tornam-se validações obrigatórias da
+implementação: são builds e prova do guard, não execução comportamental dos
+casos. E4 é retirado do encerramento desta correção e permanece deliberadamente
+`Not Executed`; somente especificação futura pode voltar a solicitá-lo. Esta
+autoria não executa nem antecipa esses experimentos.
+
+A v0.3 permanece `Proposed / Regressed / Not Ready` até confronto focado das
+resoluções. Nenhum código, runner, configuração ou build foi alterado.
