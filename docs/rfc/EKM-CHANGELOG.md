@@ -1220,3 +1220,35 @@ Confronto focado da v0.3 antes de qualquer ordem de implementação.
 - o Arquiteto confirmou este registro e autorizou seu commit e envio à branch;
   a confirmação não autoriza implementação nem execução das suítes, que somente
   especificação futura poderá solicitar.
+
+### Confronto focado da v0.3 (Engenheiro Analista, 10/08/2026)
+
+- B1 verificado resolvido: as prescrições vigentes de Bootstrap v1.5 e Registry
+  v0.4 passaram a ESP32-H2 e ESP32-C6; as 19 ocorrências restantes de ESP32-C3
+  nessas especificações estão apenas em registros de ciclo, sem texto
+  imperativo, e são classificadas como evidência inválida;
+- B2 verificado resolvido quanto à intenção, com imprecisão factual residual: os
+  dois casos `host_test` de `pytest_hello_world.py` usam o alvo `linux` do
+  ESP-IDF, que define `CONFIG_IDF_TARGET`; recomenda-se nomear `linux` como
+  ambiente host admitido ou migrá-los para o precedente de host puro;
+- B3 verificado resolvido, com risco material registrado: as cópias
+  `sdkconfig.<target>` e `.old` não são equivalentes às autoritativas — 154
+  linhas `CONFIG_` divergem entre `client_154/sdkconfig` e
+  `client_154/sdkconfig.esp32h2` —, e nenhum script, build ou especificação as
+  referencia por nome;
+- registradas duas lacunas menores de verificabilidade: AC-004 ainda cobre
+  apenas artefatos QEMU, embora a seção 7.2 tenha passado a inventariar
+  `build_impl_c3` e outros locais; e AC-005 precisa explicitar que sua
+  verificação nesta correção é documental, sob TESTEXEC-009;
+- validações obrigatórias confirmadas: E1 build em ESP32-H2, E2 build em
+  ESP32-C6, E3 prova do guard de allowlist antes do binário e E5, novo, diff
+  prévio de cada `sdkconfig` antes da remoção das cópias;
+- resultado `Implementable`; estados preservados: normativo `Proposed`,
+  implementação `Regressed`, prontidão `Not Ready` e esta transação `Open`. A
+  análise não alterou código, configuração ou runner e não autorizou build,
+  flash ou execução.
+
+### Próxima etapa após o confronto
+
+Ordem separada de implementação, com E1, E2, E3 e E5 como evidência obrigatória
+de configuração e build.

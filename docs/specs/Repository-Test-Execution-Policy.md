@@ -5,8 +5,8 @@
 **Estado da implementação:** Regressed — existem runners e configurações para
 target não suportado
 **Prontidão:** Not Ready
-**Revisão de implementabilidade:** Needs Analysis — B1 a B3 da análise da v0.2
-foram resolvidos pelo Arquiteto na seção 15
+**Revisão de implementabilidade:** Implementable — confronto focado da v0.3 na
+seção 16, com validações obrigatórias E1 a E3 e E5
 **Versão:** 0.3
 **Responsável arquitetural:** Marcelo Miranda
 **Última atualização:** 10/08/2026
@@ -264,9 +264,10 @@ Nenhum item desta seção é excluído pela autoria.
 Esta versão 0.3 registra a correção arquitetural sem alterar código, runner ou
 configuração. A implementação atual está `Regressed` porque materializa target
 fora da allowlist e porque as execuções correspondentes não são evidência
-válida. B1 a B3 da análise da v0.2 estão resolvidos na seção 15. A próxima etapa
-é confronto focado dessas resoluções, seguido, se promovidas, por ordem
-separada de implementação e revalidação física.
+válida. B1 a B3 da análise da v0.2 estão resolvidos na seção 15. O confronto
+focado dessas resoluções está na seção 16 e devolveu `Implementable`. A próxima
+etapa é ordem separada de implementação, com as validações obrigatórias E1 a E3
+e E5 registradas ali.
 
 A análise independente da v0.2 está registrada na seção 14. Seu resultado foi
 retorno à autoria; as decisões posteriores da seção 15 substituem as lacunas
@@ -652,3 +653,136 @@ autoria não executa nem antecipa esses experimentos.
 
 A v0.3 permanece `Proposed / Regressed / Not Ready` até confronto focado das
 resoluções. Nenhum código, runner, configuração ou build foi alterado.
+
+## 16. Revisão de implementabilidade da v0.3 (Engenheiro Analista, 10/08/2026)
+
+Recorte confrontado: as resoluções da seção 15, os requisitos alterados
+TESTEXEC-003, 004, 006, 008 e o novo TESTEXEC-009, os critérios TESTEXEC-AC-008
+e AC-009 na redação da v0.3, a matriz da seção 5 com a linha nova do projeto
+diagnóstico e o inventário revisado da seção 7. Confrontados também os ativos
+versionados do repositório e as duas especificações dependentes após o commit
+`cb53449`. Nenhum código, runner, configuração ou build foi alterado ou
+executado nesta atuação.
+
+### 16.1 Verificação das resoluções
+
+**B1 — verificado resolvido.** As prescrições vigentes foram corrigidas nas duas
+especificações dependentes: `ISSP-Configurable-Bootstrap.md` passa a indicar o
+app Unity em ESP32-H2 no fallback da seção 18 e na reautoria da seção 23, e
+acrescenta a seção 24; `ISSP-Coordinator-Paired-Device-Registry.md` passa a
+exigir ESP32-C6 nas classes de falha, na tabela de gates G3-N e no texto que
+descreve as mudanças normativas da v0.4, e acrescenta a seção 16.20. As 19
+ocorrências remanescentes de ESP32-C3 nessas duas especificações estão
+exclusivamente em registros de ciclo — seção 22 do Bootstrap e seções 16.x do
+registry — e nenhuma delas é prescrição: a varredura por texto imperativo
+associado a esse target não retorna ocorrência. TESTEXEC-006, a seção 24 e a
+seção 16.20 classificam esses registros como histórico auditável e evidência
+inválida, o que é coerente com a regra de não reescrever registro passado.
+
+**B2 — verificado resolvido quanto à intenção, com imprecisão factual
+residual.** TESTEXEC-003 e TESTEXEC-008 agora delimitam a fronteira: host-native
+é ambiente de lógica pura e a allowlist governa firmware e test apps ESP-IDF. O
+precedente `coordinator_154/test_apps/device_registry_policy_host_test` é
+compatível sem ressalva, porque usa CMake e toolchain de host, sem ESP-IDF.
+
+A imprecisão está na afirmação de que execuções host-native “não definem
+`IDF_TARGET`”. Os dois casos `host_test` de `pytest_hello_world.py` usam
+`idf_parametrize('target', ['linux'])`, e o alvo `linux` do ESP-IDF define
+`CONFIG_IDF_TARGET="linux"`. A intenção normativa é inequívoca e o Implementador
+deve preservá-los, mas a verificação literal de AC-008 sobre esse arquivo
+depende de interpretação. Recomendo à autoria nomear `linux` explicitamente como
+ambiente host admitido em TESTEXEC-003, ou determinar que esses dois casos
+migrem para o precedente de host puro. É ajuste de uma frase, não bloqueador.
+
+**B3 — verificado resolvido, com risco material de execução.** A allowlist e o
+vínculo por alvo agora são regras simultâneas e explícitas, o `sdkconfig`
+principal de cada projeto é a configuração autoritativa e o projeto diagnóstico
+da raiz está vinculado ao ESP32-H2, inclusive na matriz da seção 5. O item de
+`coordinator_154/sdkconfig.old` com target `esp32`, que motivou o bloqueador,
+está coberto pela remoção das cópias `.old`.
+
+O risco é que as cópias mandadas remover não são equivalentes às preservadas:
+`client_154/sdkconfig` tem 2145 linhas contra 1645 de `client_154/sdkconfig.esp32h2`,
+com 154 linhas `CONFIG_` divergentes entre os dois; `coordinator_154/sdkconfig`
+tem 2359 linhas contra 1757 de `coordinator_154/sdkconfig.esp32c6`. A remoção só
+é segura depois de comprovar que nenhuma configuração intencional existe apenas
+na cópia removida. Verifiquei também que nenhum `CMakeLists.txt`, script,
+workflow ou especificação referencia essas cópias por nome — a única menção está
+nesta política —, portanto a remoção não quebra ferramenta alguma.
+
+### 16.2 Consistência interna da v0.3
+
+- TESTEXEC-009 e a nova redação de AC-009 são coerentes com TESTEXEC-005: os 20
+  e 24 casos permanecem `Not Executed` por decisão, não por falha, e nenhum
+  estado é promovido por ausência de execução;
+- as validações E1 a E3 promovidas pela seção 15 são builds e prova de
+  configuração; não colidem com TESTEXEC-009, porque build não é execução
+  comportamental e TESTEXEC-005 já proíbe tratá-lo como tal;
+- a matriz da seção 5 e o vínculo de TESTEXEC-008 são consistentes entre si e
+  com o inventário da seção 7.1;
+- a rastreabilidade da seção 8 cobre TESTEXEC-009 por AC-005 e AC-009.
+
+Duas lacunas menores de verificabilidade, ambas resolvíveis com uma linha de
+autoria e nenhuma delas impeditiva:
+
+- **G1:** a seção 7.2 passou a inventariar artefatos locais que não são de
+  QEMU — `build_impl_c3/`, o `sdkconfig`/`sdkconfig.old` local do test app
+  `SmartSysApp` e `__pycache__/` —, mas AC-004 continua redigido apenas para
+  “diretórios e imagens locais de build QEMU”. A remoção desses novos itens fica
+  sem critério de aceite correspondente;
+- **G2:** AC-005 fala em “podem terminar em runner permitido com quantidade
+  maior que zero”. Sob TESTEXEC-009, sua verificação nesta correção é
+  documental — inspeção da fonte e do oráculo declarado no runner. Convém
+  explicitar isso para que uma revisão futura não leia AC-005 como pendência de
+  execução.
+
+### 16.3 Validações obrigatórias
+
+Mantidas da seção 14 e confirmadas como necessárias, todas de configuração e
+build, nenhuma comportamental:
+
+- **E1:** build de `smart_sys_app_test` com `IDF_TARGET=esp32h2`. Nunca
+  exercitado; a migração faz `issp_app_154` compilar `smart_sys_app_hardware.cpp`
+  e `src/reset/*.cpp` e exigir `issp_transport_154`, `nvs_flash`, `esp_timer` e
+  `esp_hw_support` dentro do app Unity sob `MINIMAL_BUILD`;
+- **E2:** build de `device_registry_test` com `IDF_TARGET=esp32c6`, também nunca
+  exercitado nesse target;
+- **E3:** prova do guard de allowlist, que deve reprovar antes de gerar binário e
+  informar os targets admitidos. O precedente `cmake/require_idf_6_0_1.cmake`
+  usa variáveis `IDF_VERSION_*`; ler `IDF_TARGET` por `idf_build_get_property`
+  em nível de projeto, antes de `project()`, precisa ser comprovado, com
+  alternativa documentada caso a propriedade ainda não esteja disponível nesse
+  ponto. O guard precisa alcançar também os dois test apps e o projeto da raiz,
+  que hoje não incluem nenhum guard;
+- **E5 (novo):** diff entre cada `sdkconfig` autoritativo e a cópia sufixada ou
+  `.old` correspondente antes da remoção, comprovando que nenhuma configuração
+  intencional é perdida.
+
+E4 foi retirado do encerramento pela seção 15. A ausência de `pytest` e dos
+plugins ESP-IDF deixa de ser pendência desta correção e passa a ser dependência
+de uma especificação futura que volte a solicitar execução.
+
+### 16.4 Classificação exigida pelo perfil
+
+- decisão normativa ausente: nenhuma que impeça migrar o recorte completo. G1,
+  G2 e a precisão textual de B2 são ajustes de redação, não decisões novas;
+- escolha normal de implementação: local e forma do guard CMake, texto do
+  diagnóstico, migração dos `sdkconfig.defaults`, dos comentários e dos markers
+  dos runners para H2 e C6, atualização de `README.md`,
+  `pytest_hello_world.py` e `components/README.md`;
+- dependência externa pendente: nenhuma para esta correção. Placas físicas,
+  porta serial, `pytest` e ordem de flash pertencem à especificação futura
+  prevista por TESTEXEC-009.
+
+**Resultado:** `Implementable`.
+
+As três resoluções da seção 15 eliminam os bloqueadores da v0.2 e o recorte
+técnico continua coberto por precedentes existentes. Recomendo ao Arquiteto
+ordenar a implementação com E1, E2, E3 e E5 como evidência obrigatória de
+configuração e build, e incorporar na mesma ordem os ajustes de redação de G1,
+G2 e da fronteira `linux` — sem eles a implementação continua possível, mas
+AC-004, AC-005 e AC-008 ficam parcialmente verificáveis por interpretação.
+
+Estados preservados: normativo `Proposed`, implementação `Regressed`, prontidão
+`Not Ready` e `EKM-CHG-0010` `Open`. Esta análise não promove estado, não
+autoriza programar, remover artefatos, executar testes nem realizar flash.
