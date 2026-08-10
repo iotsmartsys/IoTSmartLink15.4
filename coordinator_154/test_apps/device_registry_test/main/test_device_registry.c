@@ -6,7 +6,8 @@
 // truncated, entry_count above capacity, null/broadcast/duplicate address and checksum coverage.
 // Tests drive device_registry.c/device_registry_nvs.c through storage seams and exercise the same
 // device_registry_policy.c decisions used by main.c for G1 policy coverage. The
-// app targets a physical esp32c3 and its runner captures the terminal Unity result over serial,
+// app targets a physical esp32c6, the target bound to the coordinator and its registry
+// (TESTEXEC-008), and its runner captures the terminal Unity result over serial,
 // per docs/specs/Repository-Test-Execution-Policy.md (physical runner only).
 //
 // Every TEST_CASE tag here is a "-partial-..." subset per the manifest rule in section 13: this

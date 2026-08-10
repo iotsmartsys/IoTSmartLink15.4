@@ -1273,3 +1273,50 @@ de configuração e build.
 - o Arquiteto confirmou o registro e autorizou seu commit e envio à branch; a
   confirmação não autoriza implementação, execução das suítes, pytest, flash ou
   monitor.
+
+### Implementação da v0.3 (Engenheiro Implementador, 10/08/2026)
+
+- guard de allowlist `cmake/require_supported_target.cmake` criado ao lado do
+  precedente `require_idf_6_0_1.cmake` e incluído entre `project.cmake` e
+  `project()` na raiz, `client_154`, `coordinator_154`,
+  `examples/issp_minimal_client` e nos dois test apps; ele verifica
+  simultaneamente a allowlist do repositório e o vínculo por alvo;
+- a questão aberta de E3 foi resolvida por leitura da fonte do ESP-IDF 6.0.1:
+  `__target_init()` roda no include de `project.cmake` e já deixa `IDF_TARGET`
+  resolvido antes de `project()`, então o guard lê a variável diretamente e
+  `idf_build_get_property` não foi necessário;
+- `components/issp_app_154/CMakeLists.txt` passou a reprovar target fora da
+  allowlist; como todo target físico admitido tem rádio, as fontes de hardware
+  deixaram de ser condicionais entre H2 e C6 e a exceção host `linux` compila
+  apenas o núcleo de lógica pura;
+- test apps migrados: `sdkconfig.defaults` e runners de `smart_sys_app_test`
+  para ESP32-H2 e de `device_registry_test` para ESP32-C6, com os oráculos
+  terminais de 20 e 24 casos preservados e nenhum `TEST_CASE` alterado;
+- listas genéricas de template removidas de `pytest_hello_world.py` e do
+  `README.md` da raiz; comentários com ESP32-C3 corrigidos no componente, nos
+  dois test apps e em `components/README.md`;
+- removidas as sete cópias `sdkconfig` sufixadas ou `.old` e o `sdkconfig.ci`
+  vazio, além dos artefatos locais `build_impl_c3/`, `__pycache__/` e do
+  `sdkconfig`/`sdkconfig.old` local de `smart_sys_app_test`; `.gitignore` passou
+  a impedir seu retorno;
+- validações obrigatórias com resultado terminal: **E1** build H2 do
+  `smart_sys_app_test`, código 0, 0 warnings, 261424 bytes, e `nm -u` no objeto
+  de teste sem qualquer símbolo de rádio ou transporte; **E2** build C6 do
+  `device_registry_test`, código 0, 0 warnings, 156064 bytes, partição NVS real
+  presente; **E3** 10 configurações com target indevido reprovadas com código 2
+  e zero binários; **E5** diff prévio de cada cópia, sem configuração
+  intencional exclusiva da cópia removida;
+- não regressão confirmada: `client_154`, `coordinator_154`,
+  `examples/issp_minimal_client` e o projeto raiz compilaram com código 0 e 0
+  warnings sob o guard;
+- desvio registrado: a primeira forma do guard de componente reprovava `linux` e
+  quebraria os dois casos `host_test`; a forma entregue os preserva. Limitação
+  pré-existente, confrontada com a árvore anterior e idêntica nela: a
+  configuração do projeto raiz para `linux` falha por `esp_adc`, fora deste
+  recorte;
+- nenhum caso foi coletado, gravado ou executado: sob TESTEXEC-009 os 44 casos
+  permanecem `Not Executed` por decisão. Flash, monitor, `pytest` e E4 continuam
+  fora do encerramento;
+- estados: implementação passa de `Regressed` a `In Progress`; normativo
+  `Proposed`, prontidão `Ready` e `EKM-CHG-0010` `Open` permanecem. A promoção a
+  `Implemented` e o encerramento são decisão do Arquiteto.

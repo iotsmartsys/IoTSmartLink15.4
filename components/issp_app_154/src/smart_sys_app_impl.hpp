@@ -5,13 +5,13 @@
 // only needs issp_core/issp_behaviors for switch capability storage) and
 // smart_sys_app_hardware.cpp (the real platform/network/device/executor
 // hooks and the production single-argument SmartSysApp constructor, which
-// need issp_transport_154 and are only compiled for targets with an
-// IEEE 802.15.4 radio). Hardware-backed objects (transport, network
+// need issp_transport_154; every admitted target carries an IEEE 802.15.4
+// radio, so it is always compiled). Hardware-backed objects (transport, network
 // manager, device, report executor, factory reset service/monitor) are
 // never embedded in this struct: they live behind hardwareStorage_, an
 // opaque fixed-size buffer only smart_sys_app_hardware.cpp knows how to
 // interpret. This lets SMARTAPP-AC-006 to AC-013 be covered by automated
-// tests on a physical ESP32-C3 without compiling or starting the radio stack.
+// tests on a physical ESP32-H2 without ever starting the radio stack.
 
 #include <array>
 #include <cstddef>

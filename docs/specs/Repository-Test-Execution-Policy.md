@@ -2,8 +2,9 @@
 
 **Tipo:** Normativo
 **Estado normativo:** Proposed
-**Estado da implementação:** Regressed — existem runners e configurações para
-target não suportado
+**Estado da implementação:** In Progress — migração de targets implementada e
+validada por E1, E2, E3 e E5 na seção 18; execução comportamental permanece
+`Not Executed` por decisão de TESTEXEC-009
 **Prontidão:** Ready — promoção do Arquiteto registrada na seção 17
 **Revisão de implementabilidade:** Implementable — confronto focado da v0.3 na
 seção 16, com validações obrigatórias E1 a E3 e E5
@@ -265,13 +266,16 @@ Nenhum item desta seção é excluído pela autoria.
 
 ## 9. Estado e próxima etapa
 
-Esta versão 0.3 registra a correção arquitetural sem alterar código, runner ou
-configuração. A implementação atual está `Regressed` porque materializa target
-fora da allowlist e porque as execuções correspondentes não são evidência
-válida. B1 a B3 da análise da v0.2 estão resolvidos na seção 15. O confronto
-focado dessas resoluções está na seção 16 e devolveu `Implementable`. A próxima
-etapa é ordem separada de implementação, com as validações obrigatórias E1 a E3
-e E5 registradas ali.
+Esta versão 0.3 registra a correção arquitetural. B1 a B3 da análise da v0.2
+estão resolvidos na seção 15; o confronto focado dessas resoluções está na
+seção 16 e devolveu `Implementable`; a promoção do Arquiteto está na seção 17.
+
+A implementação ordenada por essa promoção está registrada na seção 18. Ela
+deixou de ser `Regressed`: nenhum ativo versionado vigente materializa target
+fora da allowlist, e E1, E2, E3 e E5 foram executadas com resultado terminal. O
+estado é `In Progress`, não `Implemented`, porque TESTEXEC-009 mantém
+deliberadamente os 44 casos `Not Executed`; a promoção posterior depende de
+decisão do Arquiteto, não de trabalho técnico pendente nesta correção.
 
 A análise independente da v0.2 está registrada na seção 14. Seu resultado foi
 retorno à autoria; as decisões posteriores da seção 15 substituem as lacunas
@@ -822,3 +826,160 @@ E1, E2, E3 e E5 são evidências obrigatórias da implementação:
 
 E4 permanece fora do encerramento. Somente especificação futura pode autorizar
 execução comportamental, pytest, flash ou monitor das suítes.
+
+## 18. Registro de implementação da v0.3 (Engenheiro Implementador, 10/08/2026)
+
+Recorte implementado: TESTEXEC-001 a 009 na redação da v0.3, a matriz da seção
+5 e o inventário da seção 7, sob a promoção da seção 17. Ambiente: ESP-IDF
+6.0.1 (`v6.0.1-dirty`), toolchain `riscv32-esp-elf-gcc` 15.2.0, macOS. Nenhum
+flash, monitor, `pytest` ou execução comportamental foi iniciado.
+
+### 18.1 Resultado técnico
+
+- **Guard de allowlist.** Novo `cmake/require_supported_target.cmake`, ao lado
+  do precedente `cmake/require_idf_6_0_1.cmake` e com a mesma forma de uso.
+  Ele reprova com `FATAL_ERROR` quando `IDF_TARGET` está fora de
+  `esp32h2`/`esp32c6` e, separadamente, quando o target admitido não é o do
+  vínculo declarado pelo projeto em `ISSP_TARGET_BINDING`. Ambas as regras de
+  B3 são verificadas simultaneamente. O guard é incluído entre
+  `project.cmake` e `project()` em `CMakeLists.txt` da raiz, `client_154`,
+  `coordinator_154`, `examples/issp_minimal_client` e nos dois test apps —
+  os seis alvos exigidos pela seção 17;
+- **decisão de leitura do target.** A questão em aberto de E3 foi resolvida
+  por leitura da fonte do ESP-IDF 6.0.1: `project.cmake` chama `__target_init()`
+  no próprio include, resolvendo o cache `IDF_TARGET` a partir do ambiente, do
+  cache ou do `sdkconfig`, antes de `project()`. O guard lê a variável
+  `IDF_TARGET` diretamente, exatamente como o precedente lê `IDF_VERSION_*`;
+  `idf_build_get_property` não foi necessário e a alternativa documentada não
+  precisou ser acionada;
+- **allowlist no componente.** `components/issp_app_154/CMakeLists.txt` passou
+  a reprovar target fora da allowlist, protegendo o componente perante um
+  consumidor que não inclua o guard de projeto. Como todo target físico
+  admitido possui rádio IEEE 802.15.4, a antiga condicional de fontes deixou de
+  discriminar entre eles: `smart_sys_app_hardware.cpp` e `src/reset/*.cpp`
+  entram sempre no build físico. A exceção host `linux` de TESTEXEC-003
+  compila somente o núcleo de lógica pura;
+- **test apps migrados.** `sdkconfig.defaults` de `smart_sys_app_test` passou a
+  `esp32h2` e o de `device_registry_test` a `esp32c6`. Os runners
+  `pytest_smart_sys_app.py` e `pytest_device_registry.py` passaram a
+  `@pytest.mark.esp32h2`/`esp32c6` e `idf_parametrize` do target
+  correspondente, preservando os oráculos terminais
+  `20 Tests 0 Failures 0 Ignored` e `24 Tests 0 Failures 0 Ignored` seguidos de
+  `OK`. Nenhum `TEST_CASE` foi adicionado, removido ou alterado;
+- **listas genéricas de template.** `pytest_hello_world.py` deixou de usar
+  `idf_parametrize('target', ['supported_targets', 'preview_targets'])` e passou
+  a `esp32h2`, o vínculo do projeto diagnóstico da raiz. A tabela genérica de
+  treze targets do `README.md` da raiz foi substituída pelo target único, e os
+  links de getting started de ESP32/ESP32-S2 pelo de ESP32-H2;
+- **comentários corrigidos** em `smart_sys_app.cpp`, `smart_sys_app_impl.hpp`,
+  `test_smart_sys_app.cpp`, `test_device_registry.c` e `components/README.md`,
+  que apresentavam ESP32-C3 como target dos test apps e descreviam a
+  condicional de fontes já superada;
+- **configurações removidas** após E5: `client_154/sdkconfig.esp32c6`,
+  `client_154/sdkconfig.esp32h2`, `client_154/sdkconfig.old`,
+  `coordinator_154/sdkconfig.esp32c6`, `coordinator_154/sdkconfig.esp32c6.old`,
+  `coordinator_154/sdkconfig.esp32h2`, `coordinator_154/sdkconfig.old` e o
+  `sdkconfig.ci` vazio da raiz. `client_154/sdkconfig`,
+  `coordinator_154/sdkconfig` e o `sdkconfig` da raiz permanecem autoritativos.
+  `.gitignore` passou a ignorar `sdkconfig.old` e `sdkconfig.esp32*` para que as
+  cópias não retornem;
+- **artefatos locais da seção 7.2 removidos:**
+  `coordinator_154/test_apps/device_registry_test/build_impl_c3/`,
+  o `__pycache__/` do runner do registry e o `sdkconfig`/`sdkconfig.old` locais
+  de `smart_sys_app_test`. Os dois `build_qemu_c3` já estavam ausentes;
+- a ferramenta externa `qemu-riscv32` **não** foi desinstalada, conforme a
+  seção 7.3.
+
+### 18.2 Validações obrigatórias
+
+| Validação | Comando/meio | Resultado |
+|---|---|---|
+| E1 | `idf.py -D IDF_TARGET=esp32h2 build` de `smart_sys_app_test`, build fora da árvore | código 0, 0 warnings, sem símbolo duplicado ou referência indefinida; `smart_sys_app_test.bin` 261424 bytes, SHA-256 `1f10c5438bf3974049f3f1c5c2ed6bc63fc3470fb73071bc8d746a2d885e29f2` |
+| E1 (rádio) | `riscv32-esp-elf-nm -u` no objeto `test_smart_sys_app.cpp.obj` | 16 símbolos indefinidos, **zero** citando `ieee802154`, transporte ou rádio: nenhum dos 20 casos passou a depender de rádio |
+| E2 | `idf.py -D IDF_TARGET=esp32c6 build` de `device_registry_test`, build fora da árvore | código 0, 0 warnings; `device_registry_test.bin` 156064 bytes, SHA-256 `e9283d8b0393e2c12466ecdcf9d85d6eabce12251cc96d994b8f520d2fe95fb3`; partição `nvs` real de 24K presente em `0x9000` |
+| E3 | 10 configurações com target indevido nos seis projetos | todas reprovaram com código 2 e **zero** binários gerados; diagnóstico nomeia os targets admitidos |
+| E5 | diff `CONFIG_` de cada `sdkconfig` autoritativo contra cada cópia, antes da remoção | nenhuma configuração intencional existia apenas na cópia removida |
+
+**E3 em detalhe.** Seis casos usaram `esp32c3`, fora da allowlist, na raiz, em
+`client_154`, `coordinator_154`, `examples/issp_minimal_client` e nos dois test
+apps; quatro casos usaram target dentro da allowlist mas fora do vínculo
+(`client_154` e `smart_sys_app_test` com `esp32c6`; `coordinator_154` e
+`device_registry_test` com `esp32h2`). Diagnóstico observado no primeiro grupo:
+
+```
+CMake Error at cmake/require_supported_target.cmake:35 (message):
+  IoTSmartLink15.4 does not support IDF_TARGET 'esp32c3'; admitted targets
+  are esp32h2;esp32c6.  Both carry an IEEE 802.15.4 radio; no other chip is a
+  target of this repository, and host-native logic tests are a separate
+  strategy that never builds firmware.
+-- Configuring incomplete, errors occurred!
+```
+
+**E5 em detalhe.** Toda cópia removida foi gerada por ESP-IDF 5.5.1, versão
+reprovada por `require_idf_6_0_1.cmake`, exceto `client_154/sdkconfig.old`, que
+é 6.0.1. Entre os pares de mesmo target, as únicas divergências de valor em
+símbolo comum foram `CONFIG_IDF_INIT_VERSION`, o formato de
+`CONFIG_ESPTOOLPY_BEFORE`/`AFTER` — todas geradas pela troca de versão — e, no
+coordenador, o console: o arquivo autoritativo escolhe USB Serial/JTAG
+(`CONFIG_ESP_CONSOLE_UART_NUM=-1`) e a cópia antiga usava UART0, ou seja, a
+escolha intencional está no arquivo preservado, não na cópia. As 8 divergências
+de `client_154/sdkconfig.old` são 7 valores de log level superados pelo arquivo
+autoritativo mais o símbolo obsoleto
+`CONFIG_IOT154_COORDINATOR_SEND_FAILURE_LIMIT`, sem Kconfig nem referência em
+código no repositório. Varredura independente confirmou que apenas
+`CONFIG_IDF_TARGET_ESP32H2` e `CONFIG_IDF_TARGET_ESP32C6` são consumidos por
+código-fonte deste repositório. Nenhuma reconciliação foi necessária e nenhuma
+dúvida material interrompeu a remoção.
+
+**Não regressão dos alvos de produto.** Sob o guard, `client_154` (H2),
+`coordinator_154` (C6), `examples/issp_minimal_client` (H2) e o projeto
+diagnóstico da raiz (H2) compilaram com código 0 e 0 warnings.
+
+### 18.3 Evidência por critério
+
+| Critério | Evidência | Resultado |
+|---|---|---|
+| TESTEXEC-AC-001 | varredura versionada: nenhuma prescrição vigente de QEMU; as ocorrências restantes são política explícita ou registro de ciclo | Approved |
+| TESTEXEC-AC-002 | runners migrados preservam quantidade e oráculo terminal; nenhum cenário removido | Approved |
+| TESTEXEC-AC-003 | varredura versionada sem imports, markers, runners ou comandos de QEMU fora de histórico/política | Approved |
+| TESTEXEC-AC-004 | todos os artefatos da seção 7.2 ausentes; fontes de teste preservadas | Approved |
+| TESTEXEC-AC-005 | verificação documental: 20 e 24 `TEST_CASE` contados na fonte; oráculos terminais inspecionados nos dois runners; sem coleta ou execução | Approved |
+| TESTEXEC-AC-006 | diff não remove requisito, AC, cenário, falha, borda ou gate | Approved |
+| TESTEXEC-AC-007 | registros QEMU e ESP32-C3 permanecem apenas em seções de ciclo, classificados como evidência inválida | Approved |
+| TESTEXEC-AC-008 | nenhum `CONFIG_IDF_TARGET` versionado fora de `esp32h2`/`esp32c6`; `linux` presente apenas como exceção host identificada em `pytest_hello_world.py` e no guard | Approved |
+| TESTEXEC-AC-009 | as 20 e as 24 descrições de caso estão presentes e identificáveis nos ELF de E1 e E2; nenhum caso coletado, gravado ou executado | Approved |
+| TESTEXEC-AC-010 | E3: 10 configurações reprovadas antes do binário, com os targets admitidos no diagnóstico | Approved |
+
+### 18.4 Limitações e desvios
+
+- **Desvio registrado — alcance do guard sobre `linux`.** A primeira forma da
+  allowlist no componente `issp_app_154` reprovava `linux` e quebrava a
+  configuração do projeto raiz, que descobre `components/` automaticamente.
+  A forma entregue admite `linux` compilando somente o núcleo de lógica pura,
+  que é exatamente a fronteira de TESTEXEC-003. Sem esse ajuste, cumprir
+  TESTEXEC-008 custaria os dois casos `host_test` preservados por TESTEXEC-002;
+- **limitação pré-existente, não introduzida por esta atuação.** A configuração
+  do projeto raiz com `IDF_TARGET=linux` falha em
+  `Failed to resolve component 'esp_adc' required by component 'main'`. O
+  comportamento foi confrontado com a árvore anterior a esta implementação e é
+  idêntico: os dois casos `host_test` de `pytest_hello_world.py` já não eram
+  construtíveis neste repositório. Eles foram preservados, conforme
+  TESTEXEC-002, e a correção de `main/CMakeLists.txt` está fora deste recorte;
+- **`Not Executed` por decisão, não por falha.** Nenhum dos 44 casos foi
+  coletado, gravado ou executado, conforme TESTEXEC-009. `pytest` e os plugins
+  ESP-IDF continuam ausentes do ambiente, e isso deixou de ser pendência desta
+  correção;
+- flash, monitor e captura em placa não foram iniciados: não houve ordem
+  explícita do Arquiteto e E4 permanece fora do encerramento;
+- todos os builds ocorreram fora da árvore, com `sdkconfig` temporário, de modo
+  que nenhum artefato gerado entrou no repositório.
+
+### 18.5 Estado
+
+Implementação `In Progress`. A migração de targets está completa e validada por
+E1, E2, E3 e E5; nenhum ativo versionado vigente materializa target fora da
+allowlist, o que encerra a condição `Regressed`. Não há trabalho técnico
+pendente neste recorte. A promoção para `Implemented`, bem como o encerramento
+da política e de `EKM-CHG-0010`, é decisão do Arquiteto, com a limitação
+`Not Executed` de TESTEXEC-009 preservada. Estados não promovidos por esta
+atuação: normativo `Proposed`, prontidão `Ready`, `EKM-CHG-0010` `Open`.

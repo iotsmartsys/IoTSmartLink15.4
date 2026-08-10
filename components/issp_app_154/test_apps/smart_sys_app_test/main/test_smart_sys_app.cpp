@@ -4,10 +4,11 @@
 // AC-013). Every SmartSysApp instance here is built with
 // SmartSysApp::SetupHooks, replacing the platform/network/device/executor
 // steps with fakes, so nothing in this file ever calls NVS, GPIO drivers or
-// radio APIs. The app targets a physical esp32c3; the hardware-only
-// smart_sys_app_hardware.cpp and the production single-argument constructor
-// are not compiled for this target, so the runner observes only the fake-backed
-// state machine defined by these tests.
+// radio APIs. The app targets a physical esp32h2, the target bound to
+// client_154 and SmartSysApp (TESTEXEC-008). smart_sys_app_hardware.cpp and
+// the production single-argument constructor are linked in on this target but
+// no case here reaches them, so the runner still observes only the
+// fake-backed state machine defined by these tests.
 
 #include <array>
 #include <cstddef>

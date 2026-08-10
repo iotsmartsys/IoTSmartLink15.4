@@ -85,17 +85,19 @@ de um buffer opaco de tamanho fixo em `SmartSysApp`
 dinâmica e sem vazar nenhum tipo interno para `include/`.
 
 `issp_transport_154`, `nvs_flash`, `esp_timer` e `esp_hw_support`, além dos
-arquivos-fonte `src/smart_sys_app_hardware.cpp` e `src/reset/*.cpp`, só
-entram no build quando o alvo é `esp32h2` ou `esp32c6` (`CMakeLists.txt`
-consulta `IDF_TARGET` via `idf_build_get_property`). Esse arquivo é o único
-do componente que constrói o transporte, o network manager, o device, o
+arquivos-fonte `src/smart_sys_app_hardware.cpp` e `src/reset/*.cpp`, entram
+sempre no build: os únicos alvos admitidos, `esp32h2` e `esp32c6`, possuem
+rádio IEEE 802.15.4. O `CMakeLists.txt` consulta `IDF_TARGET` via
+`idf_build_get_property` para reprovar com `FATAL_ERROR` qualquer outro alvo,
+não mais para condicionar fontes. `smart_sys_app_hardware.cpp` é o único
+arquivo do componente que constrói o transporte, o network manager, o device, o
 executor de reports e os serviços de reset reais; ele preenche
 `Impl::hardwareStorage_` — um segundo buffer opaco, interno a `Impl` — com
 um `HardwareState` que só `smart_sys_app_hardware.cpp` conhece, e é o único
-lugar que define o construtor de produto de um argumento de `SmartSysApp`.
-Em outros alvos, `SmartSysApp` só é utilizável através do construtor de dois
-argumentos (`SmartSysApp::SetupHooks`), usado pelos testes automatizados
-(seção seguinte). `ieee802154` não é dependência, direta nem transitiva, do
+lugar que define o construtor de produto de um argumento de `SmartSysApp`. Os
+testes automatizados (seção seguinte) usam o construtor de dois argumentos
+(`SmartSysApp::SetupHooks`): o código de hardware é linkado, mas nenhum caso o
+alcança. `ieee802154` não é dependência, direta nem transitiva, do
 build público; `esp_timer` é privada porque é usada apenas por
 `reset_button_monitor.cpp`; `esp_hw_support` é privada porque é usada apenas
 pela leitura interna do endereço IEEE. Os headers de `reset/` vivem em
@@ -113,8 +115,10 @@ inicialização, `setup()` repetido, falhas injetadas e rollback) vivem em
 QEMU não é mais um runner permitido. Esses testes podem executar host-native
 quando os fakes preservarem integralmente a semântica material; o fallback
 físico vigente é
-`test_apps/smart_sys_app_test/pytest_smart_sys_app.py`; ele exige o resumo
-terminal dos 20 casos Unity. A validação de rádio, NVS, GPIO e factory reset
+`test_apps/smart_sys_app_test/pytest_smart_sys_app.py`, em ESP32-H2; ele exige
+o resumo terminal dos 20 casos Unity. Sob TESTEXEC-009 esses casos permanecem
+`Not Executed`: somente uma especificação futura pode solicitar sua coleta,
+gravação ou execução. A validação de rádio, NVS, GPIO e factory reset
 permanece em hardware real, conforme
 `docs/specs/Repository-Test-Execution-Policy.md` e os critérios específicos da
 especificação.

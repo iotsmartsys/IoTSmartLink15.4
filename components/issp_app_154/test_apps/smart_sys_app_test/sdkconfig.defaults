@@ -1,2 +1,3 @@
 # Physical runner target for the fake-backed SmartSysApp Unity suite.
-CONFIG_IDF_TARGET="esp32c3"
+# client_154 and SmartSysApp are bound to ESP32-H2 (TESTEXEC-008).
+CONFIG_IDF_TARGET="esp32h2"
