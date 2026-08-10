@@ -1118,7 +1118,7 @@ falhas, oráculos nem quantidade de casos.
 
 ## EKM-CHG-0010 — Corrigir targets admitidos e invalidar evidência incompatível
 
-**Estado:** Open
+**Estado:** Closed
 **Responsável:** Marcelo Miranda
 **Data de abertura:** 10/08/2026
 
@@ -1344,3 +1344,15 @@ de configuração e build.
   fora da atuação sob TESTEXEC-009;
 - estados preservados: política `Proposed`, implementação `In Progress`,
   prontidão `Ready` e `EKM-CHG-0010` `Open`.
+
+### Encerramento por aprovação do Arquiteto (10/08/2026)
+
+- o Arquiteto informou ter realizado o teste da implementação e a aprovou;
+- a política v0.4 passa a `Active` e sua implementação a `Validated`;
+- os critérios de encerramento estão satisfeitos: allowlist e vínculos estão
+  impostos, documentação e mapa estão reconciliados, e os 20 mais 24 casos
+  permanecem preservados;
+- as 44 suítes continuam `Not Executed` por TESTEXEC-009; a aprovação não cria
+  evidência comportamental inexistente nem autoriza execução automática futura;
+- `EKM-CHG-0010` passa a `Closed` e a branch fica autorizada para integração na
+  `main`.

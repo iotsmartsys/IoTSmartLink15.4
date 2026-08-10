@@ -1,10 +1,10 @@
 # Política de Targets Suportados e Execução de Testes do Repositório
 
 **Tipo:** Normativo
-**Estado normativo:** Proposed
-**Estado da implementação:** In Progress — migração de targets implementada e
-validada por E1, E2, E3 e E5 na seção 18; execução comportamental permanece
-`Not Executed` por decisão de TESTEXEC-009
+**Estado normativo:** Active
+**Estado da implementação:** Validated — implementação aprovada pelo Arquiteto
+na seção 18.7; as 44 suítes permanecem `Not Executed` por decisão de
+TESTEXEC-009
 **Prontidão:** Ready — promoção do Arquiteto registrada na seção 17
 **Revisão de implementabilidade:** Implementable — baseline v0.3 confrontada na
 seção 16; correção v0.4 autorizada pelo Arquiteto e registrada na seção 18.6
@@ -974,12 +974,11 @@ diagnóstico da raiz (H2) compilaram com código 0 e 0 warnings.
 
 ### 18.5 Estado
 
-Implementação `In Progress`. A migração de targets e a correção da fronteira
+Implementação `Validated`. A migração de targets e a correção da fronteira
 Linux estão completas; E3 foi ampliada para os seis projetos, sem pendência
-técnica neste recorte. A promoção para `Implemented` e o encerramento de
-`EKM-CHG-0010` permanecem decisão do Arquiteto. A limitação `Not Executed` de
-TESTEXEC-009 continua: nenhuma das 44 suítes fez parte desta validação. Estados
-não promovidos: normativo `Proposed`, prontidão `Ready` e `EKM-CHG-0010` `Open`.
+técnica neste recorte. A limitação `Not Executed` de TESTEXEC-009 continua:
+nenhuma das 44 suítes fez parte desta validação. O estado normativo passa a
+`Active` e `EKM-CHG-0010` é encerrada pela decisão registrada na seção 18.7.
 
 ### 18.6 Correção arquitetural v0.4
 
@@ -1003,3 +1002,14 @@ foram recompiladas, sem executar os casos. O build H2 terminou com código 0,
 zero warnings e binário de 261424 bytes; o build C6 terminou com código 0, zero
 warnings e binário de 156064 bytes. Os tamanhos permanecem idênticos aos da
 implementação original.
+
+### 18.7 Aprovação arquitetural e promoção
+
+Em 10/08/2026, o Arquiteto informou ter realizado o teste da implementação e a
+aprovou. A decisão promove esta política para `Active`, a implementação para
+`Validated` e encerra `EKM-CHG-0010`.
+
+A aprovação não reclassifica as 44 suítes como executadas: elas permanecem
+preservadas e `Not Executed` conforme TESTEXEC-009. Uma execução futura ainda
+depende de especificação que declare propósito, recorte, ambiente, oráculo e
+custo aceito.
