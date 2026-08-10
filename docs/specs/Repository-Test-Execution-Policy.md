@@ -1,21 +1,28 @@
-# Política de Execução de Testes do Repositório
+# Política de Targets Suportados e Execução de Testes do Repositório
 
 **Tipo:** Normativo
-**Estado normativo:** Active
-**Estado da implementação:** Accepted by Architect
-**Prontidão:** Not Ready — encerrada com limitações aceitas
-**Revisão de implementabilidade:** Implementable
-**Versão:** 0.1
+**Estado normativo:** Proposed
+**Estado da implementação:** Regressed — existem runners e configurações para
+target não suportado
+**Prontidão:** Not Ready
+**Revisão de implementabilidade:** Pending Review
+**Versão:** 0.2
 **Responsável arquitetural:** Marcelo Miranda
-**Última atualização:** 01/08/2026
-**Escopo:** Estratégias de execução de testes em todo o repositório
+**Última atualização:** 10/08/2026
+**Escopo:** Targets admitidos e estratégias de execução de testes em todo o
+repositório
 
 ---
 
 ## 1. Intenção confirmada
 
-O Arquiteto determinou que QEMU deixe de ser usado neste repositório como
-estratégia de validação ou execução de testes. A decisão é transversal a
+O Arquiteto determinou que somente ESP32-H2 e ESP32-C6 sejam tratados como
+targets físicos deste repositório. Ambos possuem rádio IEEE 802.15.4; um chip
+sem esse rádio não pode ser apresentado como target contemplado apenas porque
+um teste substitui hardware por fakes.
+
+Também permanece vigente a decisão de que QEMU não seja usado como estratégia
+de validação ou execução de testes. As duas decisões são transversais a
 especificações, critérios, gates, documentação, runners e artefatos técnicos.
 
 A remoção da ferramenta não reduz requisito funcional, cenário, falha,
@@ -26,12 +33,15 @@ executável é produzida.
 
 Inclui:
 
+- matriz autoritativa de targets por alvo do repositório;
 - especificações e matrizes que prescrevem execução automatizada;
 - test apps ESP-IDF e runners associados;
 - documentação operacional e rastreabilidade EKM;
 - evidências futuras de implementação, revisão e validação;
 - inventário dos artefatos técnicos cuja remoção ou migração caberá a uma
-  atuação posterior de Engenheiro Implementador.
+  atuação posterior de Engenheiro Implementador;
+- invalidação de evidências produzidas em target não suportado e estratégia de
+  reexecução nos targets admitidos.
 
 ## 3. Fora de escopo
 
@@ -41,6 +51,7 @@ Inclui:
 - excluir código, test apps, runners, configurações ou diretórios nesta
   atuação de autoria;
 - apagar registros históricos de execuções já realizadas;
+- reescrever resultado antigo como se tivesse sido executado em outro target;
 - instalar ferramentas, executar testes ou realizar validação em hardware.
 
 ## 4. Política normativa
@@ -75,9 +86,10 @@ execução em placa física.
 ### TESTEXEC-004 — Execução em target físico
 
 Teste dependente de ESP-IDF, FreeRTOS, NVS real, periférico ou comportamento do
-target deve executar em placa física suportada. Test apps sem rádio podem usar
-ESP32-C3 físico; composição de produção e cenários IEEE 802.15.4 usam os
-targets definidos por suas especificações.
+target deve executar em placa física suportada. O app Unity de `SmartSysApp`
+executa em ESP32-H2; o app Unity do registry do coordenador executa em ESP32-C6.
+Fakes podem evitar a inicialização do rádio, mas não autorizam selecionar outro
+target para o firmware de teste.
 
 Flash, monitor e captura automatizada em placa continuam sujeitos à ordem
 explícita do Arquiteto prevista pelo `AGENTS.md`.
@@ -96,6 +108,11 @@ esta política, eles não satisfazem gate obrigatório, não podem promover esta
 e devem ser substituídos por nova evidência host-native ou física quando o
 critério correspondente voltar a ser confrontado.
 
+Builds ou execuções registrados para target fora da matriz da seção 5
+permanecem fatos históricos, mas são evidência inválida para compatibilidade ou
+aprovação. Seus critérios retornam a `Not Executed` até reexecução em target
+admitido; o resultado não pode ser renomeado ou transportado para outro target.
+
 ### TESTEXEC-007 — Remoção técnica posterior
 
 A remoção de imports, markers, runners, comentários, configurações e diretórios
@@ -103,15 +120,28 @@ de build pertence a uma atuação posterior de Engenheiro Implementador. Essa
 atuação deve preservar os testes ainda úteis, migrando seu runner antes de
 excluir qualquer artefato necessário à cobertura.
 
-## 5. Matriz de substituição
+### TESTEXEC-008 — Allowlist de targets
 
-| Evidência afetada | Estratégia vigente proposta | Semântica que deve permanecer |
-|---|---|---|
-| `SmartSysApp::SetupHooks` | host-native fiel ou app Unity em ESP32-C3 físico | estados, ordem, falhas, rollback, contadores e resultado terminal |
-| core do registry e backend NVS substituível | host-native fiel ou app Unity em ESP32-C3 físico | staging, durable, namespaces, reboot, falhas e contadores |
-| adaptador `device_registry_nvs.c` com NVS real | ESP32-C3 ou ESP32-C6 físico | partição real, reabertura, corrupção, sentinela e commit |
-| composição/radio IEEE 802.15.4 | ESP32-C6/H2 físicos conforme a especificação | boot, rádio, commissioning, ACK, reboot e comportamento ponta a ponta |
-| exemplo `hello_world` | target Linux host-native ou placa física suportada | saída, hash quando aplicável e término observável |
+Somente `esp32h2` e `esp32c6` podem aparecer como `IDF_TARGET` em projetos,
+test apps, runners ou configurações versionadas deste repositório. Seleções
+fora dessa allowlist devem falhar na configuração com diagnóstico explícito,
+sem gerar binário.
+
+Listas genéricas herdadas de templates ESP-IDF, como `supported_targets` ou
+`preview_targets`, não constituem política do projeto e devem ser removidas dos
+runners e da documentação operacional.
+
+## 5. Matriz autoritativa de targets e execução
+
+| Alvo ou evidência | Target físico | Estratégia permitida | Semântica obrigatória |
+|---|---|---|---|
+| `client_154`, `SmartSysApp` e exemplo mínimo do client | ESP32-H2 | build e hardware; lógica pura pode ter teste host-native fiel | composição, estados, falhas, rádio, GPIO e resultado terminal conforme o gate |
+| `coordinator_154` e registry | ESP32-C6 | build e hardware; lógica pura pode ter teste host-native fiel | política integrada, NVS, rádio, reboot e resultado terminal conforme o gate |
+| componentes compartilhados | ESP32-H2 e ESP32-C6 | build nos consumidores reais | nenhuma alegação de suporte além dos dois targets |
+
+Execução host-native é ambiente de teste de lógica, não target de firmware nem
+evidência de compatibilidade física. Cada board continua declarando, dentro da
+allowlist, com qual target é compatível.
 
 ## 6. Critérios de aceite
 
@@ -125,13 +155,22 @@ excluir qualquer artefato necessário à cobertura.
   implementação.
 - **TESTEXEC-AC-004:** diretórios e imagens locais de build QEMU identificados
   no inventário foram removidos sem afetar fontes de teste preservadas.
-- **TESTEXEC-AC-005:** os dezenove cenários `SmartSysApp` e os cenários do
-  registry permanecem rastreados e podem terminar em runner permitido com
-  quantidade maior que zero.
+- **TESTEXEC-AC-005:** os 20 cenários `SmartSysApp` e os 24 cenários do registry
+  permanecem rastreados e podem terminar em runner permitido com quantidade
+  maior que zero.
 - **TESTEXEC-AC-006:** nenhuma matriz funcional perdeu requisito, cenário,
   falha, condição de borda ou gate por causa da retirada do emulador.
 - **TESTEXEC-AC-007:** registros QEMU históricos estão claramente separados
   da evidência vigente e não são agregados como aprovação nova.
+- **TESTEXEC-AC-008:** nenhum projeto, runner, configuração ou documentação
+  operacional apresenta target fora de `esp32h2` e `esp32c6`; ocorrências
+  históricas restantes estão explicitamente classificadas como erro e evidência
+  inválida.
+- **TESTEXEC-AC-009:** os 20 casos `SmartSysApp` terminam em ESP32-H2 e os 24
+  casos do registry terminam em ESP32-C6, com mais de zero casos, resumo Unity e
+  `OK`; até essa execução, permanecem `Not Executed`.
+- **TESTEXEC-AC-010:** configurar um test app ou composição com target fora da
+  allowlist falha antes do binário e informa os targets admitidos.
 
 ## 7. Artefatos técnicos candidatos à remoção ou migração
 
@@ -139,17 +178,18 @@ Nenhum item desta seção é excluído pela autoria.
 
 ### 7.1 Versionados
 
-- `pytest_hello_world.py`: imports `pytest_embedded_qemu`, tipos `QemuApp` e
-  `QemuDut`, marker `qemu` e caso `test_hello_world_host` dependente do runner;
-- `components/issp_app_154/test_apps/smart_sys_app_test`: preservar os testes,
-  migrar comentários/configuração e definir runner host-native ou físico;
-- `coordinator_154/test_apps/device_registry_test`: preservar os testes,
-  migrar comentários/configuração e definir runners host-native/físico para
-  cada gate;
+- `README.md` e `pytest_hello_world.py`: remover lista genérica de targets e
+  runner herdados do template; preservar somente utilidade comprovada para H2,
+  C6 ou host-native fiel;
+- `components/issp_app_154/CMakeLists.txt`: rejeitar target fora da allowlist;
+- `components/issp_app_154/test_apps/smart_sys_app_test`: preservar os 20 casos,
+  migrar runner, `sdkconfig.defaults` e comentários para ESP32-H2;
+- `coordinator_154/test_apps/device_registry_test`: preservar os 24 casos e
+  migrar runner, `sdkconfig.defaults` e comentários para ESP32-C6;
 - comentários em `components/issp_app_154/src/smart_sys_app.cpp`,
-  `smart_sys_app_impl.hpp` e nos test apps que apresentam QEMU como target;
+  `smart_sys_app_impl.hpp` e nos test apps que apresentam target não suportado;
 - referências operacionais em `components/README.md`, especificações, mapa e
-  changelog, distinguindo contrato vigente de registro histórico.
+  changelog, distinguindo contrato vigente, erro histórico e evidência inválida.
 
 ### 7.2 Locais ou gerados, não versionados
 
@@ -176,13 +216,20 @@ Nenhum item desta seção é excluído pela autoria.
 | TESTEXEC-005 | AC-005, AC-007 |
 | TESTEXEC-006 | AC-007 |
 | TESTEXEC-007 | AC-003, AC-004, AC-006 |
+| TESTEXEC-008 | AC-008, AC-009, AC-010 |
 
 ## 9. Estado e próxima etapa
 
-Esta versão registra a decisão arquitetural e a migração técnica realizada sem
-alterar comportamento funcional. A análise independente da seção 10 declarou
-a política `Implementable`; a implementação e a revisão estão registradas nas
-seções 11 e 12. O encerramento por decisão do Arquiteto está na seção 13.
+Esta versão 0.2 registra a correção arquitetural sem alterar código, runner ou
+configuração. A implementação atual está `Regressed` porque materializa target
+fora da allowlist e porque as execuções correspondentes não são evidência
+válida. A próxima etapa é análise independente de implementabilidade, seguida
+por ordem separada de implementação e revalidação física.
+
+As seções 10 a 13 preservam o ciclo da versão 0.1 como registro histórico. As
+afirmações nelas contidas sobre target físico substituto, builds ou prontidão
+foram supersedidas pela versão 0.2 e não governam nova implementação nem
+constituem evidência vigente.
 
 ## 10. Revisão de implementabilidade (Engenheiro Analista, 01/08/2026)
 

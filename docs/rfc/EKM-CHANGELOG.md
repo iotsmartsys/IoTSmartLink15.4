@@ -1115,3 +1115,56 @@ falhas, oráculos nem quantidade de casos.
   humano explícito do risco residual, não criação de evidência inexistente;
 - Bootstrap e Registry conservam seus ciclos e estados próprios;
 - `EKM-CHG-0009` está `Closed` por decisão do Arquiteto.
+
+## EKM-CHG-0010 — Corrigir targets admitidos e invalidar evidência incompatível
+
+**Estado:** Open
+**Responsável:** Marcelo Miranda
+**Data de abertura:** 10/08/2026
+
+### Motivação
+
+A política encerrada em `EKM-CHG-0009` substituiu QEMU por um target físico sem
+rádio IEEE 802.15.4. O Arquiteto determinou que essa escolha foi falha de
+processo: somente ESP32-H2 e ESP32-C6 são targets admitidos neste repositório,
+independentemente de o test app substituir hardware por fakes.
+
+### Ativos afetados
+
+- `docs/specs/Repository-Test-Execution-Policy.md` e especificações dependentes;
+- runners, configurações e comentários dos test apps `SmartSysApp` e registry;
+- restrições CMake dos componentes e aplicações;
+- `README.md`, `pytest_hello_world.py`, `components/README.md` e mapa de
+  conhecimento.
+
+### Resultado da autoria
+
+- proposta a versão 0.2 da política, com allowlist exclusiva `esp32h2` e
+  `esp32c6` e implementação classificada como `Regressed`;
+- `SmartSysApp` associado ao ESP32-H2 e registry/coordenador ao ESP32-C6;
+- preservados os 20 casos `SmartSysApp` e os 24 casos do registry, mas
+  invalidadas para aprovação as evidências produzidas em target não suportado;
+- proibido renomear resultados antigos como se tivessem sido executados em
+  target aceito;
+- nenhum código, runner ou configuração foi alterado ou executado nesta
+  autoria.
+- o Arquiteto confirmou o registro produzido pelo Consultor e autorizou seu
+  commit e envio à branch de correção; a confirmação não autoriza implementação,
+  execução em hardware, integração na `main` ou aprovação técnica.
+
+### Critérios de encerramento
+
+- análise independente promove a correção para `Implementable`;
+- configurações e runners usam somente ESP32-H2 ou ESP32-C6 e builds fora da
+  allowlist falham antes do binário;
+- 20 casos `SmartSysApp` terminam em ESP32-H2 e 24 casos do registry terminam
+  em ESP32-C6, com resultado terminal e mais de zero casos;
+- documentação operacional e especificações dependentes deixam de apresentar
+  target não suportado como opção ou evidência válida;
+- revisão confirma preservação dos casos, ausência de alegação operacional
+  indevida e consistência do mapa.
+
+### Próxima etapa
+
+Análise independente de implementabilidade antes de alterar código,
+configuração, runners ou evidências.

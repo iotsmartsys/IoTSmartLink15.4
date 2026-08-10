@@ -2,9 +2,9 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.14
+**Versão:** 1.15
 **Responsável:** Marcelo Miranda
-**Última atualização:** 01/08/2026
+**Última atualização:** 10/08/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -29,7 +29,7 @@ classificação e estado.
 | Histórico de mudanças EKM | `docs/rfc/EKM-CHANGELOG.md` | Operacional | Active |
 | Manual da IA Executora | `docs/rfc/MAN-0001.md` | Normativo complementar | Active |
 | Instruções do Copilot | `.github/copilot-instructions.md` | Adaptador | Active |
-| Política de execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | Active; Accepted by Architect; Closed with accepted limitations; technical readiness Not Ready |
+| Targets suportados e execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | Correção v0.2 Proposed; implementação Regressed; somente ESP32-H2 e ESP32-C6; Pending Review; `EKM-CHG-0010` Open |
 
 Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferença,
 `EKM-GUIDELINES.md` é a fonte canônica das regras EKM.
@@ -42,10 +42,10 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 |---|---|---|---|---|---|
 | Arquitetura ISSP | `docs/specs/ISSP-Architecture.md` | Active | Validated | `components/issp_*` e `client_154/main/main.cpp` | Builds, hardware, consumidor mínimo e auditoria documental |
 | Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
-| Registry de devices pareados do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Proposed v0.4 | Funcional In Progress; migração de validação In Progress; Not Ready; Implementable | `coordinator_154/main/device_registry.{h,c}`, `device_registry_nvs.c` e `device_registry_policy.{h,c}`, integrados em `main.c` | Runner alinhado a 24 casos; política compartilhada host-native executou 7/7 e builds ESP32-C6/C3 passaram. G1 integral, G3-N, G5 e critérios obrigatórios restantes seguem pendentes; sem aceite |
+| Registry de devices pareados do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Proposed v0.4 | Funcional In Progress; validação afetada pela correção de targets; Not Ready | `coordinator_154/main/device_registry.{h,c}`, `device_registry_nvs.c` e `device_registry_policy.{h,c}`, integrados em `main.c` | 24 casos preservados; evidências em target não suportado são inválidas; reexecução física exigida em ESP32-C6 |
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
-| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed v1.5 | Baseline funcional v1.4 Validated; migração de validação In Progress; Not Ready; Pending Review | `components/issp_app_154`; `client_154/main.cpp` e `examples/issp_minimal_client` migrados | Runner físico ESP32-C3 escrito para os 20 casos atuais, ainda não executado; evidência anterior permanece apenas histórica; hardware anterior permanece registrado |
+| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed v1.5 | Baseline funcional em hardware preservada; validação automatizada afetada pela correção de targets; Not Ready | `components/issp_app_154`; `client_154/main.cpp` e `examples/issp_minimal_client` migrados | 20 casos preservados; evidências em target não suportado são inválidas; reexecução física exigida em ESP32-H2 |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | `issp_protocol.*` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE funcionais; confiabilidade residual de ACK em `EKM-GAP-0006` |
