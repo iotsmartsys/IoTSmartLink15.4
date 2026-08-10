@@ -3,8 +3,8 @@
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
 **Revisão de implementabilidade:** Implementable para a direção integral por
-decisão do Arquiteto; os bloqueadores B1 a B4 da Fase 2 foram resolvidos e o
-confronto focado das resoluções foi executado, sem bloqueador remanescente
+decisão do Arquiteto; B1 a B4 e C1 a C3 foram resolvidos e as decisões 20 a 31
+foram confrontadas com o repositório, sem bloqueador remanescente
 **Prontidão:** Ready — o Arquiteto considerou o confronto suficiente, resolveu
 C1 a C3 e autorizou a implementação da Fase 2
 
@@ -637,270 +637,256 @@ Fase 1 nem declara a Fase 2 implementada ou validada.
 
 ## Análise de implementabilidade da Fase 2 (Engenheiro Analista)
 
-Confronto focado das resoluções normativas das decisões 20 a 26 com o
-repositório vigente, os precedentes e os critérios de aceite. Esta análise não
-altera implementação, não promove estado e não declara aprovação; ela informa o
-Arquiteto.
+Confronto do recorte vigente da Fase 2 com o repositório, a arquitetura, os
+precedentes e os critérios de aceite. Esta análise não altera implementação, não
+promove estado e não declara aprovação; ela informa o Arquiteto.
 
-A rodada anterior levantou os bloqueadores B1 a B4. O Arquiteto os resolveu nas
-decisões 20 a 26 e nos critérios correspondentes. Esta rodada verifica se cada
-resolução é sustentada pelo código, e registra o que ela cria de novo.
+O recorte passou por três rodadas de confronto. A primeira levantou os
+bloqueadores B1 a B4, resolvidos pelo Arquiteto nas decisões 20 a 26. A segunda
+verificou essas resoluções e apontou os esclarecimentos C1 a C3, resolvidos nas
+decisões 27 a 31. Esta rodada confronta as decisões 27 a 31 e revisa se as
+anteriores continuam sustentadas pelo código.
 
 ### Recomendação
 
-**Prontidão recomendada**, condicionada a três esclarecimentos pequenos (C1 a
-C3). Nenhum bloqueador normativo permanece: as quatro resoluções são realizáveis
-com o repositório vigente e removem as contradições da rodada anterior.
+**Prontidão sustentada.** Nenhum bloqueador normativo remanescente. As decisões
+27 a 31 são realizáveis com o repositório vigente e fecham C1 a C3 sem criar
+contradição com o que já estava decidido.
 
-C1 e C3 afetam a aceitação da evidência, não o início da implementação: são
-critérios com mais de uma leitura possível. C2 é um número derivável que os
-testes precisam fixar. Nenhum deles exige reabrir arquitetura.
+Duas observações são materiais para o Implementador e não decorrem de leitura de
+contrato, mas do comportamento das APIs envolvidas: a junção de teste autorizada
+não é suficiente para o oráculo agora exigido (O1), e a API do `esp_timer` não
+oferece barreira contra callback em voo, o que limita o que o teste de destruição
+pode provar (O2). Nenhuma das duas impede iniciar; ambas mudam como o código deve
+ser escrito e como a evidência deve ser lida.
 
-### Verificação de cada resolução
+### Verificação das decisões 27 a 31
 
-**Decisão 20 e 21 — debounce de 10 ms por `esp_timer`: sustentada.**
-`esp_timer` é baseado em alarme de hardware com resolução de microssegundos e
-não é quantizado pelo tick do FreeRTOS, logo o período de 10 ms é realizável com
-`CONFIG_FREERTOS_HZ=100` — que era exatamente a causa de B1. A callback padrão
-executa na tarefa `esp_timer` (`esp_timer_create_args_t::dispatch_method`,
-default de tarefa), com prioridade `ESP_TASK_TIMER_PRIO = ESP_TASK_PRIO_MAX - 3`,
-acima da tarefa `issp154_rx` (`tskIDLE_PRIORITY + 4`) e da
-`issp154_report_tx` (`tskIDLE_PRIORITY + 3`). Consequência a registrar: a
-amostragem **sempre** preempta o executor de reports, inclusive no meio do
-bookkeeping — o que confirma a necessidade da decisão 22 e não é evitável por
-ordenação.
+**Decisão 27 — o limite de 150 ms termina na confirmação pelo behavior:
+sustentada e coerente.**
+Retira do orçamento exatamente o que não é governado pelo debounce: o executor
+usa `kReportAckTimeoutMs = 50` e `kPendingReportRetryDelayMs = 1000`
+(`issp154_report_executor.cpp`), incompatíveis com 150 ms por razões alheias à
+entrada. Os critérios e o conjunto de validação foram alinhados.
 
-A latência de 150 ms é aritmeticamente consistente com o esquema especificado.
-Janelas não sobrepostas de cinco amostras a cada 10 ms ocupam 50 ms de
-escalonamento. Pior caso: a transição ocorre logo após a primeira amostra da
-janela contaminada (40 ms restantes), seguida de duas janelas limpas
-(50 + 50 ms) = **140 ms**. A margem para jitter de despacho do `esp_timer`, para
-a leitura e para a chamada de publicação é de cerca de 10 ms. É viável, mas é
-margem estreita — ver C1.
+Resta um problema de **instrumentação**, não de contrato: em hardware não se
+conhece o instante da estabilização física, porque o acionamento manual não tem
+borda registrável. A medição verificável a partir de log é
+`confirmação − primeira amostra divergente`, que subestima a latência real em
+até um período. Recomendação: o behavior registrar os dois instantes e a
+evidência de hardware ser lida como `confirmação − primeira amostra divergente +
+10 ms` para o limite superior. Pela aritmética do esquema, o pior caso é
+40 + 50 + 50 = 140 ms, então esse teto de leitura ainda cabe nos 150 ms sem
+folga adicional.
 
-Requisito concreto de build: `components/issp_behaviors/CMakeLists.txt` hoje
-declara apenas `issp_core` e `esp_driver_gpio`. `esp_timer` **não** está entre os
-requisitos comuns do ESP-IDF — `issp_app_154` precisa listá-lo explicitamente em
-`PRIV_REQUIRES` —, então `issp_behaviors` passará a exigi-lo.
+**Decisão 28 — o oráculo é a sequência de classificações: sustentada e mais
+correta que a formulação anterior.**
+A ressalva do Arquiteto está certa: 50 ms é o mínimo teórico em alinhamento
+favorável, não limiar universal. Um pulso de 50 ms em fase desfavorável distribui
+as amostras entre janelas e não produz duas maiorias consecutivas; o mesmo pulso
+em fase favorável produz. Declarar os níveis por amostra é a única formulação
+determinística, e os critérios de aceite foram reescritos nesses termos.
 
-**Decisão 22 — serialização em `IsspDevice`: sustentada, com consequência
-arquitetural a reconhecer.**
-`components/issp_core/CMakeLists.txt` não declara **nenhum** `REQUIRES` e nenhum
-arquivo de `issp_core` inclui FreeRTOS: hoje o componente é C++ puro sobre seus
-próprios cabeçalhos. Introduzir `portMUX_TYPE` dá a `issp_core` sua primeira
-dependência de porta FreeRTOS/ESP-IDF. `freertos` está entre os requisitos
-comuns do ESP-IDF, portanto a compilação não deve exigir mudança de CMake, mas a
-propriedade “target-agnostic” do componente passa a valer só dentro do ESP-IDF. A
-decisão 22 admite “seção crítica equivalente”; a análise considera o spinlock a
-escolha correta para um alvo single-core com três contextos publicando, e apenas
-registra que o Arquiteto está aceitando essa dependência.
+Consequência direta em **O1**, abaixo: para declarar níveis por amostra, o teste
+precisa também governar *quando* a amostra ocorre.
 
-Restrições concretas que a implementação precisa respeitar, todas verificáveis no
-código atual:
+**Decisão 29 — estabilização síncrona em `begin()`: sustentada.**
+`begin()` é chamado por `IsspDevice::start()` dentro do estágio `StartDevice`, na
+tarefa do `app_main`, depois de `InitializeNetwork`. Nada em `setup()` tem
+timeout, o `ResetButtonMonitor` já foi iniciado em `InitializePlatform` e a
+tarefa `issp154_rx` (prioridade `tskIDLE_PRIORITY + 4`) segue rodando, portanto
+~100 ms de espera em `begin()` não afetam nenhum caminho vigente. Publicar antes
+de iniciar o timer também preserva a ordem que `DigitalOutputBehavior` já usa:
+falha de publicação aborta `begin()` e o estágio `StartDevice`, e nesse caminho
+nenhum timer terá sido criado.
 
-- `publishState()` chama `notifyPendingReport()` **dentro** do corpo que altera
-  os slots; a decisão 22 exige notificar fora da seção crítica, logo o método
-  precisa decidir sob lock e notificar depois;
-- `processingCommand_` e `reportNotificationDeferred_` participam da mesma
-  decisão e são escritos pela tarefa `issp154_rx` em `onReceive()` e
-  `finishCommandProcessing()`; ficam de fora da proteção se apenas os slots forem
-  protegidos, e o adiamento da notificação volta a ser corrida;
-- `preparePendingReport()` hoje codifica o payload e **depois** incrementa
-  `reportSequence_`. Como a codificação deve ficar fora da seção crítica, a
-  ordem precisa mudar: reservar slot e tomar a sequência sob lock, codificar
-  fora, e devolver o slot com `completePendingReport(token, false)` se a
-  codificação falhar — esse retorno reentra na seção crítica, que portanto não
-  pode ser recursiva nem estar retida;
-- `normalizePendingReportOrders()` é O(n²) sobre 8 slots e roda dentro do
-  bookkeeping; em `portENTER_CRITICAL` isso desabilita interrupções por dezenas
-  de microssegundos. Aceitável, mas é o trecho mais longo da seção crítica e vale
-  medir;
-- `publishReport()` também incrementa `reportSequence_` e **não é chamado por
-  nenhum código do repositório**. Deixá-lo sem proteção contradiz o novo
-  contrato; a recomendação é protegê-lo ou removê-lo junto com a mudança;
-- a callback do `esp_timer` **não** pode usar despacho por ISR: `publishState()`
-  passaria a rodar em contexto de interrupção e `portENTER_CRITICAL` seria a
-  variante errada. A decisão 21 já exige callback curta; o despacho por tarefa
-  precisa ser explícito na implementação.
+Uma precaução concreta: a decisão observa que a espera pode usar um tick por
+período com a configuração vigente, porque `CONFIG_FREERTOS_HZ=100` faz
+10 ms = 1 tick exatamente. A espera deve ser escrita como
+`pdMS_TO_TICKS(período)` e nunca como contagem literal de ticks — a forma em
+milissegundos permanece correta se `CONFIG_FREERTOS_HZ` mudar, e a forma literal
+passa a amostrar 1 ms por engano.
 
-**Decisão 23 — preservação comportamental: resolve B3.**
-O critério de fronteiras foi reescrito de forma coerente com a decisão: admite
-adaptação mecânica de `single_smart_plug.cpp` e restringe `issp_core` à
-publicação concorrente. A contradição da rodada anterior desapareceu.
+**Decisão 30 — ciclo de vida do `esp_timer`: sustentada, com o limite descrito em
+O2.** Despacho por tarefa é o default de
+`esp_timer_create_args_t::dispatch_method` e é o único compatível com
+`portENTER_CRITICAL` no caminho de publicação, conforme a decisão 31. `stop` e
+`delete` no destrutor e o desfazimento em qualquer falha posterior à criação
+resolvem o risco levantado na rodada anterior.
 
-**Decisão 24 — registro unificado: resolve R1 e é implementável com diff
-pequeno.** `setup()` itera `switchCount_` e `realRegisterCapability()` traduz o
-índice em `switchBehaviors_[index]`. Um `std::array<issp::IDeviceBehavior *,
-kMaxDeviceBehaviors>` preenchido na ordem de adição, iterado por `setup()` e
-indexado pelo hook, satisfaz a decisão preservando a assinatura
-`registerCapability(void *, std::size_t)` e, com ela, os testes vigentes que
-contam `registerCapabilityCalls` e verificam a ordem de registro. A unicidade
-endpoint/evento passa a ser verificada contra o registro unificado, substituindo
-`hasDuplicateSwitchEndpoint()`.
+**Decisão 31 — escopo da seção crítica: sustentada e agora completa.**
+A enumeração cobre o que a rodada anterior identificou: slots,
+`processingCommand_`, `reportNotificationDeferred_`, reserva de sequência e todo
+caminho que altere `reportSequence_`, incluindo o `publishReport()` que hoje é
+código morto. Codificação, callback, notificação e transporte ficam fora, e a
+falha de codificação libera a reserva pelo fluxo protegido normal — que é
+exatamente `completePendingReport(token, false)`, reentrando na seção; portanto a
+seção não pode ser retida nesse ponto nem ser recursiva.
 
-**Decisão 25 — fonte de níveis injetável: resolve E1 e tem precedente exato.**
-`SmartSysApp::SetupHooks` é o precedente de junção de teste declaradamente não
-contratual, com construtor dedicado. Como `addDoorSensorCapability()` constrói o
-behavior internamente, a junção só é alcançável ao instanciar
-`DigitalInputBehavior` diretamente no app de teste de `issp_behaviors` — a
-configuração pública do produto continua com GPIO real, como a decisão exige.
+Dois detalhes que a implementação precisa não deixar passar:
 
-**Decisão 26 — acessadores por recurso: resolve R3 e é verificável.**
-Hoje `selectedBoard()` é o único ponto de acesso ao board e
-`firmwares/single_smart_plug.cpp` é seu único consumidor, então a substituição
-por um acessador por classe de recurso é local. A falha de ligação como segunda
-linha de defesa funciona: um board que declare no CMake oferecer um recurso e não
-defina o acessador correspondente não liga.
+- os leitores `const` `peekPendingReport()` e `pendingReportCount()` são chamados
+  pela tarefa `issp154_report_tx` a cada iteração de `run()` e leem estado
+  multi-campo que passa a ser mutado por um contexto de prioridade mais alta.
+  Precisam entrar na seção também, o que exige um lock `mutable`. O precedente
+  exato existe: `Issp154Transport` declara
+  `mutable portMUX_TYPE ackLock_ = portMUX_INITIALIZER_UNLOCKED;`;
+- `normalizePendingReportOrders()` é O(n²) sobre oito slots dentro do
+  bookkeeping; em `portENTER_CRITICAL` isso desabilita interrupções pelo trecho
+  mais longo de toda a seção. Vale manter medido, sobretudo porque a tarefa
+  `esp_timer` passa a preemptar tudo a cada 10 ms.
 
-**Decisão 15 revisada e factory reset do sensor: coerentes.**
-Com o sensor exigindo entrada de contato seco **e** botão de usuário, as duas
-combinações cruzadas continuam produzindo exatamente um recurso ausente cada
-(tomada no board do sensor: saída digital; sensor no board atual: entrada de
-contato seco), o que preserva o diagnóstico exigido. O botão histórico está no
-GPIO 9, o mesmo pino e a mesma polaridade já validados em hardware para o
-factory reset, e `configureFactoryResetButton()` aceita esses valores sem
-mudança. Não há conflito com a entrada no GPIO 14. Isso resolve o risco de
-repareamento levantado como R4 na rodada anterior.
+### Observações materiais para o Implementador
 
-### Esclarecimentos a confirmar
+**O1 — a junção de teste autorizada não basta para o oráculo exigido.**
+A decisão 25 autoriza “uma fonte de níveis injetável”. A decisão 28 exige que os
+testes “declarem diretamente os níveis de cada amostra”. Apenas injetar a leitura
+não produz isso: o `esp_timer` continua decidindo *quando* ler, então o teste
+disputaria a fase de amostragem com o timer e a sequência observada seria
+não determinística — exatamente o defeito que a decisão 28 quer evitar.
 
-**C1 — onde os 150 ms são medidos.**
-O escopo da Fase 2 fixa o limite “entre a estabilização física da entrada e a
-confirmação da transição pelo behavior”, mas o conjunto de validação lista
-“latência máxima de 150 ms” junto dos itens observados no coordenador. As duas
-leituras não são equivalentes: publicação enfileira em `pendingReports_`, e a
-entrega ao coordenador passa por `sendConfirmed` com timeout de ACK de 50 ms e
-retry de 1000 ms (`issp154_report_executor.cpp`), que estouram o orçamento por
-motivos alheios ao debounce. Recomendação: medir na fronteira do behavior, com
-log instrumentado, e deixar a observação no coordenador como evidência
-funcional sem prazo. Some-se a isso a margem de apenas 10 ms sobre o pior caso
-aritmético de 140 ms: se o Arquiteto quiser o limite medido ponta a ponta, ou
-com folga para jitter, o número precisa subir.
+Para que a sequência seja declarada, o teste precisa governar o passo de
+amostragem, não só o valor lido. A forma mínima é o construtor reservado a testes
+expor também o passo — uma operação que executa uma amostra e a classificação
+correspondente — de modo que o teste chame `passo(nível)` na ordem desejada, sem
+timer ativo. Isso permanece análogo a `SetupHooks`: junção declaradamente não
+contratual, fora da configuração pública do produto.
 
-**C2 — qual oscilação é rejeitada, em números.**
-O critério “oscilação que não satisfaz o debounce” é autorreferente e os testes
-precisam de um limiar. Ele é derivável do esquema especificado: para confirmar um
-estado são necessárias duas janelas consecutivas com maioria de três, e a menor
-perturbação capaz de produzir isso vai da terceira amostra de uma janela à
-terceira da janela seguinte — **50 ms sustentados**. Abaixo disso, nenhuma
-oscilação pode gerar report; acima, pode. Recomendação: registrar 50 ms como o
-limiar derivado, para que o teste de rejeição use um pulso comprovadamente curto
-(por exemplo 30 ms) e o de aceitação um pulso comprovadamente longo.
+Consequência para o conjunto de validação: o período de 10 ms deixa de ser
+exercitado pelos testes de sequência e precisa de um caso próprio, que arme o
+timer real e verifique a cadência por `esp_timer_get_time()`. São dois tipos de
+teste com propósitos distintos — sequência determinística sem timer, cadência com
+timer — e a evidência deve dizer qual comprova o quê.
 
-**C3 — o report inicial é publicado dentro de `begin()` ou pelo primeiro ciclo
-do timer.**
-O critério diz “quando o firmware inicia … publica”, e o escopo pede “report
-inicial do estado estabilizado”. Estabilizar exige duas janelas, isto é ~100 ms.
-`begin()` é chamado por `IsspDevice::start()`, dentro do estágio `StartDevice`,
-na tarefa do `app_main`. As duas leituras possíveis têm consequências
-observáveis diferentes:
+Recomendação ao Arquiteto: confirmar que o construtor reservado a testes da
+decisão 25 pode expor o passo de amostragem além da fonte de níveis. É extensão
+da mesma junção, não uma nova fronteira, mas a redação atual fala apenas de
+níveis.
 
-1. amostrar de forma síncrona em `begin()`: atrasa `setup()` em ~100 ms e publica
-   antes de `Running`, como faz `DigitalOutputBehavior` hoje; o período de 10 ms
-   equivale a exatamente um tick com `CONFIG_FREERTOS_HZ=100`, então até
-   `vTaskDelay` serve para as janelas iniciais;
-2. deixar o primeiro report para o timer: `begin()` retorna `Ok` sem publicar e o
-   report inicial aparece pouco depois de `Running`.
+**O2 — `esp_timer` não oferece barreira contra callback em voo.**
+`esp_timer_stop()` desarma o timer, e `esp_timer_delete()` **não libera o objeto
+na hora**: ele reinsere o timer na lista da tarefa com `EVENT_ID_DELETE_TIMER`
+para que a memória seja liberada em contexto de tarefa. Nenhuma das duas espera
+uma callback que já esteja executando na tarefa `esp_timer`. Como a destruição
+ocorre em outra tarefa, existe uma janela — a duração de um corpo de callback —
+em que a callback ainda toca o objeto sendo destruído.
 
-A análise recomenda a leitura 1, por ser a que preserva a semântica do report
-inicial já validada na tomada e por dar ao critério um instante verificável.
+Em produção isso é inofensivo: as instâncias vivem em `SmartSysApp::Impl` e nunca
+são destruídas. O ponto é o item “destruição com timer ativo” do conjunto de
+validação: ele pode provar que `stop` e `delete` são chamados e que **nenhuma
+callback posterior ocorre**; ele não pode provar que a janela de callback em voo
+foi eliminada, porque a API não oferece o barramento necessário. Duas leituras
+possíveis, ambas honestas:
+
+1. registrar a janela residual como limitação conhecida da API, com a mitigação
+   de manter a callback curta — coerente com a decisão 21;
+2. eliminá-la estruturalmente, dando à callback um contexto de vida estática
+   próprio, separado do behavior. Isso é um passo de desenho maior e não está
+   autorizado pelo recorte.
+
+A análise recomenda a leitura 1 e que a evidência do teste diga o que
+efetivamente comprova, sem converter “nenhuma falha observada” em “janela
+eliminada”.
 
 ### Riscos e incertezas remanescentes
 
-**R1 — ciclo de vida do `esp_timer` dentro do behavior.**
-`IDeviceBehavior` não tem `end()` nem qualquer caminho de parada, e
-`DigitalOutputBehavior::begin()` trata falha de publicação anulando
-`publisher_` e retornando erro. O behavior de entrada precisa garantir que
-nenhum timer permaneça ativo quando não há publicador válido: em produção as
-instâncias vivem em `SmartSysApp::Impl` e nunca são destruídas, mas o app de
-teste construirá e destruirá muitas, e `setup()` pode falhar depois de
-`begin()` e disparar `rollbackTransport`. Sem parada e remoção no destrutor e no
-caminho de falha, a callback dispara sobre objeto destruído ou publica em
-publicador nulo.
+**R1 — o que os testes de concorrência do `IsspDevice` comprovam.** Já
+reconhecido pelo conjunto de validação, que agora exige distinguir integridade
+observada da garantia dada pela seção crítica e pela inspeção. Registrado aqui
+apenas para a evidência não regredir: intercalação determinística comprova a
+máquina de estados; duas tarefas em alvo single-core aumentam a confiança;
+nenhuma das duas é prova de exclusão mútua.
 
-**R2 — o que os testes de concorrência podem provar.**
-O conjunto de validação pede “testes de concorrência do `IsspDevice`
-exercitando publicação, reserva e conclusão intercaladas”. Um teste
-determinístico intercalando as três operações comprova a integridade da máquina
-de estados; ele **não** comprova exclusão mútua, que continua sustentada por
-inspeção e pelo tipo de seção crítica escolhido. Um teste com duas tarefas em
-alvo single-core aumenta a confiança, mas não é prova. Recomendação: registrar
-essa distinção na evidência, para não converter “sem falha observada” em “corrida
-ausente”.
+**R2 — infraestrutura de teste nova em dois componentes.** A estrutura de
+arquivos já prevê `issp_behaviors/test_apps/digital_input_behavior_test/` e
+`issp_core/test_apps/issp_device_concurrency_test/`. O único precedente é
+`components/issp_app_154/test_apps/smart_sys_app_test` — esp32c3 sob QEMU,
+`MINIMAL_BUILD ON`, Unity, e deliberadamente sem tocar GPIO. Decorre disso uma
+recomendação concreta: o construtor reservado a testes do
+`DigitalInputBehavior` deve **dispensar a configuração de GPIO**, já que a fonte
+injetada substitui o pino; caso contrário o teste passa a depender da emulação de
+GPIO do QEMU, terreno que nenhuma suíte do repositório exercita hoje.
 
-**R3 — infraestrutura de teste nova em dois componentes.**
-Nem `issp_behaviors` nem `issp_core` possuem `test_apps`; o único precedente é
-`components/issp_app_154/test_apps/smart_sys_app_test`, esp32c3 sob QEMU com
-`MINIMAL_BUILD` e Unity. A Fase 2 exige cobertura automatizada nos dois. É custo
-de implementação previsível, não impedimento, mas é maior do que a tabela de
-pontos afetados sugere.
+**R3 — `esp_timer` sob QEMU esp32c3 é fato não confirmado por leitura.** Nenhum
+app de teste do repositório usa `esp_timer`. Se o periódico não funcionar no
+ambiente emulado, o caso de cadência de O1 migra para hardware; os testes de
+sequência, por não dependerem do timer, continuam válidos sob QEMU. Ver E2.
 
-**R4 — orçamento de memória de `Impl`.**
-`kImplStorageBytes = 10240` com `static_assert`, e `Impl` já contém
-`hardwareStorage_` de 8192 bytes mais os três arrays de oito posições da tomada.
-A decisão 21 remove o problema maior ao proibir pilha por behavior: o que sobra
-no behavior é a configuração, o estado do debounce e um `esp_timer_handle_t`. As
-variáveis experimentais já mandam usar o mínimo de slots comprovado pelo build,
-o que é a mitigação correta; a falha, se houver, é de compilação.
+**R4 — dependência de `esp_timer` no CMake de `issp_behaviors`.** O componente
+declara hoje apenas `issp_core` e `esp_driver_gpio`, e `esp_timer` não está entre
+os requisitos comuns do ESP-IDF — `issp_app_154` precisa listá-lo
+explicitamente. A tabela de pontos afetados já registra a dependência.
 
-**R5 — o log de capabilities e a suíte vigente.**
-A decisão 24 muda o total informado por `app_setup begin capabilities=%u`. A
-validação em hardware da Fase 1 usou esse log como evidência (`capabilities=1`).
-A comparação de preservação da tomada deve considerar que o número passa a
-contar capabilities configuradas de qualquer tipo — para a tomada continua 1.
+**R5 — validação de pino na nova capability.** `addSwitchPlugCapability()` exige
+`GPIO_IS_VALID_OUTPUT_GPIO`. A capability de entrada deve usar
+`GPIO_IS_VALID_GPIO`, senão rejeita pinos legítimos de entrada. Detalhe pequeno,
+mas é o tipo de simetria que se copia por engano.
 
-**R6 — texto do diagnóstico de target.**
-Com `IDF_TARGET=esp32c6` os dois boards ficam ocultos e o `FATAL_ERROR` atual de
-`main/CMakeLists.txt` cita “the only board model of this phase”. O texto precisa
-nomear os dois boards, senão o diagnóstico exigido pelo caso negativo fica
-incorreto.
+**R6 — o log de capabilities muda de significado.** A decisão 24 faz
+`app_setup begin capabilities=%u` contar capabilities de qualquer tipo. A
+evidência de hardware da Fase 1 usou esse log (`capabilities=1`); para a tomada o
+número segue 1, e a comparação de preservação deve considerar isso explicitamente.
+
+**R7 — texto do diagnóstico de target.** Com `IDF_TARGET=esp32c6` os dois boards
+ficam ocultos e o `FATAL_ERROR` de `main/CMakeLists.txt` ainda cita “the only
+board model of this phase”. Precisa nomear os dois boards, senão o caso negativo
+produz diagnóstico incorreto.
+
+**R8 — margem da latência.** O pior caso aritmético é 140 ms contra o teto de
+150 ms. Somando a leitura instrumentada recomendada na decisão 27, a folga
+efetiva para jitter de despacho é praticamente nula. Não é impedimento — é o
+número a observar primeiro em E2, e o candidato natural a revisão se o hardware
+mostrar jitter.
 
 ### Experimentos necessários
 
 - **E1 — compilação de `issp_core` com seção crítica**, confirmando que
-  `freertos` como requisito comum basta e que nenhum consumidor (incluindo o app
-  de teste sob QEMU esp32c3) quebra;
-- **E2 — despacho e jitter do `esp_timer` a 10 ms no ESP32-H2**, medindo o
-  espaçamento real das amostras e a latência da transição contra o orçamento de
-  C1;
-- **E3 — fonte de níveis injetável em execução**, comprovando que a junção da
-  decisão 25 cobre período, janelas, maioria, latência, duplicatas e falha de
-  publicação sem GPIO real;
-- **E4 — `static_assert` de `kImplStorageBytes`** com o número de slots
-  escolhido para o sensor;
-- **E5 — as quatro combinações de seleção e o caso negativo C6 dos dois
+  `freertos` como requisito comum basta e que o app de teste sob QEMU esp32c3
+  continua ligando;
+- **E2 — `esp_timer` periódico a 10 ms**, primeiro sob QEMU esp32c3 (viabilidade
+  do caso de cadência) e depois no ESP32-H2, medindo espaçamento real e jitter
+  contra o orçamento de R8;
+- **E3 — junção de teste com passo de amostragem**, comprovando sequências
+  declaradas por amostra sem timer ativo e sem configurar GPIO;
+- **E4 — destruição com timer ativo**, comprovando ausência de callback
+  posterior e delimitando a janela residual descrita em O2;
+- **E5 — `static_assert` de `kImplStorageBytes`** com o número de slots escolhido
+  para o sensor; a decisão 21 já eliminou a pilha por behavior, restando
+  configuração, estado do debounce e um `esp_timer_handle_t`;
+- **E6 — as quatro combinações de seleção e o caso negativo C6 dos dois
   boards**, com `SDKCONFIG` isolado;
-- **E6 — as duas composições contra o coordenador.** O protocolo não muda, mas
-  note que sensor e tomada compartilham o device ID `0x15400001`: a validação
-  precisa garantir que os dois produtos não estejam ativos na mesma rede
-  simultaneamente.
+- **E7 — as duas composições contra o coordenador**, garantindo que sensor e
+  tomada, que compartilham o device ID `0x15400001`, não estejam ativos na mesma
+  rede simultaneamente durante a validação.
 
 ### Classificação das lacunas
 
-- **decisão normativa ausente:** nenhuma que impeça a implementação. C1 e C3 são
-  escolhas de leitura de critério que o Arquiteto deve confirmar antes de a
-  evidência ser aceita; C2 é a fixação de um número derivado;
+- **decisão normativa ausente:** nenhuma. Resta a confirmação pedida em O1 —
+  que o construtor reservado a testes possa expor o passo de amostragem — que é
+  extensão da decisão 25, não fronteira nova;
 - **escolha normal de implementação:** forma da seção crítica e reordenação de
-  `preparePendingReport()`, ciclo de vida do timer (R1), número de slots do
-  sensor, texto do diagnóstico (R6), forma dos acessadores de recurso;
-- **dependência externa pendente:** nenhuma. ESP-IDF 6.0.1, `esp_timer`, o
-  GPIO 14 e o GPIO 9 do ESP32-H2, o `event type 1` e o coordenador estão
-  disponíveis e confirmados.
+  `preparePendingReport()`, instrumentação dos dois instantes da latência, forma
+  da junção de teste, número de slots do sensor, validação de pino (R5), texto do
+  diagnóstico (R7), forma dos acessadores de recurso;
+- **dependência externa pendente:** nenhuma. ESP-IDF 6.0.1, `esp_timer`, os
+  GPIO 9 e 14 do ESP32-H2, o `event type 1` e o coordenador estão disponíveis e
+  confirmados.
 
 ### Resultado da análise
 
-As resoluções das decisões 20 a 26 são sustentadas pelo repositório e coerentes
-entre si. B1 deixou de existir porque `esp_timer` não depende do tick; B2 passou
-a ter mecanismo autorizado e localizado; B3 foi resolvido tornando a preservação
-comportamental; B4 recebeu período, janelas e limite de latência normativos. O
-recorte continua não exigindo condicionais internas nos componentes, mudança de
-protocolo nem duplicação de runtime.
+O recorte da Fase 2 está confrontado em todas as suas decisões compartilhadas. As
+decisões 27 a 31 fecham os três esclarecimentos sem abrir contradição: o limite
+de latência ficou onde é governável, o oráculo do debounce ficou determinístico,
+o report inicial ganhou instante verificável, o timer ganhou dono e a seção
+crítica ganhou escopo completo. Continua valendo o que a segunda rodada
+constatou: nenhuma condicional interna nos componentes, nenhuma mudança de
+protocolo, nenhuma duplicação de runtime.
 
-O que a Fase 2 cria de novo, e que o Arquiteto deve reconhecer, é uma
-dependência de porta FreeRTOS em `issp_core`, um contexto de execução de alta
-prioridade publicando reports a cada 10 ms e infraestrutura de teste em dois
-componentes que ainda não a possuem. Cabe ao Arquiteto confirmar C1 a C3, a
-suficiência deste confronto e a promoção do recorte.
+O que a implementação precisa levar consigo são as duas observações de API — a
+junção de teste precisa governar o passo de amostragem, e a janela de callback em
+voo do `esp_timer` limita o que o teste de destruição comprova — mais a leitura
+instrumentada da latência, cuja folga sobre o pior caso é de cerca de 10 ms. Cabe
+ao Arquiteto confirmar a extensão pedida em O1 e a suficiência deste confronto.
 
 ## Resultado da implementação da Fase 1 (Engenheiro Implementador)
 
