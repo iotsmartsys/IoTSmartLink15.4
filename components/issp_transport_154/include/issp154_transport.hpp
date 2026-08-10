@@ -133,7 +133,8 @@ private:
 
     IsspResult transmitPayloadOnce(const std::uint8_t *data,
                                    std::size_t length);
-    void notifyReceive(std::uint8_t *frame);
+    void notifyReceive(std::uint8_t *frame,
+                       const esp_ieee802154_frame_info_t *frameInfo);
 
     Issp154TransportConfig config_;
     ReceiveHandler receiveHandler_;

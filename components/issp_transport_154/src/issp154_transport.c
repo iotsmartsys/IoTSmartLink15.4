@@ -5,6 +5,7 @@
 #include "esp_attr.h"
 #include "esp_ieee802154.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
@@ -25,6 +26,7 @@ typedef struct {
     size_t frame_length;
     uint8_t frame[ISSP154_RX_FRAME_CAPACITY];
     esp_ieee802154_frame_info_t frame_info;
+    int64_t queued_at_us;
 } issp154_rx_event_t;
 
 typedef enum {
@@ -53,6 +55,46 @@ static StaticTask_t s_rx_task_control;
 static StackType_t s_rx_task_stack[ISSP154_RX_TASK_STACK_SIZE / sizeof(StackType_t)];
 static volatile uint32_t s_rx_drop_count;
 
+static const char *radio_state_name(esp_ieee802154_state_t state)
+{
+    switch (state) {
+    case ESP_IEEE802154_RADIO_DISABLE:
+        return "disabled";
+    case ESP_IEEE802154_RADIO_IDLE:
+        return "idle";
+    case ESP_IEEE802154_RADIO_SLEEP:
+        return "sleep";
+    case ESP_IEEE802154_RADIO_RECEIVE:
+        return "rx";
+    case ESP_IEEE802154_RADIO_TRANSMIT:
+        return "tx";
+    default:
+        return "unknown";
+    }
+}
+
+static const char *tx_error_name(esp_ieee802154_tx_error_t error)
+{
+    switch (error) {
+    case ESP_IEEE802154_TX_ERR_NONE:
+        return "none";
+    case ESP_IEEE802154_TX_ERR_CCA_BUSY:
+        return "cca_busy";
+    case ESP_IEEE802154_TX_ERR_ABORT:
+        return "abort";
+    case ESP_IEEE802154_TX_ERR_NO_ACK:
+        return "no_mac_ack";
+    case ESP_IEEE802154_TX_ERR_INVALID_ACK:
+        return "invalid_mac_ack";
+    case ESP_IEEE802154_TX_ERR_COEXIST:
+        return "coexist";
+    case ESP_IEEE802154_TX_ERR_SECURITY:
+        return "security";
+    default:
+        return "unknown";
+    }
+}
+
 static void rx_task(void *context)
 {
     (void)context;
@@ -60,9 +102,22 @@ static void rx_task(void *context)
 
     for (;;) {
         if (xQueueReceive(s_rx_queue, &event, portMAX_DELAY) == pdTRUE) {
+            const int64_t dispatched_at_us = esp_timer_get_time();
+            const unsigned mac_sequence = event.frame_length > 3U ? event.frame[3] : 0U;
             if (s_rx_done_cb != NULL) {
                 s_rx_done_cb(event.frame, &event.frame_info, s_context);
             }
+            ESP_LOGI("ISSP_RADIO_TRACE",
+                     "event=rx_processed mac_seq=%u phy_len=%u channel=%u rssi=%d lqi=%u sfd_us=%llu queue_latency_us=%lld processing_us=%lld drops=%lu",
+                     mac_sequence,
+                     (unsigned)(event.frame_length > 0U ? event.frame[0] : 0U),
+                     (unsigned)event.frame_info.channel,
+                     (int)event.frame_info.rssi,
+                     (unsigned)event.frame_info.lqi,
+                     (unsigned long long)event.frame_info.timestamp,
+                     (long long)(dispatched_at_us - event.queued_at_us),
+                     (long long)(esp_timer_get_time() - dispatched_at_us),
+                     (unsigned long)s_rx_drop_count);
         }
     }
 }
@@ -90,6 +145,7 @@ static void IRAM_ATTR transport_rx_done(uint8_t *frame, esp_ieee802154_frame_inf
             if (frame_info != NULL) {
                 event.frame_info = *frame_info;
             }
+            event.queued_at_us = esp_timer_get_time();
             queue_attempted = true;
             queued = xQueueSendFromISR(s_rx_queue, &event, &task_woken) == pdTRUE;
         }
@@ -294,10 +350,13 @@ esp_err_t issp154_transport_transmit_and_wait(const uint8_t *frame,
     s_tx_sync_state = TX_SYNC_WAITING;
     s_tx_completion = 0;
     s_waiting_tx_frame = frame;
+    s_waiting_tx_error = ESP_IEEE802154_TX_ERR_NONE;
     portEXIT_CRITICAL(&s_tx_wait_lock);
 
     xEventGroupClearBits(s_tx_wait_events, TX_WAIT_DONE_BIT | TX_WAIT_FAILED_BIT);
 
+    const int64_t started_at_us = esp_timer_get_time();
+    const esp_ieee802154_state_t state_before = esp_ieee802154_get_state();
     esp_err_t result = issp154_transport_sleep();
     if (result == ESP_OK) {
         result = issp154_transport_send(frame, cca);
@@ -320,6 +379,7 @@ esp_err_t issp154_transport_transmit_and_wait(const uint8_t *frame,
 
         portENTER_CRITICAL(&s_tx_wait_lock);
         const EventBits_t completion = s_tx_completion;
+        const esp_ieee802154_tx_error_t tx_error = s_waiting_tx_error;
         if (completion == 0) {
             s_tx_sync_state = TX_SYNC_TIMED_OUT_PENDING_CALLBACK;
         }
@@ -327,6 +387,11 @@ esp_err_t issp154_transport_transmit_and_wait(const uint8_t *frame,
 
         if ((completion & TX_WAIT_FAILED_BIT) != 0) {
             result = ESP_FAIL;
+            ESP_LOGW("ISSP_RADIO_TRACE",
+                     "event=tx_driver_failed mac_seq=%u error=%s error_code=%d",
+                     (unsigned)(frame[0] >= 3U ? frame[3] : 0U),
+                     tx_error_name(tx_error),
+                     (int)tx_error);
         } else if ((completion & TX_WAIT_DONE_BIT) == 0) {
             result = ESP_ERR_TIMEOUT;
         }
@@ -342,6 +407,18 @@ esp_err_t issp154_transport_transmit_and_wait(const uint8_t *frame,
     portEXIT_CRITICAL(&s_tx_wait_lock);
 
     const esp_err_t final_result = restore_error != ESP_OK ? restore_error : result;
+    const int64_t completed_at_us = esp_timer_get_time();
+    const esp_ieee802154_state_t state_after = esp_ieee802154_get_state();
+    ESP_LOGI("ISSP_RADIO_TRACE",
+             "event=tx_complete mac_seq=%u phy_len=%u cca=%s result=%s elapsed_us=%lld state_before=%s state_after=%s restore=%s",
+             (unsigned)(frame[0] >= 3U ? frame[3] : 0U),
+             (unsigned)frame[0],
+             cca ? "on" : "off",
+             esp_err_to_name(final_result),
+             (long long)(completed_at_us - started_at_us),
+             radio_state_name(state_before),
+             radio_state_name(state_after),
+             esp_err_to_name(restore_error));
     if (final_result != ESP_OK) {
         ESP_LOGW("ISSP_TX", "transmit failed result=%s", esp_err_to_name(final_result));
     }
@@ -354,6 +431,11 @@ bool issp154_transport_is_synchronous_transmit_busy(void)
     const bool busy = s_tx_sync_state != TX_SYNC_IDLE;
     portEXIT_CRITICAL(&s_tx_wait_lock);
     return busy;
+}
+
+uint32_t issp154_transport_rx_drop_count(void)
+{
+    return s_rx_drop_count;
 }
 
 void issp154_transport_release_receive_buffer(const uint8_t *frame)

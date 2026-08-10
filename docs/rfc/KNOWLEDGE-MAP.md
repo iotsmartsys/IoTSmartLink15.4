@@ -2,9 +2,9 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.16
+**Versão:** 1.20
 **Responsável:** Marcelo Miranda
-**Última atualização:** 09/08/2026
+**Última atualização:** 10/08/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -30,6 +30,7 @@ para navegar pelas fronteiras do sistema.
 | Histórico de mudanças EKM | `docs/rfc/EKM-CHANGELOG.md` | Operacional | Active |
 | Manual da IA Executora | `docs/rfc/MAN-0001.md` | Normativo complementar | Active |
 | Instruções do Copilot | `.github/copilot-instructions.md` | Adaptador | Active |
+| Targets suportados e execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | v0.4 `Active / Validated`; os seis projetos ESP-IDF aceitam somente H2/C6 com vínculo client→H2 e coordenador→C6; casos `IDF_TARGET=linux` inoperantes removidos, host-native restrito a toolchain de host puro; E1/E2 revalidadas, E3 ampliada e E5 aprovada; implementação testada e aprovada pelo Arquiteto; suítes deliberadamente `Not Executed` sob TESTEXEC-009; `EKM-CHG-0010` Closed |
 
 Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferença,
 `EKM-GUIDELINES.md` é a fonte canônica das regras EKM.
@@ -42,9 +43,10 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 |---|---|---|---|---|---|
 | Arquitetura ISSP | `docs/specs/ISSP-Architecture.md` | Active | Validated | `components/issp_*` e a composição do client em `client_154/main/` | Builds, hardware, consumidor mínimo e auditoria documental |
 | Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
+| Registry de devices pareados do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Proposed v0.4 | Funcional In Progress; migração de validação Regressed; Not Ready | `coordinator_154/main/device_registry.{h,c}`, `device_registry_nvs.c` e `device_registry_policy.{h,c}`, integrados em `main.c` | Target corrigido para ESP32-C6; 24 casos preservados e deliberadamente não executados nesta correção |
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
-| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Active | Validated | `components/issp_app_154`; `client_154/main/` (composição hoje em `firmwares/single_smart_plug.cpp`) e `examples/issp_minimal_client` migrados | Quatro builds sem warnings; 20/20 testes QEMU; validação e aceite humanos em hardware; risco de ACK/retry separado em `EKM-GAP-0006` |
+| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed v1.5 | Funcional v1.4 `Validated`; migração v1.5 `Regressed / Not Ready` | `components/issp_app_154`; composição em `client_154/main/`, hoje com `firmwares/single_smart_plug.cpp`; `examples/issp_minimal_client` | Target corrigido para ESP32-H2; 20 casos preservados e deliberadamente não executados nesta correção |
 | Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; direção integral `Implementable`; Fase 2 em `Implementable / Ready`, com B1 a B4 e C1 a C3 resolvidos e confrontados | In Progress; Fase 1 concluída e Fase 2 pronta para implementação | Fase 1 em `client_154/main/`; Fase 2 define `Door sensor`, segundo board H2, entrada digital, registro unificado e serialização interna dos pending reports | Evidências da Fase 1 preservadas; análise das decisões 27 a 31 registrada, sem bloqueador e com duas observações de API para o Implementador; Fase 2 ainda sem implementação ou evidência |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | Client em `components/issp_core/src/issp_protocol.cpp`; coordenador em `coordinator_154/main/iot154_packet.h` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |

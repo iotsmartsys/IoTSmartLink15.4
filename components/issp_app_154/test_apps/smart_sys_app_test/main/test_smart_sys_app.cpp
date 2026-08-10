@@ -4,11 +4,11 @@
 // AC-013). Every SmartSysApp instance here is built with
 // SmartSysApp::SetupHooks, replacing the platform/network/device/executor
 // steps with fakes, so nothing in this file ever calls NVS, GPIO drivers or
-// radio APIs. That is also why this app targets esp32c3 and runs under
-// QEMU (see components/issp_app_154/CMakeLists.txt: the hardware-only
-// smart_sys_app_hardware.cpp, and the production single-argument
-// SmartSysApp constructor it defines, are not even compiled for a target
-// without an IEEE 802.15.4 radio) instead of depending on real hardware.
+// radio APIs. The app targets a physical esp32h2, the target bound to
+// client_154 and SmartSysApp (TESTEXEC-008). smart_sys_app_hardware.cpp and
+// the production single-argument constructor are linked in on this target but
+// no case here reaches them, so the runner still observes only the
+// fake-backed state machine defined by these tests.
 
 #include <array>
 #include <cstddef>

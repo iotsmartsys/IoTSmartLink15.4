@@ -1,0 +1,4 @@
+# device_registry drives storage through its seam. The coordinator and its
+# registry are bound to ESP32-C6 (TESTEXEC-008); cases that require the
+# production NVS adapter still link nvs_flash explicitly.
+CONFIG_IDF_TARGET="esp32c6"

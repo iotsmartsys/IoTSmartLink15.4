@@ -17,6 +17,8 @@
 #include "esp_timer.h"
 #include "nvs_flash.h"
 
+#include "device_registry.h"
+#include "device_registry_policy.h"
 #include "iot154_packet.h"
 #include "iot154_radio.h"
 
@@ -79,6 +81,10 @@ static esp_ieee802154_tx_error_t s_radio_tx_error;
 static uint8_t s_central_ext_addr[IOT154_EXT_ADDR_LEN];
 static const char *s_tx_type = "ACK";
 static bool s_radio_tx_busy;
+static volatile int64_t s_radio_tx_callback_us;
+static int64_t s_radio_tx_started_us;
+static volatile uint32_t s_rx_total_count;
+static volatile uint32_t s_rx_overwrite_count;
 static volatile bool s_tx_is_report_ack;
 static volatile bool s_tx_is_command;
 static uint8_t s_report_ack_mac_seq;
@@ -106,29 +112,63 @@ typedef struct
 
 static pending_command_t s_pending_command;
 
-typedef struct
-{
-    uint32_t device_id;
-    uint16_t last_seq;
-    uint8_t ext_addr[IOT154_EXT_ADDR_LEN];
-    bool valid;
-} device_seq_state_t;
+/// @brief Volatile DATA sequence dedup cache, keyed by the device's registry slot index
+/// (COORD-REG-009: last_seq never belongs to the persisted blob). Zero-initialized at boot, so the
+/// first DATA frame observed for each slot in this run is never treated as a duplicate.
+static uint16_t s_last_seq[DEVICE_REGISTRY_MAX_ENTRIES];
+static bool s_last_seq_valid[DEVICE_REGISTRY_MAX_ENTRIES];
 
-static device_seq_state_t s_devices[8];
+static bool is_known_data_duplicate(size_t registry_index, uint16_t seq)
+{
+    if (!s_last_seq_valid[registry_index])
+    {
+        s_last_seq_valid[registry_index] = true;
+        s_last_seq[registry_index] = seq;
+        return false;
+    }
+    if (s_last_seq[registry_index] == seq)
+    {
+        return true;
+    }
+    s_last_seq[registry_index] = seq;
+    return false;
+}
 
 static const char *type_from_event(uint8_t event_type);
 
-/// @brief Initialize NVS before RF calibration data is loaded by the PHY.
-static void init_nvs(void)
+static const char *radio_tx_error_name(esp_ieee802154_tx_error_t error)
 {
-    esp_err_t err = nvs_flash_init();
+    switch (error)
+    {
+    case ESP_IEEE802154_TX_ERR_NONE:
+        return "none";
+    case ESP_IEEE802154_TX_ERR_CCA_BUSY:
+        return "cca_busy";
+    case ESP_IEEE802154_TX_ERR_ABORT:
+        return "abort";
+    case ESP_IEEE802154_TX_ERR_NO_ACK:
+        return "no_mac_ack";
+    case ESP_IEEE802154_TX_ERR_INVALID_ACK:
+        return "invalid_mac_ack";
+    case ESP_IEEE802154_TX_ERR_COEXIST:
+        return "coexist";
+    case ESP_IEEE802154_TX_ERR_SECURITY:
+        return "security";
+    default:
+        return "unknown";
+    }
+}
+
+/// @brief Initialize NVS before RF calibration data is loaded by the PHY.
+static esp_err_t init_nvs(void)
+{
+    const esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ESP_ERROR_CHECK(nvs_flash_init());
-        return;
+        ESP_LOGE("DEVICE_REGISTRY", "load result=unavailable reason=%s", esp_err_to_name(err));
+        return err;
     }
-    ESP_ERROR_CHECK(err);
+    return err;
 }
 
 /// @brief Configure the host side UART as JSON-lines transport.
@@ -165,12 +205,14 @@ static void IRAM_ATTR on_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *fr
                               (xEventGroupGetBitsFromISR(s_events) & RX_DONE_BIT) != 0;
     if (len <= IOT154_MAX_FRAME_LEN)
     {
+        ++s_rx_total_count;
         memcpy(s_rx_frame, frame, len + 1);
         s_rx_len = len;
         s_rx_info = *frame_info;
         xEventGroupSetBitsFromISR(s_events, RX_DONE_BIT, &task_woken);
         if (pending_slot)
         {
+            ++s_rx_overwrite_count;
             ESP_DRAM_LOGW(DRAM_STR("COORD_RX"), "pending frame overwritten");
         }
     }
@@ -188,6 +230,7 @@ static void IRAM_ATTR on_rx_done(uint8_t *frame, esp_ieee802154_frame_info_t *fr
 static void IRAM_ATTR on_tx_done(const uint8_t *frame, const uint8_t *ack, esp_ieee802154_frame_info_t *ack_info)
 {
     BaseType_t task_woken = pdFALSE;
+    s_radio_tx_callback_us = esp_timer_get_time();
     xEventGroupSetBitsFromISR(s_events, TX_DONE_BIT, &task_woken);
     if (ack != NULL)
     {
@@ -199,6 +242,7 @@ static void IRAM_ATTR on_tx_done(const uint8_t *frame, const uint8_t *ack, esp_i
 static void IRAM_ATTR on_tx_failed(const uint8_t *frame, esp_ieee802154_tx_error_t error)
 {
     BaseType_t task_woken = pdFALSE;
+    s_radio_tx_callback_us = esp_timer_get_time();
     s_radio_tx_error = error;
     xEventGroupSetBitsFromISR(s_events, TX_FAILED_BIT, &task_woken);
     portYIELD_FROM_ISR(task_woken);
@@ -826,7 +870,15 @@ static void send_radio_ack(uint32_t device_id, uint16_t seq, uint8_t endpoint_id
     s_report_ack_issp_seq = seq;
     s_report_ack_mac_seq = ack_mac_sequence;
     memcpy(s_report_ack_dst, dst_ext_addr, sizeof(s_report_ack_dst));
+    ESP_LOGI("COORD_RADIO_TRACE",
+             "event=tx_prepare role=report_ack device=0x%08" PRIx32 " issp_seq=%u endpoint=%u mac_seq=%u turnaround_us=%u",
+             device_id,
+             (unsigned)seq,
+             (unsigned)endpoint_id,
+             (unsigned)ack_mac_sequence,
+             (unsigned)REPORT_ACK_TURNAROUND_DELAY_US);
     esp_rom_delay_us(REPORT_ACK_TURNAROUND_DELAY_US);
+    s_radio_tx_started_us = esp_timer_get_time();
     (void)esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
     if (err != ESP_OK)
@@ -870,6 +922,7 @@ static void send_discovery_response(uint32_t device_id, uint16_t seq, const uint
              (unsigned)DISCOVERY_RESPONSE_TURNAROUND_DELAY_US,
              seq);
     esp_rom_delay_us(DISCOVERY_RESPONSE_TURNAROUND_DELAY_US);
+    s_radio_tx_started_us = esp_timer_get_time();
     esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
     if (err != ESP_OK)
@@ -902,53 +955,6 @@ static void update_join_window(void)
     ESP_LOGI("COMMISSIONING", "join_window closed");
 }
 
-/// @brief Return true when this source address + seq was already processed, remembering the logical protocol ID.
-static bool is_duplicate(uint32_t device_id, uint16_t seq, const uint8_t *src_ext_addr)
-{
-    device_seq_state_t *free_slot = NULL;
-
-    for (size_t i = 0; i < sizeof(s_devices) / sizeof(s_devices[0]); ++i)
-    {
-        if (s_devices[i].valid && iot154_ext_addr_equal(s_devices[i].ext_addr, src_ext_addr))
-        {
-            s_devices[i].device_id = device_id;
-            if (s_devices[i].last_seq == seq)
-            {
-                return true;
-            }
-            s_devices[i].last_seq = seq;
-            return false;
-        }
-        if (!s_devices[i].valid && free_slot == NULL)
-        {
-            free_slot = &s_devices[i];
-        }
-    }
-
-    if (free_slot == NULL)
-    {
-        free_slot = &s_devices[0];
-    }
-
-    free_slot->device_id = device_id;
-    free_slot->last_seq = seq;
-    memcpy(free_slot->ext_addr, src_ext_addr, IOT154_EXT_ADDR_LEN);
-    free_slot->valid = true;
-    return false;
-}
-
-static const device_seq_state_t *find_device_by_ext_addr(const uint8_t *ext_addr)
-{
-    for (size_t i = 0; i < sizeof(s_devices) / sizeof(s_devices[0]); ++i)
-    {
-        if (s_devices[i].valid && iot154_ext_addr_equal(s_devices[i].ext_addr, ext_addr))
-        {
-            return &s_devices[i];
-        }
-    }
-    return NULL;
-}
-
 static bool transmit_pending_command(void)
 {
     if (!s_pending_command.active || s_radio_tx_busy)
@@ -978,6 +984,14 @@ static bool transmit_pending_command(void)
     s_tx_is_command = true;
     ++s_pending_command.attempts;
     s_pending_command.awaiting_ack = false;
+    ESP_LOGI("COORD_RADIO_TRACE",
+             "event=tx_prepare role=command device=0x%08" PRIx32 " issp_seq=%u endpoint=%u mac_seq=%u attempt=%u cca=off",
+             command.device_id,
+             (unsigned)command.seq,
+             (unsigned)command.endpoint_id,
+             (unsigned)(s_mac_seq - 1U),
+             (unsigned)s_pending_command.attempts);
+    s_radio_tx_started_us = esp_timer_get_time();
     esp_ieee802154_sleep();
     esp_err_t err = esp_ieee802154_transmit(s_tx_frame, false);
     if (err != ESP_OK)
@@ -1004,32 +1018,42 @@ static bool transmit_pending_command(void)
     return true;
 }
 
-static bool start_host_command(const char *host_device_id,
-                               const char *host_request_device_id,
-                               const char *capability_name,
-                               const char *host_value,
-                               uint8_t endpoint_id,
-                               uint8_t event_type,
-                               uint8_t value)
+static device_registry_host_command_action_t start_host_command(const char *host_device_id,
+                                                                  const char *host_request_device_id,
+                                                                  const char *capability_name,
+                                                                  const char *host_value,
+                                                                  uint8_t endpoint_id,
+                                                                  uint8_t event_type,
+                                                                  uint8_t value)
 {
     uint8_t ext_addr[IOT154_EXT_ADDR_LEN] = {0};
-    if (s_pending_command.active)
+    const bool address_valid = parse_host_ext_addr(host_device_id, ext_addr);
+    const device_registry_state_t registry_state = device_registry_state();
+    uint32_t known_device_id = 0;
+    const bool target_known = address_valid && registry_state == DEVICE_REGISTRY_STATE_READY &&
+                              device_registry_find(ext_addr, &known_device_id, NULL);
+    const device_registry_host_command_action_t action = device_registry_policy_host_command(
+        address_valid, registry_state, s_pending_command.active, target_known);
+
+    if (action == DEVICE_REGISTRY_HOST_COMMAND_PENDING)
     {
         ESP_LOGW(TAG, "command rejected: another command is pending seq=%u",
                  (unsigned)s_pending_command.sequence);
-        return false;
+        return action;
     }
-
-    if (!parse_host_ext_addr(host_device_id, ext_addr))
+    if (action == DEVICE_REGISTRY_HOST_COMMAND_INVALID_ADDRESS)
     {
-        return false;
+        return action;
     }
-
-    const device_seq_state_t *device = find_device_by_ext_addr(ext_addr);
-    if (device == NULL)
+    if (action == DEVICE_REGISTRY_HOST_COMMAND_REGISTRY_UNAVAILABLE)
+    {
+        ESP_LOGW("DEVICE_REGISTRY", "command rejected reason=registry_unavailable dev=%s", host_device_id);
+        return action;
+    }
+    if (action == DEVICE_REGISTRY_HOST_COMMAND_UNKNOWN_DEVICE)
     {
         ESP_LOGW(TAG, "command target not known dev=%s", host_device_id);
-        return false;
+        return action;
     }
 
     ++s_next_command_seq;
@@ -1040,7 +1064,7 @@ static bool start_host_command(const char *host_device_id,
 
     memset(&s_pending_command, 0, sizeof(s_pending_command));
     s_pending_command.active = true;
-    s_pending_command.device_id = device->device_id;
+    s_pending_command.device_id = known_device_id;
     s_pending_command.sequence = s_next_command_seq;
     s_pending_command.endpoint_id = endpoint_id;
     s_pending_command.event_type = event_type;
@@ -1057,7 +1081,7 @@ static bool start_host_command(const char *host_device_id,
             sizeof(s_pending_command.host_value));
 
     (void)transmit_pending_command();
-    return true;
+    return DEVICE_REGISTRY_HOST_COMMAND_START;
 }
 
 static void complete_pending_command(bool accepted, const char *error)
@@ -1174,17 +1198,37 @@ static void handle_host_line(char *line)
         return;
     }
 
-    if (!start_host_command(host_device_id,
-                            device_id_text,
-                            capability_name,
-                            value,
-                            endpoint_id,
-                            event_type,
-                            event_value))
+    const device_registry_host_command_action_t start_result = start_host_command(host_device_id,
+                                                                                   device_id_text,
+                                                                                   capability_name,
+                                                                                   value,
+                                                                                   endpoint_id,
+                                                                                   event_type,
+                                                                                   event_value);
+    if (start_result != DEVICE_REGISTRY_HOST_COMMAND_START)
     {
-        ESP_LOGW(TAG, "ignored host cmd: unavailable host_id=%s capability=%s value=%s", host_device_id, capability_name, value);
-        host_send_error(device_id_text, capability_name, value,
-                        s_pending_command.active ? "another command is pending" : "target not known");
+        /* COORD-REG-011/5.1: report the precise reason so RegistryUnavailable is never surfaced
+           to the host as "target not known" (unknown identity). */
+        const char *reason;
+        switch (start_result)
+        {
+        case DEVICE_REGISTRY_HOST_COMMAND_PENDING:
+            reason = "another command is pending";
+            break;
+        case DEVICE_REGISTRY_HOST_COMMAND_REGISTRY_UNAVAILABLE:
+            reason = "registry unavailable";
+            break;
+        case DEVICE_REGISTRY_HOST_COMMAND_INVALID_ADDRESS:
+            reason = "invalid issp154 device id";
+            break;
+        case DEVICE_REGISTRY_HOST_COMMAND_UNKNOWN_DEVICE:
+        default:
+            reason = "target not known";
+            break;
+        }
+        ESP_LOGW(TAG, "ignored host cmd: unavailable host_id=%s capability=%s value=%s reason=%s",
+                host_device_id, capability_name, value, reason);
+        host_send_error(device_id_text, capability_name, value, reason);
         return;
     }
 
@@ -1279,7 +1323,15 @@ void app_main(void)
 {
     char central_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
 
-    init_nvs();
+    const esp_err_t nvs_result = init_nvs();
+    if (nvs_result != ESP_OK)
+    {
+        ESP_LOGE(TAG, "NVS initialization failed; coordinator device traffic remains disabled: %s",
+                 esp_err_to_name(nvs_result));
+        return;
+    }
+    device_registry_init(device_registry_nvs_storage());
+    (void)device_registry_load();
     init_host_uart();
     ESP_ERROR_CHECK(esp_read_mac(s_central_ext_addr, ESP_MAC_IEEE802154));
     s_events = xEventGroupCreate();
@@ -1317,7 +1369,10 @@ void app_main(void)
         if ((bits & RX_DONE_BIT) != 0)
         {
             uint8_t frame[IOT154_MAX_FRAME_LEN + 1];
-            memcpy(frame, s_rx_frame, s_rx_len + 1);
+            const uint8_t rx_len = s_rx_len;
+            memcpy(frame, s_rx_frame, rx_len + 1);
+            const esp_ieee802154_frame_info_t rx_info = s_rx_info;
+            const int64_t rx_dispatch_us = esp_timer_get_time();
             iot154_frame_info_t diagnostic_mac = {0};
             iot154_packet_t diagnostic_packet = {0};
             size_t payload_length = 0;
@@ -1348,19 +1403,37 @@ void app_main(void)
             {
                 char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
                 format_ext_addr(mac.src_ext, sensor_mac_text, sizeof(sensor_mac_text));
-                if (s_join_window_open)
+                const device_registry_discovery_action_t discovery_action =
+                    device_registry_policy_discovery(device_registry_state(), s_join_window_open);
+                if (discovery_action == DEVICE_REGISTRY_DISCOVERY_REJECT_UNAVAILABLE)
                 {
-                    ESP_LOGI("COMMISSIONING",
-                             "discovery accepted dev=0x%08" PRIx32 " seq=%u sensor=%s",
-                             packet.device_id, packet.seq, sensor_mac_text);
-                    (void)is_duplicate(packet.device_id, packet.seq, mac.src_ext);
-                    send_discovery_response(packet.device_id, packet.seq, mac.src_ext);
+                    ESP_LOGW("COMMISSIONING",
+                             "discovery ignored reason=registry_unavailable dev=0x%08" PRIx32,
+                             packet.device_id);
                 }
-                else
+                else if (discovery_action == DEVICE_REGISTRY_DISCOVERY_REJECT_WINDOW_CLOSED)
                 {
                     ESP_LOGI("COMMISSIONING",
                              "discovery ignored reason=join_window_closed dev=0x%08" PRIx32,
                              packet.device_id);
+                }
+                else
+                {
+                    const device_registry_pair_result_t pair_result =
+                        device_registry_pair(mac.src_ext, packet.device_id);
+                    if (device_registry_policy_discovery_response(pair_result))
+                    {
+                        ESP_LOGI("COMMISSIONING",
+                                 "discovery accepted dev=0x%08" PRIx32 " seq=%u sensor=%s",
+                                 packet.device_id, packet.seq, sensor_mac_text);
+                        send_discovery_response(packet.device_id, packet.seq, mac.src_ext);
+                    }
+                    else
+                    {
+                        ESP_LOGW("COMMISSIONING",
+                                 "discovery rejected dev=0x%08" PRIx32 " seq=%u sensor=%s",
+                                 packet.device_id, packet.seq, sensor_mac_text);
+                    }
                 }
             }
             else if (packet.msg_type == IOT154_MSG_DATA &&
@@ -1368,31 +1441,66 @@ void app_main(void)
                      iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
                      mac.src_mode == IOT154_ADDR_MODE_EXT)
             {
-                bool duplicate = is_duplicate(packet.device_id, packet.seq, mac.src_ext);
-                if (duplicate)
+                size_t registry_index = 0;
+                const device_registry_state_t registry_state = device_registry_state();
+                const bool origin_known = registry_state == DEVICE_REGISTRY_STATE_READY &&
+                                          device_registry_find(mac.src_ext, NULL, &registry_index);
+                const bool duplicate = origin_known &&
+                                       is_known_data_duplicate(registry_index, packet.seq);
+                const device_registry_data_effects_t data_effects = device_registry_policy_data(
+                    registry_state, s_join_window_open, origin_known, duplicate);
+                if (data_effects.log_registry_unavailable)
                 {
-                    ESP_LOGI(TAG, "DATA duplicate dev=0x%08" PRIx32 " seq=%u", packet.device_id, packet.seq);
+                    ESP_LOGW("DEVICE_REGISTRY",
+                             "frame ignored reason=registry_unavailable dev=0x%08" PRIx32,
+                             packet.device_id);
+                }
+                else if (data_effects.log_unknown_device)
+                {
+                    char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
+                    format_ext_addr(mac.src_ext, sensor_mac_text, sizeof(sensor_mac_text));
+                    ESP_LOGI("DEVICE_REGISTRY",
+                             "frame ignored reason=unknown_device dev=0x%08" PRIx32 " sensor=%s",
+                             packet.device_id, sensor_mac_text);
                 }
                 else
                 {
-                    ESP_LOGI(TAG,
-                             "DATA new dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u",
-                             packet.device_id, packet.seq, packet.endpoint_id, packet.event_type, packet.value);
-                    host_send_event(mac.src_ext, packet.endpoint_id, packet.event_type, packet.value);
+                    if (duplicate)
+                    {
+                        ESP_LOGI(TAG, "DATA duplicate dev=0x%08" PRIx32 " seq=%u", packet.device_id, packet.seq);
+                    }
+                    else if (data_effects.emit_host_event)
+                    {
+                        ESP_LOGI(TAG,
+                                 "DATA new dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u",
+                                 packet.device_id, packet.seq, packet.endpoint_id, packet.event_type, packet.value);
+                        host_send_event(mac.src_ext, packet.endpoint_id, packet.event_type, packet.value);
+                    }
+                    if (data_effects.emit_ack)
+                    {
+                        send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
+                    }
                 }
-                send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
             }
             else if (packet.msg_type == IOT154_MSG_ACK &&
                      mac.dst_mode == IOT154_ADDR_MODE_EXT &&
                      iot154_ext_addr_equal(mac.dst_ext, s_central_ext_addr) &&
                      mac.src_mode == IOT154_ADDR_MODE_EXT)
             {
-                const bool matches_pending = s_pending_command.active &&
-                                             packet.device_id == s_pending_command.device_id &&
-                                             packet.seq == s_pending_command.sequence &&
-                                             packet.endpoint_id == s_pending_command.endpoint_id &&
-                                             iot154_ext_addr_equal(mac.src_ext,
-                                                                   s_pending_command.destination);
+                uint32_t known_device_id = 0;
+                const bool registry_ready = device_registry_state() == DEVICE_REGISTRY_STATE_READY;
+                const bool origin_known = registry_ready &&
+                                          device_registry_find(mac.src_ext, &known_device_id, NULL);
+                const bool pending_correlations_match = s_pending_command.active &&
+                                                        packet.device_id == s_pending_command.device_id &&
+                                                        packet.seq == s_pending_command.sequence &&
+                                                        packet.endpoint_id == s_pending_command.endpoint_id &&
+                                                        iot154_ext_addr_equal(mac.src_ext,
+                                                                              s_pending_command.destination) &&
+                                                        known_device_id == packet.device_id;
+                const device_registry_ack_action_t ack_action = device_registry_policy_ack(
+                    device_registry_state(), origin_known, pending_correlations_match);
+                const bool matches_pending = ack_action == DEVICE_REGISTRY_ACK_COMPLETE;
                 ESP_LOGI(TAG,
                          "CMD ACK dev=0x%08" PRIx32 " seq=%u endpoint=%u status=%u match_pending=%s",
                          packet.device_id,
@@ -1400,6 +1508,10 @@ void app_main(void)
                          packet.endpoint_id,
                          packet.value,
                          matches_pending ? "yes" : "no");
+                if (ack_action == DEVICE_REGISTRY_ACK_REJECT_UNAVAILABLE)
+                {
+                    ESP_LOGW("DEVICE_REGISTRY", "frame ignored reason=registry_unavailable");
+                }
                 if (matches_pending)
                 {
                     if (packet.value == IOT154_ACK_STATUS_OK)
@@ -1427,12 +1539,35 @@ void app_main(void)
                 }
                 ESP_LOGW(TAG, "ignored frame: msg=%u not for this central", packet.msg_type);
             }
+            ESP_LOGI("COORD_RADIO_TRACE",
+                     "event=rx_processed role=%u device=0x%08" PRIx32 " issp_seq=%u endpoint=%u mac_seq=%u phy_len=%u channel=%u rssi=%d lqi=%u sfd_us=%llu sfd_to_dispatch_us=%lld processing_us=%lld rx_total=%lu overwrites=%lu",
+                     (unsigned)packet.msg_type,
+                     packet.device_id,
+                     (unsigned)packet.seq,
+                     (unsigned)packet.endpoint_id,
+                     (unsigned)(rx_len >= 3U ? frame[3] : 0U),
+                     (unsigned)rx_len,
+                     (unsigned)rx_info.channel,
+                     (int)rx_info.rssi,
+                     (unsigned)rx_info.lqi,
+                     (unsigned long long)rx_info.timestamp,
+                     (long long)(rx_dispatch_us - (int64_t)rx_info.timestamp),
+                     (long long)(esp_timer_get_time() - rx_dispatch_us),
+                     (unsigned long)s_rx_total_count,
+                     (unsigned long)s_rx_overwrite_count);
         }
 
         if ((bits & TX_DONE_BIT) != 0)
         {
             const bool command_tx = s_tx_is_command;
             ESP_LOGI(TAG, "%s TX done seq=%u", s_tx_type, s_radio_tx_seq);
+            ESP_LOGI("COORD_RADIO_TRACE",
+                     "event=tx_complete role=%s issp_seq=%u result=ok elapsed_us=%lld callback_us=%lld state=%u",
+                     s_tx_type,
+                     (unsigned)s_radio_tx_seq,
+                     (long long)(s_radio_tx_callback_us - s_radio_tx_started_us),
+                     (long long)s_radio_tx_callback_us,
+                     (unsigned)esp_ieee802154_get_state());
             s_radio_tx_busy = false;
             const esp_err_t restore_result = iot154_radio_start_rx();
             if (command_tx)
@@ -1462,7 +1597,20 @@ void app_main(void)
         if ((bits & TX_FAILED_BIT) != 0)
         {
             const bool command_tx = s_tx_is_command;
-            ESP_LOGW(TAG, "%s TX failed seq=%u error=%d", s_tx_type, s_radio_tx_seq, s_radio_tx_error);
+            ESP_LOGW(TAG, "%s TX failed seq=%u error=%s error_code=%d",
+                     s_tx_type,
+                     s_radio_tx_seq,
+                     radio_tx_error_name(s_radio_tx_error),
+                     (int)s_radio_tx_error);
+            ESP_LOGW("COORD_RADIO_TRACE",
+                     "event=tx_complete role=%s issp_seq=%u result=failed error=%s error_code=%d elapsed_us=%lld callback_us=%lld state=%u",
+                     s_tx_type,
+                     (unsigned)s_radio_tx_seq,
+                     radio_tx_error_name(s_radio_tx_error),
+                     (int)s_radio_tx_error,
+                     (long long)(s_radio_tx_callback_us - s_radio_tx_started_us),
+                     (long long)s_radio_tx_callback_us,
+                     (unsigned)esp_ieee802154_get_state());
             s_radio_tx_busy = false;
             const esp_err_t restore_result = iot154_radio_start_rx();
             if (command_tx)

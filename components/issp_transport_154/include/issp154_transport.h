@@ -74,6 +74,9 @@ esp_err_t issp154_transport_transmit_and_wait(const uint8_t *frame,
 /// @brief Return whether a synchronous physical transmission is still active.
 bool issp154_transport_is_synchronous_transmit_busy(void);
 
+/// @brief Return the number of received frames dropped by the deferred RX queue.
+uint32_t issp154_transport_rx_drop_count(void);
+
 /// @brief Return a received frame buffer to the IEEE 802.15.4 driver.
 void issp154_transport_release_receive_buffer(const uint8_t *frame);
 

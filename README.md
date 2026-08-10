@@ -1,20 +1,27 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-P4 | ESP32-S2 | ESP32-S3 | Linux |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | -------- | -------- | ----- |
+| Supported Target | ESP32-H2 |
+| ---------------- | -------- |
 
 # Hello World Example
 
 Starts a FreeRTOS task to print "Hello World".
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+This is the repository's root diagnostic project, kept from the ESP-IDF
+`hello_world` template. It is bound to ESP32-H2, the only target it may be
+configured for, per `docs/specs/Repository-Test-Execution-Policy.md`
+(TESTEXEC-008). The repository as a whole admits ESP32-H2 and ESP32-C6 only;
+the generic target table of the original template was never this project's
+policy. The Linux cases inherited from that template were not constructible and
+did not protect repository behavior, so they were removed. Host-native tests,
+when specified, use a separate host toolchain and do not configure an ESP-IDF
+firmware target.
 
 ## How to use example
 
 Follow detailed instructions provided specifically for this example.
 
-Select the instructions depending on Espressif chip installed on your development board:
+The board must be an ESP32-H2; no other chip may be selected:
 
-- [ESP32 Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/stable/get-started/index.html)
-- [ESP32-S2 Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/get-started/index.html)
+- [ESP32-H2 Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32h2/get-started/index.html)
 
 
 ## Example folder contents

@@ -2,9 +2,9 @@
 
 **Tipo:** Operacional
 **Status:** Active
-**Versão:** 1.6
+**Versão:** 1.8
 **Responsável:** Marcelo Miranda
-**Última atualização:** 30/07/2026
+**Última atualização:** 01/08/2026
 **Escopo:** Todo o repositório
 
 ---
@@ -516,3 +516,843 @@ inicial.
   `Ready`; o mapa foi reconciliado e a Definition of Done EKM respondida;
 - `EKM-CHG-0007` foi encerrada por decisão do Arquiteto. O encerramento cobre a
   fachada configurável e não constitui validação de uma correção do transporte.
+
+---
+
+## EKM-CHG-0008 — Registry persistente de devices pareados do coordenador
+
+**Status:** `Open`
+**Tipo:** Especificação funcional
+**Aberta em:** 31/07/2026
+
+### Motivação
+
+O coordenador mantém até oito devices somente em RAM, perde os destinos de
+comando ao reiniciar e permite que `DATA` de origem desconhecida alimente essa
+tabela mesmo depois do fechamento da janela. A especificação de commissioning
+já exige preservar e atender devices registrados, mas não define seu registry.
+
+### Ativos afetados nesta etapa
+
+- nova `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md`;
+- `docs/rfc/KNOWLEDGE-MAP.md`;
+- este histórico.
+
+### Decisões confirmadas pelo Arquiteto
+
+- pareamento decorre de discovery válido durante a janela e só é respondido
+  como sucesso depois da confirmação NVS;
+- endereço IEEE é a identidade primária e `device_id` também é persistido;
+- o limite permanece em oito, sem eviction;
+- mesmo endereço atualiza `device_id`; repetição idêntica é idempotente;
+- `last_seq` permanece volátil;
+- tráfego operacional depois do fechamento exige device persistido;
+- falha de persistência não conclui pareamento;
+- ausência ou schema incompatível inicia registry vazio; corrupção e erro real
+  não apagam automaticamente toda a NVS;
+- remoção, reset do coordenador, autenticação e migração automática ficam fora
+  deste recorte.
+
+### Resultado da autoria
+
+- schema lógico, estados de carga, transação atômica, capacidade, falhas,
+  autorização de tráfego e compatibilidade de implantação especificados;
+- treze requisitos mapeados para oito critérios falsificáveis;
+- efeitos de rádio, protocolo, janela e deduplicação preservados fora da
+  mudança necessária;
+- nenhuma implementação ou validação funcional executada;
+- especificação deixada como `Proposed`, `Not Started`, `Not Ready` e
+  `Pending Review`.
+
+### Revisão de implementabilidade (Engenheiro Analista, 31/07/2026)
+
+- confrontados os treze requisitos, as fontes arquiteturais locais
+  (`ISSP-Commissioning.md`, `ISSP-Architecture.md`) e o estado real de
+  `coordinator_154/main/main.c` e `iot154_packet.h`; nenhuma divergência
+  material encontrada entre os fatos descritos na especificação e o firmware
+  atual;
+- nenhuma decisão normativa, de produto ou de arquitetura ausente identificada;
+  a solução proposta não introduz nova camada de domínio e delimita a
+  abstração interna de NVS necessária para testes;
+- observação registrada para o Implementador: `coordinator_154` ainda não tem
+  componente nem `test_apps` próprios; o precedente mais próximo para o gate
+  automatizado com NVS substituível é `components/issp_app_154`
+  (`SetupHooks` + `test_apps` sob QEMU);
+- resultado: `Implementable`. Detalhe completo em
+  `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` seção 16.1.
+
+### Critérios de encerramento da transação
+
+- revisão independente promove a especificação para `Implementable` — **satisfeito** em 01/08/2026 para v0.3; registros de v0.1/v0.2 permanecem históricos;
+- Arquiteto autoriza implementação;
+- requisitos COORD-REG-001 a COORD-REG-013 são implementados;
+- gates automatizados e cenários de hardware AC-001 a AC-008 terminam com
+  evidência aprovada;
+- mapa, especificações relacionadas e transação são reconciliados;
+- implantação em ambiente real permanece sujeita a ordem própria.
+
+### Registro do Engenheiro Implementador (31/07/2026)
+
+- Arquiteto autoriza implementação com recorte de escopo completo (COORD-REG-001
+  a 013) nesta etapa;
+- criados `coordinator_154/main/device_registry.h`/`.c` (schema versionado,
+  validação de carga, transação de pareamento create/update/known/rejected,
+  seam de storage isolando NVS da lógica de pareamento) e
+  `device_registry_nvs.c` (implementação real do seam sobre `nvs.h`, namespace
+  próprio `coord_reg`, chave `devices`, `nvs_set_blob`+`nvs_commit` para
+  substituição atômica do blob, seguindo o precedente de
+  `issp154_network_manager.cpp`);
+- `coordinator_154/main/main.c` integrado: `device_registry_load()` executa
+  antes de `iot154_radio_start_rx()` (seção 7); a tabela volátil `s_devices[8]`
+  e `is_duplicate()`/`find_device_by_ext_addr()` (que aprendiam qualquer
+  origem, inclusive por `DATA`, com eviction cega do slot 0) foram removidas;
+  `DISCOVERY_REQ` passa a chamar `device_registry_pair()` e só responde sucesso
+  após o commit; `DATA` de origem desconhecida com janela fechada é descartado
+  sem ACK/evento/gravação (COORD-REG-007/008); `ACK` de comando passa a exigir
+  também que a origem seja conhecida e o `device_id` corresponda à entrada
+  persistida; comando do host passa a resolver destino via
+  `device_registry_find()`; deduplicação de `last_seq` continua volátil, agora
+  em cache por slot do registry, nunca no blob persistido (COORD-REG-009);
+- comportamento de `DATA` de origem desconhecida com janela **aberta**
+  permanece fora do recorte da especificação (seção 9); a implementação
+  preserva o processamento anterior (evento + ACK) sem criar entrada
+  persistente, por não haver decisão normativa para alterá-lo;
+- logs de `DEVICE_REGISTRY:` (seção 11) implementados; `discovery
+  ignored reason=registry_unavailable` e `pairing result=failed
+  reason=registry_unavailable` foram adicionados além do vocabulário mínimo da
+  especificação, para tornar o estado indisponível observável (seção 7), sem
+  reduzir os tokens exigidos;
+- testes automatizados escritos em
+  `coordinator_154/test_apps/device_registry_test` (Unity, alvo `esp32c3`,
+  execução prevista via QEMU `idf.py qemu`, mesmo precedente de
+  `components/issp_app_154/test_apps/smart_sys_app_test`), com um substituto de
+  storage em memória que injeta falha de leitura/escrita e corrupção
+  estrutural. Cobrem COORD-REG-AC-002 (falha de commit preserva a visão
+  anterior e sobrevive a um "reboot" do módulo), AC-003 (capacidade cheia
+  rejeita sem eviction), AC-004 (repetição idêntica não grava; mudança de
+  `device_id` grava exatamente uma vez) e AC-006 (o blob serializado nunca
+  contém `last_seq`), além dos estados de carga do AC-001/AC-007 (ausente,
+  schema incompatível, blob truncado, contagem inválida, checksum inválido,
+  erro real de leitura);
+- **não executados nesta etapa**: build ESP-IDF (`esp32c6`) e os testes acima
+  sob QEMU — este ambiente não tem `idf.py`/toolchain ESP-IDF instalado.
+  Nenhuma evidência de compilação ou execução é reivindicada; a limitação é
+  registrada como real, não como validação aprovada;
+- **fora do gate automatizado desta etapa**: a parte de AC-007 que exige NVS
+  real com namespace sentinela isolado (o teste escrito usa apenas o
+  substituto em memória, que não exercita `device_registry_nvs.c` nem
+  partição NVS real) e a totalidade de AC-001/AC-008, que a própria
+  especificação (seção 13) exige como execução terminal em hardware real —
+  nenhuma das duas foi executada nem simulada;
+- estado de implementação da especificação atualizado para `In Progress`
+  (código e testes escritos; evidência de build/execução ausente bloqueia
+  `Implemented` conforme regras comuns §3.2 e perfil do Implementador);
+  `EKM-CHG-0008` permanece `Open`; promoção a `Implemented`, `Validated` ou
+  `Done` não ocorreu nem foi autorizada nesta etapa.
+
+### Revisão técnica (Engenheiro Revisor, 01/08/2026)
+
+- revisão estática do commit `2cc600c` confrontada com COORD-REG-001 a 013 e
+  AC-001 a AC-008;
+- build de produção ESP-IDF 6.0.1/ESP32-C6 concluído com código 0 e sem warnings
+  do compilador; build do app de teste ESP32-C3 concluído com código 0; QEMU
+  terminou com `10 Tests 0 Failures 0 Ignored`; `git diff --check` sem erro;
+- achado alto: `DATA` é encaminhado ao host e recebe ACK com janela aberta
+  quando o registry está indisponível, violando o fail-closed de COORD-REG-011
+  e AC-007;
+- achado alto: `init_nvs()` ainda executa `nvs_flash_erase()` em duas falhas de
+  inicialização, podendo apagar namespaces não relacionados e violando
+  COORD-REG-010/AC-007;
+- achado alto de evidência: faltam o gate de integração AC-005, o cenário
+  completo de reboot/deduplicação de AC-006 e fakes que preservem staging,
+  commit e isolamento de namespaces para AC-002/AC-007; os dez testes aprovam
+  somente os cenários presentes;
+- registro anterior superestimava cobertura ao mencionar contagem inválida,
+  que não integra os dez testes executados; a limitação de toolchain deixou de
+  se aplicar ao ambiente observado nesta revisão;
+- AC-001 e AC-008 continuam sem execução terminal em hardware real; nenhuma
+  validação humana nem aprovação do Arquiteto foi recebida;
+- recomendação: não aceitar nem promover. `EKM-CHG-0008` permanece `Open` e a
+  especificação permanece `Proposed`, `In Progress` e `Not Ready` até correção
+  e nova revisão.
+
+### Encerramento da revisão e retorno à autoria (01/08/2026)
+
+- o Arquiteto decide preservar o escopo funcional completo e abrir uma nova
+  rodada de autoria para tornar a especificação mais validável antes de
+  corrigir a implementação;
+- a atuação do Engenheiro Revisor é encerrada sem aceite, promoção normativa ou
+  correção de código;
+- estado normativo transita de `Proposed` para `Draft`; implementação permanece
+  `In Progress`; prontidão permanece `Not Ready`; revisão de implementabilidade
+  retorna de `Implementable` para `Pending Review`;
+- a revisão de implementabilidade de 31/07/2026 permanece como registro
+  histórico da versão então avaliada, mas não antecipa a análise independente
+  do conteúdo que será revisado;
+- achados e evidências da revisão técnica permanecem como entrada factual para
+  o Autor da Especificação; `EKM-CHG-0008` permanece `Open`.
+
+### Reautoria v0.2 (Autor da Especificação, 01/08/2026)
+
+- Arquiteto ordena revisão integral sem redução do escopo funcional e preserva
+  COORD-REG-001 a 013 e AC-001 a AC-008;
+- baseline anterior, implementação corrente e contrato normativo passam a ser
+  distinguidos explicitamente;
+- adicionadas precedência normativa de estados e matriz de decisão cruzando
+  registry, janela, identidade, mensagem e efeitos observáveis;
+- falhas de inicialização NVS e operações destrutivas preexistentes passam a
+  integrar explicitamente COORD-REG-010/011 e AC-007;
+- contrato persistente distingue staging, durable, commit e reboot;
+- gates G1 a G5 separam política integrada, backend fiel, QEMU com NVS real,
+  build ESP32-C6 e hardware; cada AC declara evidência terminal mínima;
+- substitutos devem modelar namespaces, sentinela, falhas por etapa e descarte
+  de staging no reboot; fake parcial não pode sustentar AC completo;
+- manifesto AC–teste–gate–resultado, diagnóstico ambiental e varreduras de
+  conformidade tornam-se saída obrigatória da implementação;
+- nenhum código ou teste funcional alterado ou executado nesta autoria;
+  especificação v0.2 fica `Proposed`, implementação `In Progress`, prontidão
+  `Not Ready` e revisão de implementabilidade `Pending Review`;
+- `EKM-CHG-0008` permanece `Open`; próxima etapa é análise independente de
+  implementabilidade da versão 0.2.
+
+### Revisão de implementabilidade v0.2 (Engenheiro Analista, 01/08/2026)
+
+- confrontados COORD-REG-001 a 013, AC-001 a AC-008, a matriz 9.1, G1–G5 e o
+  contrato de substitutos da v0.2 com `ISSP-Commissioning.md`,
+  `ISSP-Architecture.md` e o baseline real de `coordinator_154`;
+- nenhum requisito obrigatório sem oráculo; a célula aberta de `DATA`
+  desconhecido com janela aberta em `Ready` já delimita dualidade de aceite e
+  proíbe persistência;
+- seção 2.4 autoriza apenas abstrações locais de política/NVS; precedentes
+  `device_registry*`, `test_apps/device_registry_test` e
+  `components/issp_app_154/test_apps` bastam sem nova camada arquitetural;
+- desvios do baseline (`nvs_flash_erase`, fail-closed incompleto de `DATA`,
+  gates parciais) são débitos de implementação `In Progress`, não decisões
+  ausentes;
+- resultado: `Implementable` (detalhe na seção 16.6 da especificação);
+- estados preservados: normativo `Proposed`, implementação `In Progress`,
+  prontidão `Not Ready`; `EKM-CHG-0008` permanece `Open`;
+- esta promoção não autoriza programar; correção e nova evidência dependem de
+  ordem própria do Arquiteto.
+
+### Encerramento corretivo da análise v0.2 (01/08/2026)
+
+- revisão adversarial posterior identifica inconsistência entre o caráter
+  opcional de checksum/marcador na seção 6 e sua corrupção obrigatória em
+  AC-007;
+- AC-002 e sua matriz exigem falha de commit apenas em G1+G2, permitindo que um
+  fake correto aprove enquanto o adaptador NVS de produção trata
+  `nvs_commit()` incorretamente;
+- a promoção `Implementable` registrada anteriormente para v0.2 fica sem
+  efeito; resultado corrente da análise: `Needs Clarification`;
+- especificação devolvida ao Autor para alinhar o contrato de integridade e
+  fechar o gate de falha de commit no adaptador de produção;
+- COORD-REG-001 a 013, AC-001 a AC-008 e o escopo funcional permanecem
+  inalterados; implementação `In Progress`, prontidão `Not Ready` e
+  `EKM-CHG-0008` `Open`;
+- nenhuma alteração ou execução de código, testes ou configuração ocorreu
+  nesta correção; a etapa de análise fica encerrada.
+
+### Revisão de implementabilidade independente v0.2 (Engenheiro Analista, 01/08/2026)
+
+- ordem: Engenheiro Analista sobre a especificação v0.2 corrente; branch
+  `gap0006-radio-diagnostics`, árvore limpa; conclusões 16.1/16.6/16.7 tratadas
+  apenas como histórico;
+- confrontados de novo o texto normativo completo, `ISSP-Commissioning.md`,
+  `ISSP-Architecture.md`, baseline de `coordinator_154/main/*device_registry*`
+  e `main.c`, `test_apps/device_registry_test` e o precedente QEMU de
+  `issp_app_154`;
+- requisitos 001–013, matriz 9.1, precedência 5.1 e seção 2.4 continuam
+  suficientes para o “o quê” e o alcance arquitetural local; desvios do
+  baseline (`nvs_flash_erase`, fail-closed incompleto, gates parciais) seguem
+  como débito de implementação `In Progress`, não como decisão nova;
+- bloqueio 1 confirmado: seção 6 torna checksum/marcador opcional, enquanto
+  seção 10 e AC-007 classe 5 exigem reprovar integridade inválida;
+- bloqueio 2 confirmado: AC-002/G1+G2 não obrigam atravessar
+  `device_registry_nvs.c` sob falha de `nvs_commit()` após staging;
+- resultado: `Needs Clarification` (detalhe na seção 16.8 da especificação);
+  estados preservados `Proposed` / `In Progress` / `Not Ready`;
+  `EKM-CHG-0008` permanece `Open`;
+- especificação permanece com o Autor; nenhuma autorização de implementação;
+  nenhum código, teste ou configuração de implementação alterado ou executado.
+
+### Reautoria v0.3 (Autor da Especificação, 01/08/2026)
+
+- Arquiteto ordena aplicar os dois ajustes devolvidos pela análise v0.2 sem
+  reduzir COORD-REG-001 a 013, AC-001 a AC-008 ou o escopo funcional;
+- schema passa a exigir valor determinístico de integridade cobrindo versão,
+  contagem e todos os bytes das entradas; marcador constante isolado não
+  satisfaz o contrato;
+- seção 10 e AC-007 passam a reprovar ausência, truncamento ou divergência do
+  valor obrigatório de integridade; mutações independentes de endereço e
+  `device_id` comprovam cobertura do conteúdo funcional;
+- G3 é explicitado como G3-N para NVS real nominal e G3-F para executar o
+  próprio `device_registry_nvs.c` sob falha controlada de primitiva;
+- AC-002 passa a exigir G1+G2+G3-F, com `nvs_set_blob()` bem-sucedido seguido
+  de erro de `nvs_commit()`, propagação do erro, nenhuma resposta/publicação,
+  durable anterior após reabertura/reboot e sentinela preservada;
+- nenhum código, teste ou configuração de implementação alterado ou executado
+  nesta autoria;
+- versão 0.3 fica `Proposed`, implementação existente `In Progress`, prontidão
+  `Not Ready`, revisão `Pending Review` e `EKM-CHG-0008` `Open`; próxima etapa
+  é nova análise independente de implementabilidade.
+
+### Revisão de implementabilidade v0.3 (Engenheiro Analista, 01/08/2026)
+
+- confrontados COORD-REG-001 a 013, AC-001 a AC-008, matrizes, fontes de
+  commissioning/arquitetura, baseline do coordenador e precedentes de hooks e
+  QEMU;
+- integridade obrigatória e corrupções independentes de endereço/`device_id`
+  impedem aprovação por marcador constante ou cobertura parcial;
+- AC-002/G3-F executa o próprio `device_registry_nvs.c` e observa staging,
+  falha de commit, propagação do erro, ausência de resposta/publicação,
+  durable anterior e sentinela; G3-N preserva a prova nominal com NVS real;
+- seção 2.4 delimita padrão atual, mudança local, alcance e justificativa do
+  seam, sem nova camada transversal ou conflito com as especificações vigentes;
+- resultado: `Implementable`; nenhuma decisão normativa, de produto ou
+  arquitetura ausente para o recorte completo;
+- implementação permanece `In Progress` e não aceita; normativo `Proposed`,
+  prontidão `Not Ready`, `EKM-CHG-0008` `Open`;
+- nenhuma implementação ou teste alterado ou executado; nova ordem do Arquiteto
+  é necessária antes de programar.
+
+### Atuação corretiva do Engenheiro Implementador v0.3 (01/08/2026)
+
+- removido o apagamento global automático da NVS em `init_nvs()`; falhas de
+  inicialização impedem o início do rádio e do tráfego de devices;
+- a precedência `RegistryUnavailable` foi aplicada a discovery, DATA, ACK e
+  comando do host; os caminhos indisponíveis não confirmam pareamento, não
+  emitem ACK/evento nem transmitem comando;
+- `device_registry_nvs.c` passou a ser exercitado por hook restrito ao build de
+  teste, incluindo `nvs_set_blob()` bem-sucedido seguido de falha controlada de
+  `nvs_commit()`;
+- Unity/QEMU ESP32-C3 terminou com `13 Tests 0 Failures 0 Ignored`; o teste
+  observa durable anterior, staging descartado e sentinela inalterada em
+  falhas de set/commit, inclusive através do adaptador de produção;
+- build limpo temporário ESP-IDF 6.0.1/ESP32-C6 terminou com código 0 e gerou
+  `central_154.bin`; a varredura de `coordinator_154/main` não encontrou
+  `nvs_flash_erase()` nem outra operação NVS de apagamento;
+- os resultados são parciais: faltam G1, G3-N e G5 e os critérios que exigem
+  rádio/host ou hardware não foram aprovados. A especificação permanece
+  `Proposed`/`In Progress`/`Not Ready` e esta transação permanece `Open`.
+
+### Revisão técnica da correção v0.3 (Engenheiro Revisor, 01/08/2026)
+
+- revisado integralmente o commit `a739be0` contra COORD-REG-001 a 013,
+  AC-001 a AC-008 e gates G1 a G5;
+- build limpo ESP-IDF 6.0.1/ESP32-C6 terminou com código 0 e gerou
+  `central_154.bin` de `0x45b00` bytes; build ESP32-C3 e QEMU terminaram com
+  código 0 e `13 Tests 0 Failures 0 Ignored`;
+- confirmado que não há mais operação de apagamento NVS em
+  `coordinator_154/main` e que os cenários escritos de core/adaptador passam;
+- achado alto: permanecem ausentes G1, G3-N e G5; AC-005 não possui cenário e
+  AC-003/004/006/007 mantêm cobertura parcial relevante;
+- achado médio: `start_host_command()` ainda converte indisponibilidade em
+  alvo desconhecido e não preserva a precedência normativa de
+  `RegistryUnavailable`, embora impeça a transmissão;
+- achado médio: quatro testes parciais usam os rótulos integrais `[AC-002]`,
+  `[AC-003]`, `[AC-004]` e `[AC-006]`, contrariando o manifesto de evidências;
+- G3-F atravessa o adaptador e comprova persistência sob falha, mas permanece
+  parcial porque não observa ausência de resposta/publicação em G1;
+- recomendação: não aceitar nem promover. Estados permanecem `Proposed`,
+  `In Progress` e `Not Ready`; `EKM-CHG-0008` permanece `Open`.
+
+### Revisão de implementabilidade v0.4 (Engenheiro Analista, 01/08/2026)
+
+- confrontados integralmente COORD-REG-001 a 013, AC-001 a AC-008, matriz de
+  decisão, gates G1 a G5, substitutos, manifesto de evidências, arquitetura,
+  commissioning, baseline técnico e política transversal de testes;
+- confirmado que a retirada de QEMU preserva todos os cenários e oráculos:
+  G1/G2 usam host-native fiel ou placa, G3-N exige NVS real em ESP32-C3/C6,
+  G3-F conserva o adaptador de produção, G4 continua build e G5 hardware real;
+- a abstração local autorizada na seção 2.4 é suficiente para extrair a
+  política integrada usada por `main.c`, sem componente transversal ou lógica
+  paralela de teste;
+- G1 ausente, G3-N/G5 pendentes, AC-005 sem caso integrado, distinção do
+  comando sob `RegistryUnavailable` e rótulos parciais são débitos objetivos
+  da implementação, não decisões ausentes;
+- resultado da versão 0.4: `Implementable`; normativo `Proposed`, implementação
+  funcional e migração de validação `In Progress`, prontidão `Not Ready` e
+  `EKM-CHG-0008` `Open`;
+- nenhuma implementação ou execução foi realizada; nova ordem do Arquiteto é
+  necessária para iniciar a atuação de Engenheiro Implementador.
+
+### Registro corretivo de implementação v0.4 (Engenheiro Implementador, 01/08/2026)
+
+- corrigidos dois achados Médios da revisão técnica anterior: `main.c`
+  (`start_host_command()`) passou a consultar `device_registry_state()`
+  explicitamente e a propagar um motivo distinto de `RegistryUnavailable`
+  até o host, em vez de reportar tudo como `"target not known"`
+  (COORD-REG-011/012); quatro `TEST_CASE` de
+  `device_registry_test/main/test_device_registry.c` que usavam rótulo
+  integral (`[AC-002]`, `[AC-003]`, `[AC-004]`, `[AC-006]`) apesar de
+  exercitarem somente `device_registry.c` isolado passaram a usar sufixo
+  `-partial-core`/`-partial-schema`, conforme o contrato de rótulos da
+  seção 13;
+- ampliada a cobertura estrutural de AC-007 em G2 (sem hardware): quatro
+  `TEST_CASE` novos cobrem contagem acima de oito, endereço nulo, endereço
+  broadcast e endereço duplicado em blob corretamente checksumado, todos
+  rotulados `[AC-007-partial-...]`;
+- build limpo de produção ESP32-C6 (`central_154.bin`, `0x45bc0` bytes) e do
+  app `device_registry_test` ESP32-C3 (`0x24110` bytes) com ESP-IDF 6.0.1,
+  código 0, zero warnings — evidência G4 apenas;
+- nenhum caso Unity foi executado nesta atuação: sem placa ESP32-C3/C6
+  conectada nesta sessão e com QEMU proibido por `TESTEXEC-001`, G4
+  (compilação) não substitui evidência comportamental; flash em placa também
+  depende de ordem explícita do Arquiteto;
+- débitos preservados sem alteração: G1 (política integrada de `main.c`)
+  continua inexistente, G3-N e G5 continuam não executados por ausência de
+  hardware, AC-005 continua sem qualquer caso, e as classes de AC-007
+  dependentes de erro de inicialização NVS ou de sentinela sob NVS real
+  continuam fora do escopo desta correção;
+- estado resultante: implementação `In Progress`, migração de validação
+  `In Progress`, prontidão `Not Ready`, `EKM-CHG-0008` permanece `Open`;
+  nenhum AC promovido a `Approved`, implementação não promovida a
+  `Implemented`. Recomenda-se atuação futura dedicada a extrair a política
+  de decisão de `main.c` para forma testável (G1) e a obter placa física
+  ESP32-C3/C6 para fechar G3-N/G5.
+
+### Revisão técnica da implementação v0.4 (Engenheiro Revisor, 01/08/2026)
+
+- revisado integralmente o resultado até `135aef1` contra COORD-REG-001 a 013,
+  AC-001 a AC-008, matriz de decisão, gates G1 a G5, substitutos e manifesto;
+- builds independentes ESP-IDF 6.0.1 terminaram com código 0: app ESP32-C3
+  `0x24110` bytes e produção ESP32-C6 `0x45bc0` bytes; nenhum caso foi
+  executado e G4 não foi convertido em evidência comportamental;
+- confirmado que os rótulos parciais foram corrigidos e que os quatro novos
+  casos estruturais de AC-007 compilam, sem alegação de AC integral;
+- achado alto: a fonte agora contém 17 casos, mas o runner físico ainda exige
+  resumo terminal de 13; portanto ele não consegue concluir com sucesso para
+  a suíte atual;
+- achado alto: G1 continua inexistente, G3-N/G5 não foram executados, AC-005
+  não possui caso, AC-007 permanece sem inicialização NVS/sentinela real e
+  G3-F continua parcial; nenhum AC está integralmente aprovado;
+- achado médio: `start_host_command()` ainda verifica comando pendente antes
+  do estado do registry; a combinação pending + unavailable não preserva a
+  precedência normativa de `RegistryUnavailable`, embora não transmita;
+- recomendação: não aceitar nem promover; corrigir runner e precedência,
+  completar G1 e depois executar os gates físicos autorizados. Estados
+  permanecem `Proposed`, `In Progress`, `Not Ready`, `Implementable` e
+  `EKM-CHG-0008` `Open`.
+
+### Implementação corretiva de política e runner v0.4 (Engenheiro Implementador, 01/08/2026)
+
+- criada política local compartilhada por produção e testes para discovery,
+  DATA, ACK e comando do host; `main.c` passou a consumir suas decisões;
+- corrigida a precedência pending + unavailable no comando: após validar o
+  endereço, indisponibilidade agora precede correlações e identidade;
+- runner físico atualizado de 13 para 24 casos, correspondendo à fonte atual;
+- adicionado runner host-native da política real; execução terminal aprovou
+  `7 Tests 0 Failures 0 Ignored` com código 0;
+- builds ESP-IDF 6.0.1 aprovados: app ESP32-C3 `0x24a30` e produção ESP32-C6
+  `0x45c60`; os 24 casos Unity foram compilados, mas não executados;
+- reconstruções terminais dos artefatos finais aprovaram após ativação
+  explícita do ambiente Python 3.14; tentativa C3 anterior foi bloqueada pelo
+  sandbox em consulta `psutil`, antes da compilação;
+- nenhuma porta física foi detectada, flash/monitor não foram autorizados e
+  QEMU não foi usado; G3-N, G5, sentinela real e oráculos integrados restantes
+  continuam pendentes;
+- implementação e migração permanecem `In Progress`, prontidão `Not Ready` e
+  `EKM-CHG-0008` `Open`; nenhum AC integralmente promovido.
+
+### Revisão técnica da correção de política e runner v0.4 (Engenheiro Revisor, 01/08/2026)
+
+- verificação independente confirmou as duas correções reivindicadas: build
+  de produção ESP32-C6 (código 0, `central_154.bin` `0x45c60` bytes, mesmo
+  tamanho declarado), build do app ESP32-C3 (código 0) e reexecução
+  host-native da política (`ctest`, `7 Tests 0 Failures 0 Ignored`);
+- confirmado por leitura de código que `device_registry_policy_host_command()`
+  agora avalia disponibilidade do registry antes de comando pendente, que o
+  runner físico exige `24 Tests` correspondendo à fonte atual, que nenhum
+  rótulo `[AC-00N]` íntegro resta e que não há chamada residual a
+  `nvs_flash_erase`/`nvs_erase_all`/`nvs_erase_key`;
+- achado alto: G1 no sentido normativo continua inexistente — os casos
+  "integrated" e o teste host-native chamam a política isolada, sem exercitar
+  o despacho real de `main.c` nem observar seus efeitos substituídos;
+- achado alto: G3-N e G5 continuam não executados; observação factual sem
+  efeito normativo — esta sessão detectou a porta serial
+  `/dev/cu.usbmodem101`, ausente em sessões anteriores; nenhum flash foi
+  tentado por ausência de ordem do Arquiteto;
+- achado médio: classes de AC-007 de inicialização NVS e sentinela sob NVS
+  real seguem ausentes de qualquer app de teste;
+- recomendação: não aceitar nem promover; completar G1 exercitando `main.c`,
+  decidir sobre autorizar flash/execução física dada a porta agora presente,
+  e adicionar as classes de inicialização/sentinela ao gate G3-N quando houver
+  placa. Estados preservados: `Proposed`, implementação e migração
+  `In Progress`, `Not Ready`, `Implementable` e `EKM-CHG-0008` `Open`.
+
+---
+
+## EKM-CHG-0009 — Retirada transversal de QEMU
+
+**Status:** `Closed`
+**Tipo:** Mudança de estratégia de validação
+**Aberta em:** 01/08/2026
+
+### Decisão do Arquiteto
+
+QEMU deixa de ser usado em todo o repositório como estratégia de validação ou
+execução de testes. A decisão não reduz requisitos funcionais, cenários,
+falhas, oráculos nem quantidade de casos.
+
+### Ativos afetados
+
+- `docs/specs/Repository-Test-Execution-Policy.md`;
+- `docs/specs/ISSP-Configurable-Bootstrap.md`;
+- `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md`;
+- `components/README.md`;
+- `pytest_hello_world.py` e os dois test apps ESP-IDF, como artefatos técnicos
+  candidatos à migração posterior;
+- `docs/rfc/KNOWLEDGE-MAP.md` e este histórico.
+
+### Resultado da autoria
+
+- criada política normativa transversal com requisitos TESTEXEC-001 a 007 e
+  critérios TESTEXEC-AC-001 a 007;
+- definido runner host-native somente quando preservada toda a semântica
+  material; demais testes executam em placa física suportada;
+- G3-N do registry passa a exigir adaptador de produção e NVS real em
+  ESP32-C3 ou ESP32-C6 físico; G3-F pode executar host-native fiel ou físico;
+- os dezenove cenários `SmartSysApp` permanecem obrigatórios e devem migrar
+  para host-native fiel ou ESP32-C3 físico;
+- resultados QEMU anteriores permanecem auditáveis como fatos históricos, mas
+  não podem aprovar versões ou revisões posteriores;
+- inventariados imports, markers, runners, comentários, test apps, diretórios
+  `build_qemu_c3`, imagens e ferramenta externa candidatos à remoção ou
+  migração; nada foi excluído nesta autoria;
+- nenhum código, teste, configuração ou runner foi alterado ou executado.
+
+### Estados e próxima etapa
+
+- política transversal: `Proposed`, `Not Started`, `Not Ready`,
+  `Pending Review`;
+- registry v0.4: funcional `In Progress`, migração `Not Started`, `Not Ready`,
+  `Pending Review`; `EKM-CHG-0008` permanece `Open`;
+- bootstrap v1.5: baseline funcional v1.4 historicamente `Validated`, migração
+  `Not Started`, versão `Proposed`, `Not Ready`, `Pending Review`;
+- próxima etapa: análise independente de implementabilidade antes de qualquer
+  migração ou exclusão técnica.
+
+### Critérios de encerramento
+
+- política promovida a `Implementable` por análise independente;
+- runners substitutos implementados e executados com evidência terminal;
+- artefatos QEMU versionados e locais removidos sem perda de cobertura;
+- especificações, documentação e mapa reconciliados;
+- revisão confirma ausência de QEMU como estratégia vigente.
+
+### Revisão de implementabilidade (Engenheiro Analista, 01/08/2026)
+
+- confrontados integralmente TESTEXEC-001 a 007, TESTEXEC-AC-001 a 007,
+  matriz de substituição, inventário técnico, Bootstrap v1.5 e Registry v0.4;
+- confirmado precedente host-native no runner raiz e execução física viável
+  para os dois test apps ESP-IDF; quando a fidelidade host-native não puder ser
+  demonstrada, o fallback físico é obrigatório;
+- a retirada de QEMU não elimina cenário, falha, oráculo ou quantidade de
+  casos e não transforma build em evidência comportamental;
+- migração limitada a runners, imports, markers, comentários, configurações,
+  documentação e artefatos inventariados, sem nova camada de produção;
+- resultado da política v0.1: `Implementable`; normativo `Proposed`,
+  implementação `Not Started`, prontidão `Not Ready`, transação `Open`;
+- Bootstrap v1.5 e Registry v0.4 permanecem `Pending Review` em seus ciclos
+  integrais; nenhuma implementação, remoção, teste ou flash foi executado.
+
+### Implementação da retirada técnica (Engenheiro Implementador, 01/08/2026)
+
+- removidos do runner raiz imports, tipos, marker e caso específicos do
+  emulador; a verificação de SHA-256 foi preservada no teste físico genérico;
+- adicionados runners pytest físicos ESP32-C3 para os 20 casos SmartSysApp e
+  13 casos do registry, com oráculos sobre resumo Unity e `OK` terminal;
+- comentários e configurações versionadas migrados; varredura técnica não
+  encontra dependência, marker ou runner proibido fora de política/histórico;
+- removidos os dois diretórios locais regeneráveis `build_qemu_c3`; fontes de
+  teste preservadas; ferramenta externa mantida por estar fora do escopo;
+- `py_compile` aprovou os três runners; builds ESP-IDF 6.0.1/ESP32-C3 geraram
+  `smart_sys_app_test.bin` (138272 bytes) e `device_registry_test.bin` (146320
+  bytes), ambos com código 0;
+- a coleta não iniciou porque o ambiente ESP-IDF não possui `pytest`; nenhum
+  teste comportamental foi executado;
+- flash e monitor não foram iniciados por ausência de ordem explícita;
+- TESTEXEC-AC-001/002/003/004/006/007 têm evidência estática aprovada;
+  TESTEXEC-AC-005 permanece `Not Executed`;
+- estado da política e das migrações dependentes: `In Progress`; prontidão
+  `Not Ready`; `EKM-CHG-0009` permanece `Open`.
+
+### Revisão técnica da retirada (Engenheiro Revisor, 01/08/2026)
+
+- revisado integralmente o commit `c2e6c41` contra TESTEXEC-001 a 007,
+  TESTEXEC-AC-001 a 007, matriz de substituição e inventário técnico;
+- confirmado por inspeção e varredura que imports, tipos, marker, runner e
+  comandos QEMU não permanecem como ativos técnicos vigentes; os dois
+  diretórios locais `build_qemu_c3` continuam ausentes;
+- confirmados 20 casos SmartSysApp e 13 casos registry, runners físicos
+  ESP32-C3, `py_compile` com código 0 e artefatos de build ESP32-C3 nos
+  tamanhos registrados pela implementação;
+- achado alto: TESTEXEC-AC-005 permanece `Not Executed`; nenhum dos 33 casos
+  foi coletado ou executado em hardware e não existe evidência terminal nova;
+- achado médio: TESTEXEC-AC-005, Bootstrap v1.5 e a abertura desta transação
+  dizem “dezenove” cenários SmartSysApp, mas a fonte e o runner preservam 20;
+- a ausência de `pytest`/plugins no ambiente continua sendo limitação de
+  infraestrutura e deve ser resolvida antes da coleta; flash e monitor exigem
+  ordem explícita do Arquiteto;
+- recomendação: não aceitar nem promover; retornar ao Autor para reconciliar a
+  quantidade e depois executar os 20 + 13 casos em ESP32-C3 físico sob atuação
+  autorizada. Estados permanecem `Proposed`, `In Progress`, `Not Ready` e
+  transação `Open`.
+
+### Decisão arquitetural de aceite e encerramento (01/08/2026)
+
+- o Arquiteto decidiu aceitar a implementação entregue e encerrar a política
+  e esta transação no estado observado;
+- a política passa a `Active` e a implementação fica `Accepted by Architect`,
+  sem promoção técnica para `Implemented` ou `Validated`;
+- TESTEXEC-AC-005 permanece `Not Executed`; nenhum dos 20 + 13 casos foi
+  executado em ESP32-C3 físico nesta mudança;
+- permanecem registradas e aceitas a ausência de `pytest`/plugins no ambiente
+  observado e a divergência documental de dezenove versus 20 casos
+  SmartSysApp, sem redução efetiva de cobertura;
+- a prontidão técnica permanece `Not Ready`; o encerramento representa aceite
+  humano explícito do risco residual, não criação de evidência inexistente;
+- Bootstrap e Registry conservam seus ciclos e estados próprios;
+- `EKM-CHG-0009` está `Closed` por decisão do Arquiteto.
+
+## EKM-CHG-0010 — Corrigir targets admitidos e invalidar evidência incompatível
+
+**Estado:** Closed
+**Responsável:** Marcelo Miranda
+**Data de abertura:** 10/08/2026
+
+### Motivação
+
+A política encerrada em `EKM-CHG-0009` substituiu QEMU por um target físico sem
+rádio IEEE 802.15.4. O Arquiteto determinou que essa escolha foi falha de
+processo: somente ESP32-H2 e ESP32-C6 são targets admitidos neste repositório,
+independentemente de o test app substituir hardware por fakes.
+
+### Ativos afetados
+
+- `docs/specs/Repository-Test-Execution-Policy.md` e especificações dependentes;
+- runners, configurações e comentários dos test apps `SmartSysApp` e registry;
+- restrições CMake dos componentes e aplicações;
+- `README.md`, `pytest_hello_world.py`, `components/README.md` e mapa de
+  conhecimento.
+
+### Resultado da autoria
+
+- proposta a versão 0.2 da política, com allowlist exclusiva `esp32h2` e
+  `esp32c6` e implementação classificada como `Regressed`;
+- `SmartSysApp` associado ao ESP32-H2 e registry/coordenador ao ESP32-C6;
+- preservados os 20 casos `SmartSysApp` e os 24 casos do registry, mas
+  invalidadas para aprovação as evidências produzidas em target não suportado;
+- proibido renomear resultados antigos como se tivessem sido executados em
+  target aceito;
+- nenhum código, runner ou configuração foi alterado ou executado nesta
+  autoria.
+- o Arquiteto confirmou o registro produzido pelo Consultor e autorizou seu
+  commit e envio à branch de correção; a confirmação não autoriza implementação,
+  execução em hardware, integração na `main` ou aprovação técnica.
+
+### Critérios de encerramento
+
+- análise independente promove a correção para `Implementable`;
+- configurações e runners usam somente ESP32-H2 ou ESP32-C6 e builds fora da
+  allowlist falham antes do binário;
+- 20 casos `SmartSysApp` e 24 casos do registry permanecem preservados, sem
+  coleta, flash ou execução nesta correção e sem alegação de resultado novo;
+- documentação operacional e especificações dependentes deixam de apresentar
+  target não suportado como opção ou evidência válida;
+- revisão confirma preservação dos casos, ausência de alegação operacional
+  indevida e consistência do mapa.
+
+### Resultado da análise de implementabilidade (Engenheiro Analista, 10/08/2026)
+
+- confrontados TESTEXEC-001 a 008, AC-001 a 010, matriz e inventário contra os
+  artefatos versionados, os test apps, as especificações dependentes e o mapa;
+- confirmadas por leitura direta a fonte de 20 casos `SmartSysApp` e 24 casos
+  do registry, e a materialização de `esp32c3` em `sdkconfig.defaults`,
+  runners e comentários dos dois test apps, além das listas genéricas de
+  `README.md` e `pytest_hello_world.py`;
+- identificado precedente de rejeição na configuração em
+  `cmake/require_idf_6_0_1.cmake`, suficiente para TESTEXEC-008/AC-010 sem
+  criar camada nova, e precedente host-native vigente em
+  `device_registry_policy_host_test`;
+- resultado `Not Implementable` na forma atual, com três bloqueadores
+  normativos: prescrições vigentes de ESP32-C3 em Bootstrap v1.5 e Registry
+  v0.4, cujo ajuste é ato de autoria (B1); colisão entre TESTEXEC-008 e o
+  alvo `linux` usado pela execução host-native (B2); inventário incompleto e
+  leitura ambígua da matriz perante `sdkconfig` versionados, incluindo
+  `coordinator_154/sdkconfig.old` com target `esp32` (B3);
+- registrados os experimentos ainda necessários: build de `smart_sys_app_test`
+  em ESP32-H2, build de `device_registry_test` em ESP32-C6, comprovação do
+  guard de allowlist antes do binário e provisão do runner `pytest`;
+- estados preservados: normativo `Proposed`, implementação `Regressed`,
+  prontidão `Not Ready` e esta transação `Open`. A análise não alterou código,
+  configuração ou runner e não autorizou build, flash ou execução.
+
+### Próxima etapa
+
+Confronto focado da v0.3 antes de qualquer ordem de implementação.
+
+### Resolução arquitetural e reautoria v0.3 (10/08/2026)
+
+- o Arquiteto autorizou corrigir os gates vigentes de Bootstrap v1.5 e Registry
+  v0.4: `SmartSysApp` executa em ESP32-H2 e registry/coordenador em ESP32-C6;
+- Linux e toolchains host-native foram explicitamente separados de
+  `IDF_TARGET`; permanecem válidos para lógica pura e não comprovam
+  compatibilidade física;
+- a allowlist H2/C6 e o vínculo por alvo tornam-se simultâneos; H2 e C6 não são
+  intercambiáveis entre client e coordenador;
+- somente o `sdkconfig` principal de cada projeto é autoritativo; cópias
+  `.old`, sufixadas por target e o `sdkconfig.ci` vazio entram no inventário de
+  remoção técnica posterior;
+- o diagnóstico da raiz permanece temporariamente vinculado ao ESP32-H2;
+- Bootstrap e Registry foram reconciliados nos gates normativos; referências
+  históricas incompatíveis permanecem auditáveis e inválidas como evidência;
+- experimentos E1 a E3 tornam-se validações obrigatórias da implementação por
+  envolverem apenas builds e prova do guard;
+- por decisão explícita do Arquiteto, as suítes de 20 e 24 casos não serão
+  executadas nesta correção nem como etapa automática da EKOM; E4 é retirado do
+  encerramento e somente especificação futura pode voltar a solicitá-lo;
+- nenhum código, runner, configuração, build, flash ou teste foi alterado ou
+  executado nesta reautoria;
+- estados: política v0.3 `Proposed`, implementação `Regressed`, prontidão
+  `Not Ready`, revisão `Needs Analysis` e `EKM-CHG-0010` `Open`.
+- o Arquiteto confirmou este registro e autorizou seu commit e envio à branch;
+  a confirmação não autoriza implementação nem execução das suítes, que somente
+  especificação futura poderá solicitar.
+
+### Confronto focado da v0.3 (Engenheiro Analista, 10/08/2026)
+
+- B1 verificado resolvido: as prescrições vigentes de Bootstrap v1.5 e Registry
+  v0.4 passaram a ESP32-H2 e ESP32-C6; as 19 ocorrências restantes de ESP32-C3
+  nessas especificações estão apenas em registros de ciclo, sem texto
+  imperativo, e são classificadas como evidência inválida;
+- B2 verificado resolvido quanto à intenção, com imprecisão factual residual: os
+  dois casos `host_test` de `pytest_hello_world.py` usam o alvo `linux` do
+  ESP-IDF, que define `CONFIG_IDF_TARGET`; recomenda-se nomear `linux` como
+  ambiente host admitido ou migrá-los para o precedente de host puro;
+- B3 verificado resolvido, com risco material registrado: as cópias
+  `sdkconfig.<target>` e `.old` não são equivalentes às autoritativas — 154
+  linhas `CONFIG_` divergem entre `client_154/sdkconfig` e
+  `client_154/sdkconfig.esp32h2` —, e nenhum script, build ou especificação as
+  referencia por nome;
+- registradas duas lacunas menores de verificabilidade: AC-004 ainda cobre
+  apenas artefatos QEMU, embora a seção 7.2 tenha passado a inventariar
+  `build_impl_c3` e outros locais; e AC-005 precisa explicitar que sua
+  verificação nesta correção é documental, sob TESTEXEC-009;
+- validações obrigatórias confirmadas: E1 build em ESP32-H2, E2 build em
+  ESP32-C6, E3 prova do guard de allowlist antes do binário e E5, novo, diff
+  prévio de cada `sdkconfig` antes da remoção das cópias;
+- resultado `Implementable`; estados preservados: normativo `Proposed`,
+  implementação `Regressed`, prontidão `Not Ready` e esta transação `Open`. A
+  análise não alterou código, configuração ou runner e não autorizou build,
+  flash ou execução.
+
+### Próxima etapa após o confronto
+
+Ordem separada de implementação, com E1, E2, E3 e E5 como evidência obrigatória
+de configuração e build.
+
+### Promoção arquitetural da v0.3 (10/08/2026)
+
+- o Arquiteto considerou suficiente o confronto e promoveu a política para
+  `Implementable / Ready`; a implementação permanece `Regressed` e a transação
+  `Open`;
+- `linux` foi corrigido factualmente como possível `IDF_TARGET` do ESP-IDF,
+  permitido somente como exceção host sem firmware físico;
+- AC-004 passou a cobrir todos os artefatos locais inventariados e AC-005 passou
+  a exigir verificação documental, sem execução;
+- E3 alcança raiz, client, coordenador, exemplo mínimo e os dois test apps;
+- E5 exige diff e classificação das configurações antes de remover qualquer
+  cópia; valor intencional é reconciliado no `sdkconfig` autoritativo e dúvida
+  material retorna à autoria;
+- E1, E2, E3 e E5 não autorizam execução comportamental; E4, pytest, flash e
+  monitor continuam fora do encerramento e dependem de especificação futura;
+- nenhum código, runner, configuração, build ou teste foi alterado ou executado
+  nesta promoção documental.
+- o Arquiteto confirmou o registro e autorizou seu commit e envio à branch; a
+  confirmação não autoriza implementação, execução das suítes, pytest, flash ou
+  monitor.
+
+### Implementação da v0.3 (Engenheiro Implementador, 10/08/2026)
+
+- guard de allowlist `cmake/require_supported_target.cmake` criado ao lado do
+  precedente `require_idf_6_0_1.cmake` e incluído entre `project.cmake` e
+  `project()` na raiz, `client_154`, `coordinator_154`,
+  `examples/issp_minimal_client` e nos dois test apps; ele verifica
+  simultaneamente a allowlist do repositório e o vínculo por alvo;
+- a questão aberta de E3 foi resolvida por leitura da fonte do ESP-IDF 6.0.1:
+  `__target_init()` roda no include de `project.cmake` e já deixa `IDF_TARGET`
+  resolvido antes de `project()`, então o guard lê a variável diretamente e
+  `idf_build_get_property` não foi necessário;
+- `components/issp_app_154/CMakeLists.txt` passou a reprovar target fora da
+  allowlist; como todo target físico admitido tem rádio, as fontes de hardware
+  deixaram de ser condicionais entre H2 e C6 e a exceção host `linux` compila
+  apenas o núcleo de lógica pura;
+- test apps migrados: `sdkconfig.defaults` e runners de `smart_sys_app_test`
+  para ESP32-H2 e de `device_registry_test` para ESP32-C6, com os oráculos
+  terminais de 20 e 24 casos preservados e nenhum `TEST_CASE` alterado;
+- listas genéricas de template removidas de `pytest_hello_world.py` e do
+  `README.md` da raiz; comentários com ESP32-C3 corrigidos no componente, nos
+  dois test apps e em `components/README.md`;
+- removidas as sete cópias `sdkconfig` sufixadas ou `.old` e o `sdkconfig.ci`
+  vazio, além dos artefatos locais `build_impl_c3/`, `__pycache__/` e do
+  `sdkconfig`/`sdkconfig.old` local de `smart_sys_app_test`; `.gitignore` passou
+  a impedir seu retorno;
+- validações obrigatórias com resultado terminal: **E1** build H2 do
+  `smart_sys_app_test`, código 0, 0 warnings, 261424 bytes, e `nm -u` no objeto
+  de teste sem qualquer símbolo de rádio ou transporte; **E2** build C6 do
+  `device_registry_test`, código 0, 0 warnings, 156064 bytes, partição NVS real
+  presente; **E3** 10 configurações com target indevido reprovadas com código 2
+  e zero binários; **E5** diff prévio de cada cópia, sem configuração
+  intencional exclusiva da cópia removida;
+- não regressão confirmada: `client_154`, `coordinator_154`,
+  `examples/issp_minimal_client` e o projeto raiz compilaram com código 0 e 0
+  warnings sob o guard;
+- desvio registrado: a primeira forma do guard de componente reprovava `linux` e
+  quebraria os dois casos `host_test`; a forma entregue os preserva. Limitação
+  pré-existente, confrontada com a árvore anterior e idêntica nela: a
+  configuração do projeto raiz para `linux` falha por `esp_adc`, fora deste
+  recorte;
+- nenhum caso foi coletado, gravado ou executado: sob TESTEXEC-009 os 44 casos
+  permanecem `Not Executed` por decisão. Flash, monitor, `pytest` e E4 continuam
+  fora do encerramento;
+- estados: implementação passa de `Regressed` a `In Progress`; normativo
+  `Proposed`, prontidão `Ready` e `EKM-CHG-0010` `Open` permanecem. A promoção a
+  `Implemented` e o encerramento são decisão do Arquiteto.
+
+### Correção arquitetural v0.4 após revisão do commit `ad5777b`
+
+- a revisão consultiva identificou que a exceção global para
+  `IDF_TARGET=linux` retornava antes da verificação de `ISSP_TARGET_BINDING` e,
+  portanto, não distinguia host-native de projeto físico;
+- o Arquiteto decidiu remover os dois casos Linux herdados do template, pois
+  não eram construtíveis e não protegiam comportamento do domínio;
+- os seis projetos ESP-IDF e `issp_app_154` passam a admitir exclusivamente
+  ESP32-H2 e ESP32-C6; host-native vigente permanece no precedente de toolchain
+  de host puro, sem `IDF_TARGET`;
+- um uso futuro do target Linux do ESP-IDF dependerá de especificação e projeto
+  dedicados, sem ampliar a allowlist física;
+- E1 foi descrita com precisão: `nm -u` comprova ausência de referência direta
+  no objeto e a independência material é confrontada também pelos `SetupHooks`;
+- E3 foi ampliada com seis configurações negativas isoladas por `-DSDKCONFIG`
+  temporário, uma por projeto ESP-IDF, com `IDF_TARGET=linux`: todas retornaram
+  código 2 no guard, exibiram H2/C6 no diagnóstico e geraram zero binários;
+- E1 e E2 foram recompiladas sem executar casos: H2 e C6 terminaram com código
+  0, zero warnings e os mesmos tamanhos anteriores, 261424 e 156064 bytes;
+- nenhuma suíte foi coletada ou executada; `pytest`, flash e monitor continuam
+  fora da atuação sob TESTEXEC-009;
+- estados preservados: política `Proposed`, implementação `In Progress`,
+  prontidão `Ready` e `EKM-CHG-0010` `Open`.
+
+### Encerramento por aprovação do Arquiteto (10/08/2026)
+
+- o Arquiteto informou ter realizado o teste da implementação e a aprovou;
+- a política v0.4 passa a `Active` e sua implementação a `Validated`;
+- os critérios de encerramento estão satisfeitos: allowlist e vínculos estão
+  impostos, documentação e mapa estão reconciliados, e os 20 mais 24 casos
+  permanecem preservados;
+- as 44 suítes continuam `Not Executed` por TESTEXEC-009; a aprovação não cria
+  evidência comportamental inexistente nem autoriza execução automática futura;
+- `EKM-CHG-0010` passa a `Closed` e a branch fica autorizada para integração na
+  `main`.
