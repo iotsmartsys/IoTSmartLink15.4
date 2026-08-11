@@ -90,8 +90,16 @@ polaridade e tempo ligado.
 - a v0.6 incorpora os pontos devolvidos: arbitragem e parada do monitor de
   factory reset, correção da nota para cerca de 1,47 s, waits notificáveis sem
   Kconfig e precisão de que `stop()` encerra tentativas do boot corrente;
-- a concorrência com escrita NVS e entre transições permanece risco técnico
-  dependente de experimento, não decisão normativa pendente.
+- a concorrência entre transições permanece risco técnico dependente de
+  experimento;
+- a análise da v0.6 confirmou a arbitragem em código privado da fachada e as
+  duas paradas notificáveis, e devolveu ao Arquiteto duas decisões: a exclusão
+  sobre `persistNetwork()`, que é privado e inalcançável pela fachada dentro do
+  recorte de DEEPSLEEP-DEC-006, e o gatilho do sleep antecipado, que pode ser
+  satisfeito por ausência de report em vez de entrega;
+- a mesma análise devolveu duas precisões de redação: limite e estouro da espera
+  de `stop()` antes de `end()`, e re-arme do hold do factory reset rejeitado por
+  arbitragem perdida.
 
 ### Relatórios e evidências materiais
 
@@ -103,12 +111,14 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v04-implementability-analysis.md`;
 - análise de implementabilidade da v0.5 em
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v05-implementability-analysis.md`;
+- análise de implementabilidade da v0.6 em
+  `docs/reports/client-deep-sleep/analysis/2026-08-11-v06-implementability-analysis.md`;
 - testes e hardware permanecem `Not Executed`.
 
 ### Resultado
 
 Contrato v0.6 registrado em rascunho. A arbitragem entre factory reset e deep
 sleep, a exclusão sobre NVS, a parada do monitor e os waits notificáveis foram
-explicitados. O documento está preparado para nova análise de
-implementabilidade; implementação ainda depende de análise, promoção e
-autorização explícitas do Arquiteto.
+explicitados. A análise da v0.6 recomenda prontidão condicionada a duas decisões
+normativas e duas precisões de redação; implementação ainda depende de promoção
+e autorização explícitas do Arquiteto.
