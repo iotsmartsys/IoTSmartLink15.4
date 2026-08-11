@@ -82,7 +82,12 @@ polaridade e tempo ligado.
 - a v0.5 incorpora os pontos devolvidos pela análise da v0.4: relação com
   `ISSP-Reusable-Components.md`, três operações mínimas de quiescência,
   atualização direta de `client_154/sdkconfig` e colisão restrita ao
-  `wake_led`.
+  `wake_led`;
+- a análise da v0.5 confirma a relação com `ISSP-Reusable-Components.md` e a
+  suficiência das três operações, e devolve ao Arquiteto o tratamento do monitor
+  de factory reset na sequência de quiescência, a correção da nota de 1,15 s
+  para cerca de 1,47 s e a precisão de que `stop()` encerra as tentativas do
+  boot corrente.
 
 ### Relatórios e evidências materiais
 
@@ -92,12 +97,14 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/analysis/2026-08-11-verification-analysis.md`;
 - análise de implementabilidade da v0.4 em
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v04-implementability-analysis.md`;
+- análise de implementabilidade da v0.5 em
+  `docs/reports/client-deep-sleep/analysis/2026-08-11-v05-implementability-analysis.md`;
 - testes e hardware permanecem `Not Executed`.
 
 ### Resultado
 
 Contrato v0.5 registrado em rascunho. A decisão arquitetural sobre componentes
 reutilizáveis foi incorporada com operações limitadas e terminais no boot; os
-ajustes de renome e colisão também foram fechados. O documento está preparado
-para nova análise de implementabilidade; implementação ainda depende de
-análise, promoção e autorização explícitas do Arquiteto.
+ajustes de renome e colisão também foram fechados. A análise da v0.5 recomenda
+prontidão com uma lacuna normativa pontual e duas correções de redação;
+implementação ainda depende de promoção e autorização explícitas do Arquiteto.
