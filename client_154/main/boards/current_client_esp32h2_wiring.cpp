@@ -17,17 +17,24 @@ namespace client154
 {
 namespace
 {
-constexpr BoardModel kCurrentClientEsp32h2Wiring = {
-    .relayPin = GPIO_NUM_13,
-    .relayActiveHigh = true,
-    .factoryResetButtonPin = GPIO_NUM_9,
-    .factoryResetButtonActiveLow = true,
+constexpr DigitalOutputResource kDigitalOutput = {
+    .pin = GPIO_NUM_13,
+    .activeHigh = true,
+};
+constexpr UserButtonResource kUserButton = {
+    .pin = GPIO_NUM_9,
+    .activeLow = true,
 };
 }
 
-const BoardModel &selectedBoard()
+const DigitalOutputResource &selectedDigitalOutput()
 {
-    return kCurrentClientEsp32h2Wiring;
+    return kDigitalOutput;
+}
+
+const UserButtonResource &selectedUserButton()
+{
+    return kUserButton;
 }
 
 } // namespace client154

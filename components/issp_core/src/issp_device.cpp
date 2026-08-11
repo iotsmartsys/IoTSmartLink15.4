@@ -77,6 +77,8 @@ namespace issp
 
     IsspResult IsspDevice::publishState(const IsspReport &report)
     {
+        bool shouldNotify = false;
+        portENTER_CRITICAL(&reportLock_);
         for (std::size_t index = 0; index < pendingReports_.size(); ++index)
         {
             PendingReportSlot &slot = pendingReports_[index];
@@ -91,6 +93,11 @@ namespace issp
                     reportNotificationDeferred_ = true;
                 }
                 else
+                {
+                    shouldNotify = true;
+                }
+                portEXIT_CRITICAL(&reportLock_);
+                if (shouldNotify)
                 {
                     notifyPendingReport();
                 }
@@ -116,22 +123,33 @@ namespace issp
                 }
                 else
                 {
+                    shouldNotify = true;
+                }
+                portEXIT_CRITICAL(&reportLock_);
+                if (shouldNotify)
+                {
                     notifyPendingReport();
                 }
                 return IsspResult::Ok;
             }
         }
 
+        portEXIT_CRITICAL(&reportLock_);
         return IsspResult::Failed;
     }
 
     IsspResult IsspDevice::publishReport(const IsspReport &report)
     {
+        portENTER_CRITICAL(&reportLock_);
+        const std::uint16_t sequence = reportSequence_;
+        ++reportSequence_;
+        portEXIT_CRITICAL(&reportLock_);
+
         std::uint8_t payload[IsspPayloadSize]{};
         std::size_t payloadLength = 0;
         const IsspResult encodeResult = encodeReport(
             config_.deviceId,
-            reportSequence_,
+            sequence,
             report,
             payload,
             sizeof(payload),
@@ -141,17 +159,20 @@ namespace issp
             return encodeResult;
         }
 
-        ++reportSequence_;
         return transport_.send(payload, payloadLength);
     }
 
     std::size_t IsspDevice::pendingReportCount() const
     {
-        return pendingReportCount_;
+        portENTER_CRITICAL(&reportLock_);
+        const std::size_t count = pendingReportCount_;
+        portEXIT_CRITICAL(&reportLock_);
+        return count;
     }
 
     bool IsspDevice::peekPendingReport(IsspReport &report) const
     {
+        portENTER_CRITICAL(&reportLock_);
         const PendingReportSlot *oldestSlot = nullptr;
         for (const PendingReportSlot &slot : pendingReports_)
         {
@@ -165,14 +186,17 @@ namespace issp
         if (oldestSlot == nullptr)
         {
             report = {};
+            portEXIT_CRITICAL(&reportLock_);
             return false;
         }
 
         report = oldestSlot->report;
+        portEXIT_CRITICAL(&reportLock_);
         return true;
     }
 
-    bool IsspDevice::acquirePendingReport(IsspReport &report, IsspPendingReportToken &token)
+    bool IsspDevice::acquirePendingReportLocked(IsspReport &report,
+                                                IsspPendingReportToken &token)
     {
         std::size_t oldestIndex = kMaxPendingReports;
         for (std::size_t index = 0; index < pendingReports_.size(); ++index)
@@ -202,10 +226,21 @@ namespace issp
         return true;
     }
 
+    bool IsspDevice::acquirePendingReport(IsspReport &report,
+                                          IsspPendingReportToken &token)
+    {
+        portENTER_CRITICAL(&reportLock_);
+        const bool acquired = acquirePendingReportLocked(report, token);
+        portEXIT_CRITICAL(&reportLock_);
+        return acquired;
+    }
+
     bool IsspDevice::completePendingReport(const IsspPendingReportToken &token, bool delivered)
     {
+        portENTER_CRITICAL(&reportLock_);
         if (token.slotIndex >= kMaxPendingReports)
         {
+            portEXIT_CRITICAL(&reportLock_);
             return false;
         }
 
@@ -213,6 +248,7 @@ namespace issp
         if (!slot.occupied || !slot.inFlight ||
             slot.inFlightGeneration != token.generation)
         {
+            portEXIT_CRITICAL(&reportLock_);
             return false;
         }
 
@@ -227,6 +263,7 @@ namespace issp
             --pendingReportCount_;
         }
 
+        portEXIT_CRITICAL(&reportLock_);
         return true;
     }
 
@@ -236,12 +273,16 @@ namespace issp
 
         IsspReport report{};
         IsspPendingReportToken token{};
-        if (!acquirePendingReport(report, token))
+        portENTER_CRITICAL(&reportLock_);
+        if (!acquirePendingReportLocked(report, token))
         {
+            portEXIT_CRITICAL(&reportLock_);
             return IsspResult::NotReady;
         }
-
         const std::uint16_t sequence = reportSequence_;
+        ++reportSequence_;
+        portEXIT_CRITICAL(&reportLock_);
+
         std::array<std::uint8_t, IsspPayloadSize> payload{};
         std::size_t payloadLength = 0;
         const IsspResult encodeResult = encodeReport(
@@ -257,7 +298,6 @@ namespace issp
             return encodeResult;
         }
 
-        ++reportSequence_;
         preparedReport.token = token;
         preparedReport.deviceId = config_.deviceId;
         preparedReport.sequence = sequence;
@@ -271,8 +311,10 @@ namespace issp
         PendingReportHandler handler,
         void *context)
     {
+        portENTER_CRITICAL(&reportLock_);
         pendingReportHandler_ = handler;
         pendingReportContext_ = context;
+        portEXIT_CRITICAL(&reportLock_);
     }
 
     void IsspDevice::advanceGeneration(std::uint32_t &generation)
@@ -286,17 +328,23 @@ namespace issp
 
     void IsspDevice::notifyPendingReport()
     {
-        if (pendingReportHandler_ != nullptr)
+        portENTER_CRITICAL(&reportLock_);
+        PendingReportHandler handler = pendingReportHandler_;
+        void *context = pendingReportContext_;
+        portEXIT_CRITICAL(&reportLock_);
+        if (handler != nullptr)
         {
-            pendingReportHandler_(pendingReportContext_);
+            handler(context);
         }
     }
 
     void IsspDevice::finishCommandProcessing()
     {
+        portENTER_CRITICAL(&reportLock_);
         const bool notifyDeferredReport = reportNotificationDeferred_;
         processingCommand_ = false;
         reportNotificationDeferred_ = false;
+        portEXIT_CRITICAL(&reportLock_);
         if (notifyDeferredReport)
         {
             notifyPendingReport();
@@ -385,8 +433,10 @@ namespace issp
         IsspCommandResult result = lastCommandResult_;
         if (!duplicate)
         {
+            portENTER_CRITICAL(&reportLock_);
             processingCommand_ = true;
             reportNotificationDeferred_ = false;
+            portEXIT_CRITICAL(&reportLock_);
             result = onCommand(decodedCommand.command);
             hasLastCommand_ = true;
             lastCommandSequence_ = decodedCommand.sequence;

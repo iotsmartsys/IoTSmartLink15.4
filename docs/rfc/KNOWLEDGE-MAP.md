@@ -2,7 +2,7 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.20
+**Versão:** 1.21
 **Responsável:** Marcelo Miranda
 **Última atualização:** 10/08/2026
 **Escopo:** Todo o repositório
@@ -30,7 +30,7 @@ para navegar pelas fronteiras do sistema.
 | Histórico de mudanças EKM | `docs/rfc/EKM-CHANGELOG.md` | Operacional | Active |
 | Manual da IA Executora | `docs/rfc/MAN-0001.md` | Normativo complementar | Active |
 | Instruções do Copilot | `.github/copilot-instructions.md` | Adaptador | Active |
-| Targets suportados e execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | v0.4 `Active / Validated`; os seis projetos ESP-IDF aceitam somente H2/C6 com vínculo client→H2 e coordenador→C6; casos `IDF_TARGET=linux` inoperantes removidos, host-native restrito a toolchain de host puro; E1/E2 revalidadas, E3 ampliada e E5 aprovada; implementação testada e aprovada pelo Arquiteto; suítes deliberadamente `Not Executed` sob TESTEXEC-009; `EKM-CHG-0010` Closed |
+| Targets suportados e execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | v0.4 `Active / Validated`; os projetos ESP-IDF versionados aceitam somente H2/C6 com vínculo client→H2 e coordenador→C6; os dois test apps acrescentados pela Fase 2 vinculam-se a H2 e usam o mesmo guard; casos `IDF_TARGET=linux` inoperantes removidos, host-native restrito a toolchain de host puro; implementação testada e aprovada pelo Arquiteto; suítes deliberadamente `Not Executed` sob TESTEXEC-009; `EKM-CHG-0010` Closed |
 
 Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferença,
 `EKM-GUIDELINES.md` é a fonte canônica das regras EKM.
@@ -47,7 +47,7 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
 | API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed v1.5 | Funcional v1.4 `Validated`; migração v1.5 `Regressed / Not Ready` | `components/issp_app_154`; composição em `client_154/main/`, hoje com `firmwares/single_smart_plug.cpp`; `examples/issp_minimal_client` | Target corrigido para ESP32-H2; 20 casos preservados e deliberadamente não executados nesta correção |
-| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; direção integral `Implementable`; Fase 2 em `Implementable / Ready`, com B1 a B4 e C1 a C3 resolvidos e confrontados | In Progress; Fase 1 concluída e Fase 2 pronta para implementação | Fase 1 em `client_154/main/`; Fase 2 define `Door sensor`, segundo board H2, entrada digital, registro unificado e serialização interna dos pending reports | Evidências da Fase 1 preservadas; análise das decisões 27 a 31 registrada, sem bloqueador e com duas observações de API para o Implementador; Fase 2 ainda sem implementação ou evidência |
+| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; direção integral `Implementable`; Fase 2 em `Implementable / Ready`, com B1 a B4 e C1 a C3 resolvidos e confrontados | In Progress; atuação do Implementador encerrada, Fases 1 e 2 implementadas e entregues para revisão; validação comportamental e em hardware da Fase 2 pendente | `client_154/main/` compõe Single smart plug ou Door sensor com um dos dois boards H2; `issp_app_154`, `issp_behaviors` e `issp_core` fornecem registro unificado, entrada digital e serialização dos pending reports | Builds H2, casos negativos de compatibilidade, seleção exclusiva de fontes e fronteiras compartilhadas verificados; 36 casos automatizados compilam, mas não foram executados por TESTEXEC-009; hardware da Fase 2 pendente |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | Client em `components/issp_core/src/issp_protocol.cpp`; coordenador em `coordinator_154/main/iot154_packet.h` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE funcionais; confiabilidade residual de ACK em `EKM-GAP-0006` |
@@ -70,11 +70,11 @@ IoTSmartLink15.4 repository
 │   │       ├── Product firmware (uma escolha) — main/firmwares/
 │   │       │   ├── Single smart plug (implementado; baseline)
 │   │       │   ├── [proposto] Dual smart plug + light
-│   │       │   ├── [especificado] Door sensor (Fase 2)
+│   │       │   ├── Door sensor (implementado; validação pendente)
 │   │       │   └── [proposto] Motion sensor
 │   │       ├── Board model (uma escolha) — main/boards/
 │   │       │   ├── Current client ESP32-H2 wiring (implementado)
-│   │       │   └── [especificado] Historical door sensor ESP32-H2 wiring
+│   │       │   └── Door Sensor Battery H2 (implementado)
 │   │       └── IDF_TARGET (definido pelo fluxo ESP-IDF)
 │   └── coordinator_154 (coordenador IEEE 802.15.4; ESP32-C6 validado)
 │       ├── janela de ingresso e resposta a discovery
@@ -89,11 +89,11 @@ IoTSmartLink15.4 repository
 │   └── lacuna: especificação wire dedicada ainda inexistente
 ├── Shared client platform
 │   ├── issp_app_154 / SmartSysApp
-│   │   └── [especificado] capability de porta e registro unificado
+│   │   └── capability de porta e registro unificado (implementados)
 │   ├── issp_behaviors
-│   │   └── [especificado] DigitalInputBehavior (Fase 2)
+│   │   └── DigitalInputBehavior (implementado; validação pendente)
 │   ├── issp_core
-│   │   └── [especificado] proteção concorrente dos pending reports
+│   │   └── proteção concorrente dos pending reports (implementada; validação pendente)
 │   └── issp_transport_154
 ├── Integration evidence
 │   └── examples/issp_minimal_client

@@ -28,11 +28,12 @@ namespace client154
 
 iotsmartsys::SetupResult startSelectedProductFirmware()
 {
-    const BoardModel &board = selectedBoard();
+    const DigitalOutputResource &output = selectedDigitalOutput();
+    const UserButtonResource &button = selectedUserButton();
 
     smartSysApp.addSwitchPlugCapability({
-        .pin = board.relayPin,
-        .activeHigh = board.relayActiveHigh,
+        .pin = output.pin,
+        .activeHigh = output.activeHigh,
         .initialState = kRelayInitialState,
         .reportOnStart = kRelayReportOnStart,
         .endpointId = kRelayEndpointId,
@@ -40,8 +41,8 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
     });
 
     smartSysApp.configureFactoryResetButton({
-        .pin = board.factoryResetButtonPin,
-        .activeLow = board.factoryResetButtonActiveLow,
+        .pin = button.pin,
+        .activeLow = button.activeLow,
         .holdTimeMs = kFactoryResetHoldTimeMs,
         .pollIntervalMs = kFactoryResetPollIntervalMs,
     });

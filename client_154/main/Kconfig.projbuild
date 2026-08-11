@@ -13,6 +13,12 @@ config IOTSMARTLINK154_PRODUCT_SINGLE_SMART_PLUG
     help
         One switchable power output on endpoint 1, with factory reset.
 
+config IOTSMARTLINK154_PRODUCT_DOOR_SENSOR
+    bool "Door sensor"
+    help
+        One dry-contact input on endpoint 1, with factory reset. The product
+        publishes event type 1 for open and closed transitions.
+
 endchoice
 
 choice IOTSMARTLINK154_BOARD_MODEL
@@ -30,6 +36,13 @@ config IOTSMARTLINK154_BOARD_CURRENT_CLIENT_ESP32H2_WIRING
         Descriptive identifier for the wiring currently used by the client_154
         prototype. Electrical details belong exclusively to the selected board
         source. Compatible with ESP32-H2 only.
+
+config IOTSMARTLINK154_BOARD_DOOR_SENSOR_BATTERY_H2
+    bool "Door Sensor Battery H2"
+    depends on IDF_TARGET_ESP32H2
+    help
+        Battery-powered ESP32-H2 door sensor board. Electrical details belong
+        exclusively to the selected board source.
 
 endchoice
 

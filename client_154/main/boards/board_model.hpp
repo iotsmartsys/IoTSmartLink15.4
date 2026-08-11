@@ -1,23 +1,44 @@
 #pragma once
 
+#include <cstdint>
+
 #include "driver/gpio.h"
 
 namespace client154
 {
 
-// Electrical description of a concrete board. It carries no product rule,
-// identity, endpoint, timing or protocol detail: a product firmware reads
-// these values instead of writing GPIO numbers of its own.
-struct BoardModel
+struct DigitalOutputResource
 {
-    gpio_num_t relayPin;
-    bool relayActiveHigh;
-    gpio_num_t factoryResetButtonPin;
-    bool factoryResetButtonActiveLow;
+    gpio_num_t pin;
+    bool activeHigh;
 };
 
-// Exactly one file under boards/ defines this function: the one chosen in
-// "IoTSmartLink15.4 > Board model" and selected by main/CMakeLists.txt.
-const BoardModel &selectedBoard();
+struct UserButtonResource
+{
+    gpio_num_t pin;
+    bool activeLow;
+};
+
+enum class InputPull : std::uint8_t
+{
+    Floating,
+    PullUp,
+    PullDown,
+};
+
+struct DryContactInputResource
+{
+    gpio_num_t pin;
+    bool activeHigh;
+    InputPull pull;
+};
+
+// A selected board defines only the accessors for resources it offers. CMake
+// rejects an incompatible product/board pair first; these declarations also
+// make stale resource metadata fail at link time instead of producing a board
+// with invented pins.
+const DigitalOutputResource &selectedDigitalOutput();
+const UserButtonResource &selectedUserButton();
+const DryContactInputResource &selectedDryContactInput();
 
 } // namespace client154

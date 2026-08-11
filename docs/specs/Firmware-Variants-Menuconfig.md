@@ -110,7 +110,7 @@ A Fase 2 contém:
 
 - product firmware `Door sensor`, com device ID `0x15400001`, endpoint 1,
   event type 1, `1 = open`, `0 = closed` e report inicial habilitado;
-- board model descritivo `Historical door sensor ESP32-H2 wiring`, compatível
+- board model `Door Sensor Battery H2`, compatível
   somente com `IDF_TARGET=esp32h2`;
 - entrada de contato seco no GPIO 14, pull-up interno e estado lógico ativo em
   nível alto, e botão de usuário no GPIO 9, ativo em nível baixo;
@@ -262,8 +262,8 @@ incompatíveis com o target já configurado pelo ESP-IDF.
 15. Na Fase 2, produto e board são compatíveis por classes e quantidades de
     recursos físicos. `Single smart plug` exige uma saída digital e um botão de
     usuário; `Door sensor` exige uma entrada para contato seco e um botão de
-    usuário. O board atual oferece a saída e o botão; o board histórico do
-    sensor oferece a entrada e o botão.
+    usuário. O board atual oferece a saída e o botão; o Door Sensor Battery H2
+    oferece a entrada e o botão.
 16. Cada ramo de seleção no CMake declara uma lista de recursos exigidos pelo
     produto ou oferecidos pelo board. O CMake calcula os recursos ausentes e
     rejeita a composição quando a diferença não é vazia. O diagnóstico deve
@@ -351,7 +351,7 @@ IoTSmartLink15.4
 │   └── Door sensor (Fase 2)
 └── Board model
     ├── Current client ESP32-H2 wiring (default)
-    └── Historical door sensor ESP32-H2 wiring (Fase 2)
+    └── Door Sensor Battery H2 (Fase 2)
 ```
 
 Dual smart plug + light e motion sensor permanecem fora do `choice` até
@@ -374,7 +374,7 @@ client_154/
     └── boards/
         ├── board_model.hpp
         ├── current_client_esp32h2_wiring.cpp
-        └── historical_door_sensor_esp32h2_wiring.cpp
+        └── door_sensor_battery_h2.cpp
 
 components/
 ├── issp_app_154/
@@ -393,11 +393,11 @@ Somente arquivos de variantes e boards realmente suportados devem existir. A
 
 | Ponto atual | Mudança esperada na Fase 2 | Preservação obrigatória |
 |---|---|---|
-| `client_154/main/Kconfig.projbuild` | adicionar as escolhas de sensor e board histórico | escolha exclusiva e ausência de lógica funcional |
+| `client_154/main/Kconfig.projbuild` | adicionar as escolhas de sensor e Door Sensor Battery H2 | escolha exclusiva e ausência de lógica funcional |
 | `client_154/main/CMakeLists.txt` | selecionar as novas fontes e validar requisitos contra recursos oferecidos | uma variante, um board e diagnóstico antes do binário |
 | `client_154/main/firmwares/door_sensor.cpp` | compor identidade, endpoint, evento e debounce do sensor | nenhuma pinagem literal ou lógica de transporte |
 | `client_154/main/boards/board_model.hpp` | substituir campos orientados ao relé por recursos físicos | preservar a composição da tomada e evitar framework genérico |
-| `client_154/main/boards/historical_door_sensor_esp32h2_wiring.cpp` | declarar entrada de contato seco e botão de usuário | nenhuma regra de produto ou protocolo |
+| `client_154/main/boards/door_sensor_battery_h2.cpp` | declarar entrada de contato seco e botão de usuário | nenhuma regra de produto ou protocolo |
 | `components/issp_behaviors` | adicionar `DigitalInputBehavior`, dependência explícita de `esp_timer` e ciclo de vida do timer | reutilizável, sem produto, board, `CONFIG_*`, tarefa ou pilha própria |
 | `components/issp_app_154` | expor `addDoorSensorCapability()` e unificar o registro interno | não expor tipos privados do ISSP nem mudar as operações vigentes |
 | `components/issp_core` | serializar o bookkeeping dos pending reports e assumir dependência interna de FreeRTOS | nenhuma regra de produto; codificação, callbacks, notificações e transporte fora da seção crítica |
@@ -419,7 +419,7 @@ Somente arquivos de variantes e boards realmente suportados devem existir. A
   compilado, **então** somente as fontes desse produto e desse board entram no
   binário.
 - **Dadas** as combinações `Single smart plug` + board atual e `Door sensor` +
-  board histórico, **quando** cada build H2 é configurado, **então** ambas são
+  Door Sensor Battery H2, **quando** cada build H2 é configurado, **então** ambas são
   aceitas e as escolhas default continuam sendo a tomada e o board atual.
 - **Dado** o board atual da Fase 1 e `IDF_TARGET=esp32c6`, **quando** a
   configuração ou o build é executado, **então** a combinação é impedida com
@@ -458,7 +458,7 @@ build isolado não substituem a observação do firmware em execução.
 
 ### Sensor de porta
 
-- **Dada** a composição `Door sensor` com o board histórico, **quando** o
+- **Dada** a composição `Door sensor` com o Door Sensor Battery H2, **quando** o
   firmware inicia com a entrada estabilizada em nível alto, **então** publica
   endpoint 1, evento 1 e valor 1 (`open`).
 - **Dada** a mesma composição com a entrada estabilizada em nível baixo,
@@ -517,7 +517,7 @@ do documento.
    deve permanecer concentrado nos pontos reais listados acima e não alterar a
    plataforma compartilhada.
 3. **Teste de segunda composição:** implementar o sensor de porta usando o
-   product firmware, o board histórico, a capability pública e o behavior
+   product firmware, o Door Sensor Battery H2, a capability pública e o behavior
    reutilizável definidos nesta Fase 2. Se isso exigir condicionais internas
    nos componentes, alteração do protocolo ou duplicação de runtime, a
    arquitetura ou o mapa deve voltar ao Arquiteto.
@@ -1026,3 +1026,99 @@ resultado material são os 20 casos executados individualmente com `PASS`.
   `/source/IoT` não encontrou ferramenta de host que filtre pela antiga tag
   `iot154_switch`; as únicas ocorrências remanescentes estão nesta especificação
   e em um worktree histórico, sem participação no build atual.
+
+## Resultado da implementação da Fase 2 (Engenheiro Implementador)
+
+**Estado da Fase 2:** atuação do Engenheiro Implementador encerrada e entregue
+para revisão. A implementação estrutural está concluída; validação comportamental
+automatizada e validação em hardware permanecem pendentes. O estado integral
+continua `In Progress` e esta seção não declara aprovação.
+
+### Composição implementada
+
+- `menuconfig` oferece duas escolhas exclusivas de produto — Single smart plug e
+  Door sensor — e duas escolhas exclusivas de board ESP32-H2;
+- os defaults do `Kconfig` continuam sendo Single smart plug e o board atual. O
+  `client_154/sdkconfig` vigente registra a seleção feita pelo Arquiteto para a
+  próxima validação: Door sensor + Door Sensor Battery H2;
+- `main/CMakeLists.txt` compila somente o product firmware e o board
+  selecionados. Produto declara recursos requeridos, board declara recursos
+  oferecidos e uma composição incompatível falha na configuração nomeando
+  produto, board e recurso ausente;
+- `BoardModel` passou a expor recursos físicos (`DigitalOutputResource`,
+  `DryContactInputResource` e `UserButtonResource`), sem nomes ligados a um
+  produto. O board atual preserva GPIO 13 ativo alto e botão GPIO 9 ativo baixo;
+  o Door Sensor Battery H2 oferece contato seco no GPIO 14 ativo alto com
+  pull-up e o mesmo botão;
+- `firmwares/single_smart_plug.cpp` foi migrado mecanicamente para os recursos
+  físicos, sem alterar seus valores de baseline;
+- `firmwares/door_sensor.cpp` compõe device `0x15400001`, endpoint 1, evento 1,
+  report inicial, contato seco e factory reset de 10 segundos.
+
+### Plataforma compartilhada implementada
+
+- `DigitalInputBehavior` encapsula entrada digital, polaridade, pull, report
+  inicial e transições. O debounce usa amostras a cada 10 ms, janelas não
+  sobrepostas de cinco amostras, maioria de três e confirmação por duas janelas
+  consecutivas;
+- a estabilização inicial é síncrona e o monitoramento periódico usa
+  `esp_timer` no dispatcher de tarefa, sem criar uma pilha ou tarefa por
+  behavior;
+- a junção de teste permite fornecer cada nível e avançar uma amostra
+  explicitamente; a cadência real do timer possui um caso separado;
+- `SmartSysApp` recebeu `DoorSensorConfig`, `DoorSensorCapability` e um registro
+  unificado que preserva a ordem de inclusão e rejeita endpoint/evento duplicado
+  também entre tipos de capability;
+- `IsspDevice` serializa publicação, reserva, consulta e conclusão de pending
+  reports, além do estado de processamento de comando. Codificação, transporte
+  e callbacks permanecem fora da seção crítica;
+- os componentes compartilhados continuam sem símbolos
+  `CONFIG_IOTSMARTLINK154_PRODUCT_*` ou `CONFIG_IOTSMARTLINK154_BOARD_*`.
+- os dois novos test apps ESP-IDF vinculam-se explicitamente ao ESP32-H2 e
+  incluem o guard comum de targets antes de gerar qualquer binário.
+
+### Evidências obtidas sem executar suítes
+
+As verificações abaixo respeitam `Repository-Test-Execution-Policy.md`: nenhum
+QEMU, `pytest`, flash, monitor ou suíte Unity foi executado.
+
+| Verificação | Resultado |
+|---|---|
+| build Single smart plug + board atual, ESP32-H2 | sucesso, 0 warnings, 252896 bytes |
+| build Door sensor + Door Sensor Battery H2, ESP32-H2 | sucesso, 0 warnings, 253120 bytes |
+| build `examples/issp_minimal_client`, ESP32-H2 | sucesso, 0 warnings |
+| build `coordinator_154`, ESP32-C6 | sucesso, 0 warnings |
+| Door sensor + board atual | configuração rejeitada por ausência de `dry_contact_input`; nenhum firmware gerado |
+| Single smart plug + Door Sensor Battery H2 | configuração rejeitada por ausência de `digital_output`; nenhum firmware gerado |
+| qualquer um dos dois boards com target ESP32-C6 | configuração rejeitada pelo vínculo client→H2; nenhum firmware gerado |
+| seleção de fontes | `build.ninja` contém somente o product firmware e o board selecionados em cada composição |
+| fronteira dos componentes | nenhuma seleção de produto/board em `components/issp_*`; protocolo, transporte e coordenador sem alteração |
+| apps de teste em ESP32-H2 | SmartSysApp, DigitalInputBehavior e concorrência de IsspDevice compilam com 0 warnings |
+| integridade textual | `git diff --check` sem erro |
+
+Foram preparados 36 casos automatizados: 24 de SmartSysApp — os 20 casos de
+baseline preservados mais quatro casos de porta/registro —, oito de
+DigitalInputBehavior e quatro de concorrência de IsspDevice. Todos compilam para
+ESP32-H2 e permanecem `Not Executed` por TESTEXEC-009.
+
+As referências a QEMU ESP32-C3 na evidência histórica da Fase 1 não definem mais
+uma estratégia vigente. A política `Repository-Test-Execution-Policy.md`
+classifica ESP32-C3 como alvo inválido para este repositório; somente ESP32-H2 e
+ESP32-C6 são admitidos, e execução de suítes não deve ocorrer sem autorização em
+uma especificação futura.
+
+### Limitações e validações pendentes
+
+- `esp_timer_stop()` e `esp_timer_delete()` não constituem barreira contra uma
+  callback que já esteja em voo. Em produção, os behaviors têm vida igual à do
+  runtime; o teste de destruição pode comprovar ausência de callbacks posteriores,
+  mas não eliminar uma janela já iniciada;
+- os testes preparados para concorrência exercitam a máquina de estados e as
+  interações entre tarefas, mas a suficiência da exclusão mútua depende de sua
+  execução e revisão;
+- não foram executados os casos automatizados nem os cenários em hardware de
+  estado inicial, transições, rejeição de oscilações, latência e preservação da
+  tomada;
+- o teste 3 do experimento EKOM está estruturalmente materializado por duas
+  variantes reais, mas seu encerramento e a avaliação de manutenibilidade
+  permanecem decisões do Arquiteto após as evidências pendentes.

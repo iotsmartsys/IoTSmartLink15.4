@@ -34,6 +34,23 @@ app::SwitchConfig makeSwitchConfig(std::uint8_t endpointId, std::uint8_t eventTy
     };
 }
 
+app::DoorSensorConfig makeDoorSensorConfig(std::uint8_t endpointId,
+                                           std::uint8_t eventType)
+{
+    return {
+        .pin = GPIO_NUM_14,
+        .activeHigh = true,
+        .pull = app::DigitalInputPull::PullUp,
+        .reportOnStart = true,
+        .endpointId = endpointId,
+        .eventType = eventType,
+        .samplePeriodMs = 10,
+        .samplesPerWindow = 5,
+        .majorityThreshold = 3,
+        .consecutiveWindows = 2,
+    };
+}
+
 enum class Step
 {
     InitializePlatform,
@@ -198,6 +215,55 @@ TEST_CASE("addSwitchPlugCapability rejects excess capacity", "[smart_sys_app]")
     core::SwitchPlugCapability *overflow = app.addSwitchPlugCapability(
         makeSwitchConfig(static_cast<std::uint8_t>(issp::kMaxDeviceBehaviors), 1));
     TEST_ASSERT_NULL(overflow);
+}
+
+TEST_CASE("addDoorSensorCapability accepts a valid config", "[smart_sys_app][door]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    core::DoorSensorCapability *capability =
+        app.addDoorSensorCapability(makeDoorSensorConfig(1, 1));
+    TEST_ASSERT_NOT_NULL(capability);
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.lastConfigurationResult()));
+}
+
+TEST_CASE("addDoorSensorCapability validates pin and debounce", "[smart_sys_app][door]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DoorSensorConfig config = makeDoorSensorConfig(1, 1);
+    config.pin = GPIO_NUM_NC;
+    config.majorityThreshold = 6;
+    TEST_ASSERT_NULL(app.addDoorSensorCapability(config));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.lastConfigurationResult()));
+}
+
+TEST_CASE("endpoint and event pairs are unique across capability types",
+          "[smart_sys_app][door]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1, 1)));
+    TEST_ASSERT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
+}
+
+TEST_CASE("setup registers switch and door capabilities in addition order",
+          "[smart_sys_app][door][setup]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1, 2)));
+    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
+
+    const SetupResult result = app.setup();
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running), static_cast<int>(result.state));
+    TEST_ASSERT_EQUAL_size_t(2, scenario.registerCapabilityCalls);
+    TEST_ASSERT_EQUAL(static_cast<int>(Step::RegisterCapability),
+                      static_cast<int>(scenario.callOrder[2]));
+    TEST_ASSERT_EQUAL(static_cast<int>(Step::RegisterCapability),
+                      static_cast<int>(scenario.callOrder[3]));
 }
 
 TEST_CASE("capability pointers remain stable as more capabilities are added", "[smart_sys_app]")
