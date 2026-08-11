@@ -1,12 +1,11 @@
 # Variantes de firmware selecionáveis pelo `menuconfig`
 
-**Estado normativo:** Proposed
-**Estado da implementação:** In Progress
-**Revisão de implementabilidade:** Implementable para a direção integral e para
-o recorte corretivo pós-revisão por decisão do Arquiteto; B1 a B4 e C1 a C3
-foram resolvidos, e A1 a A9 receberam resolução nas decisões 32 a 39
-**Prontidão:** Ready — implementação corretiva focada autorizada; conclusão da
-Fase 2 permanece pendente de revisão e evidência final
+**Estado normativo:** Active
+**Estado da implementação:** Validated
+**Revisão de implementabilidade:** Implemented and reviewed — direção integral
+e correção pós-revisão aprovadas pelo Arquiteto; B1 a B4, C1 a C3 e A1 a A9
+foram encerrados pelas decisões vigentes
+**Prontidão:** Ready — ciclo concluído; limitações aceitas permanecem explícitas
 
 ## Missão
 
@@ -1520,7 +1519,11 @@ anterior, que partiu de outra configuração de build. `coordinator_154` não fo
 recompilado: ele não consome `issp_behaviors` e nenhum arquivo do seu grafo de
 dependências foi tocado por esta correção.
 
-### Limitações e validações pendentes
+### Limitações registradas no handoff do Implementador
+
+Esta subseção registra o estado no handoff da implementação corretiva. O
+encerramento do Arquiteto abaixo substitui as pendências de revisão e hardware,
+sem apagar as limitações técnicas aqui identificadas.
 
 - os 39 casos permanecem `Not Executed` por TESTEXEC-009; compilar não comprova
   comportamento. Em particular, A1, A2, A3 e A7 têm o código escrito, mas seus
@@ -1537,3 +1540,34 @@ dependências foi tocado por esta correção.
 - a leitura da decisão 32 quanto à falha de publicação em `begin()` é registrada
   acima como decisão local e fica sujeita à revisão focada e à avaliação do
   Arquiteto.
+
+## Encerramento da Fase 2 e do experimento EKOM (Arquiteto)
+
+O Arquiteto declarou a implementação corretiva funcional em hardware e aprovou
+a revisão focada do commit `9c313a7`. Essa aprovação ratifica a leitura da
+decisão 32: falha de publicação não confirma estado nem derruba o boot; falha de
+leitura, criação ou armamento do timer continua terminal. As evidências foram
+consideradas suficientes para promover esta especificação a `Active` e a
+implementação a `Validated`.
+
+O resultado de hardware foi fornecido como declaração de suficiência do
+Arquiteto, sem log detalhado anexado nesta atuação. Não se inferem medições ou
+cenários além da aprovação informada. Os 39 casos automatizados permanecem
+deliberadamente `Not Executed` sob TESTEXEC-009; essa condição é conhecida e não
+é pendência para este encerramento.
+
+A1, A2, A3, A7, A8 e A9 estão encerrados pela implementação corretiva e pela
+aprovação. A4, A5 e A6 permanecem limitações aceitas nas decisões 38 e 39, sem
+impedir uso ou evolução dentro do contrato vigente. A janela de callback em voo
+do `esp_timer` continua limitação conhecida da API.
+
+O experimento EKOM é encerrado como útil para este recorte: o mapa e a
+especificação permitiram localizar composição, product firmware, board e
+componentes compartilhados; a segunda variante foi adicionada sem condicionais
+de produto nos componentes, sem duplicar runtime e sem alterar protocolo ou
+coordenador. A revisão também revelou e corrigiu a fronteira semântica do board,
+que passou a representar o modelo físico `Door Sensor Battery H2`.
+
+Evoluções futuras — novas variantes, boards, uso de `publishReport()` ou mudança
+do ciclo de vida dos behaviors — exigem novo confronto com as limitações
+registradas, mas não reabrem esta implementação automaticamente.

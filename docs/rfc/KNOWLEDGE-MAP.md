@@ -2,7 +2,7 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.23
+**Versão:** 1.24
 **Responsável:** Marcelo Miranda
 **Última atualização:** 10/08/2026
 **Escopo:** Todo o repositório
@@ -47,7 +47,7 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
 | API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed v1.5 | Funcional v1.4 `Validated`; migração v1.5 `Regressed / Not Ready` | `components/issp_app_154`; composição em `client_154/main/`, hoje com `firmwares/single_smart_plug.cpp`; `examples/issp_minimal_client` | Target corrigido para ESP32-H2; 20 casos preservados e deliberadamente não executados nesta correção |
-| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; direção integral e correção pós-revisão `Implementable / Ready`; decisões 32 a 39 resolvem A1 a A9 sem reabrir as fronteiras | In Progress; Fases 1 e 2 implementadas e revisadas; correção de A1, A2, A3, A7, A8 e A9 implementada, pendente de revisão focada | `client_154/main/` compõe Single smart plug ou Door sensor com um dos dois boards H2; `issp_app_154`, `issp_behaviors` e `issp_core` fornecem registro unificado, entrada digital e serialização dos pending reports; `DigitalInputBehavior` agora tolera estabilização inicial divergente, instrumenta a latência de transição e publica seu estado por palavra atômica | Arquiteto declarou Door sensor + Door Sensor Battery H2 funcional em hardware; builds H2 das duas composições, dos três test apps e do exemplo mínimo reexecutados sem warning após a correção; 39 casos automatizados preparados e `Not Executed` por TESTEXEC-009; A4/A5/A6 permanecem limitações aceitas; `client_154/sdkconfig` volta a rastrear Single smart plug + Current client ESP32-H2 wiring |
+| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Active; direção integral e correção pós-revisão aprovadas | Validated; Fases 1 e 2 encerradas, revisão e hardware aprovados pelo Arquiteto | `client_154/main/` compõe Single smart plug ou Door sensor com um dos dois boards H2; `issp_app_154`, `issp_behaviors` e `issp_core` fornecem registro unificado, entrada digital e serialização dos pending reports; `DigitalInputBehavior` tolera estabilização inicial divergente, instrumenta latência e publica estado por palavra atômica | Builds H2 e casos negativos aprovados; Arquiteto declarou `9c313a7` funcional em hardware e aprovou a revisão; 39 casos permanecem deliberadamente `Not Executed`; A4/A5/A6 e a janela de callback em voo permanecem limitações aceitas; experimento EKOM encerrado como útil |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | Client em `components/issp_core/src/issp_protocol.cpp`; coordenador em `coordinator_154/main/iot154_packet.h` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE funcionais; confiabilidade residual de ACK em `EKM-GAP-0006` |
@@ -70,11 +70,11 @@ IoTSmartLink15.4 repository
 │   │       ├── Product firmware (uma escolha) — main/firmwares/
 │   │       │   ├── Single smart plug (implementado; baseline)
 │   │       │   ├── [proposto] Dual smart plug + light
-│   │       │   ├── Door sensor (implementado; validação pendente)
+│   │       │   ├── Door sensor (validado)
 │   │       │   └── [proposto] Motion sensor
 │   │       ├── Board model (uma escolha) — main/boards/
 │   │       │   ├── Current client ESP32-H2 wiring (implementado)
-│   │       │   └── Door Sensor Battery H2 (implementado)
+│   │       │   └── Door Sensor Battery H2 (validado)
 │   │       └── IDF_TARGET (definido pelo fluxo ESP-IDF)
 │   └── coordinator_154 (coordenador IEEE 802.15.4; ESP32-C6 validado)
 │       ├── janela de ingresso e resposta a discovery
@@ -91,9 +91,9 @@ IoTSmartLink15.4 repository
 │   ├── issp_app_154 / SmartSysApp
 │   │   └── capability de porta e registro unificado (implementados)
 │   ├── issp_behaviors
-│   │   └── DigitalInputBehavior (implementado; validação pendente)
+│   │   └── DigitalInputBehavior (validado no recorte)
 │   ├── issp_core
-│   │   └── proteção concorrente dos pending reports (implementada; validação pendente)
+│   │   └── proteção concorrente dos pending reports (validada no recorte)
 │   └── issp_transport_154
 ├── Integration evidence
 │   └── examples/issp_minimal_client
