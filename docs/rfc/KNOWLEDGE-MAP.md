@@ -2,7 +2,7 @@
 
 **Tipo:** Normativo
 **Status:** Active
-**Versão:** 1.21
+**Versão:** 1.22
 **Responsável:** Marcelo Miranda
 **Última atualização:** 10/08/2026
 **Escopo:** Todo o repositório
@@ -47,7 +47,7 @@ Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferenç
 | Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
 | API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed v1.5 | Funcional v1.4 `Validated`; migração v1.5 `Regressed / Not Ready` | `components/issp_app_154`; composição em `client_154/main/`, hoje com `firmwares/single_smart_plug.cpp`; `examples/issp_minimal_client` | Target corrigido para ESP32-H2; 20 casos preservados e deliberadamente não executados nesta correção |
-| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; direção integral `Implementable`; Fase 2 em `Implementable / Ready`, com B1 a B4 e C1 a C3 resolvidos e confrontados | In Progress; atuação do Implementador encerrada, Fases 1 e 2 implementadas e entregues para revisão; validação comportamental e em hardware da Fase 2 pendente | `client_154/main/` compõe Single smart plug ou Door sensor com um dos dois boards H2; `issp_app_154`, `issp_behaviors` e `issp_core` fornecem registro unificado, entrada digital e serialização dos pending reports | Builds H2, casos negativos de compatibilidade, seleção exclusiva de fontes e fronteiras compartilhadas verificados; 36 casos automatizados compilam, mas não foram executados por TESTEXEC-009; hardware da Fase 2 pendente |
+| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Proposed; direção integral `Implementable`; Fase 2 em `Implementable / Ready`, com B1 a B4 e C1 a C3 resolvidos e confrontados | In Progress; Fases 1 e 2 implementadas e revisadas de forma independente, sem bloqueador arquitetural; validação comportamental e em hardware da Fase 2 pendente | `client_154/main/` compõe Single smart plug ou Door sensor com um dos dois boards H2; `issp_app_154`, `issp_behaviors` e `issp_core` fornecem registro unificado, entrada digital e serialização dos pending reports | Builds H2, casos negativos de compatibilidade, seleção exclusiva de fontes e fronteiras compartilhadas verificados; 36 casos automatizados compilam, mas não foram executados por TESTEXEC-009; revisão registrou nove achados, dos quais A1 pede decisão normativa sobre estabilização inicial e A2/A3 impedem duas evidências exigidas; hardware da Fase 2 pendente |
 | Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | Client em `components/issp_core/src/issp_protocol.cpp`; coordenador em `coordinator_154/main/iot154_packet.h` | Lacuna `EKM-GAP-0002` |
 | Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
 | Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE funcionais; confiabilidade residual de ACK em `EKM-GAP-0006` |
