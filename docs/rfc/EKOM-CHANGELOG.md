@@ -66,6 +66,9 @@ polaridade e tempo ligado.
 - o recurso permanece desabilitado por padrão e não altera o coordenador.
 - a v0.4 declara alteração limitada do bootstrap e das variantes, preservando
   arquitetura, commissioning e política de execução de testes.
+- na v0.5, o Arquiteto autorizou alteração limitada de
+  `ISSP-Reusable-Components.md` para criar as operações públicas de quiescência
+  necessárias, sem lifecycle público na fachada.
 
 ### Lacunas
 
@@ -74,15 +77,12 @@ polaridade e tempo ligado.
 - a v0.4 incorporou os pontos normativos devolvidos pela verificação: relação
   com o bootstrap, quiescência sem `stop()` público, ampliação da API, alcance
   integral do renome e ordem do LED em `setup()`;
-- a capacidade de observar o deadline durante operação bloqueante foi delimitada
-  pela análise da v0.4 em pontos cooperativos limitados; a preempção durante
-  escrita em NVS permanece risco técnico dependente de experimento futuro, sem
-  alegação antecipada de viabilidade;
-- a análise da v0.4 devolve ao Arquiteto a relação com
-  `ISSP-Reusable-Components.md`, acionada pela ampliação de API que a
-  quiescência exige, e dois ajustes de recorte: a expressão "pelos contratos
-  existentes" na seção 6 e o alcance do renome sobre `client_154/sdkconfig`,
-  além da leitura aplicável à colisão de GPIO.
+- a análise da v0.4 delimitou o deadline em pontos cooperativos; a preempção
+  durante escrita em NVS permanece risco técnico dependente de experimento;
+- a v0.5 incorpora os pontos devolvidos pela análise da v0.4: relação com
+  `ISSP-Reusable-Components.md`, três operações mínimas de quiescência,
+  atualização direta de `client_154/sdkconfig` e colisão restrita ao
+  `wake_led`.
 
 ### Relatórios e evidências materiais
 
@@ -96,8 +96,8 @@ polaridade e tempo ligado.
 
 ### Resultado
 
-Contrato v0.4 registrado em rascunho, com relações de autoridade e fronteiras
-de quiescência, API, renome e inicialização explicitadas. A análise de
-implementabilidade da v0.4 recomenda prontidão condicionada a uma decisão
-arquitetural e a dois ajustes de recorte; implementação ainda depende de
-promoção e autorização explícitas do Arquiteto.
+Contrato v0.5 registrado em rascunho. A decisão arquitetural sobre componentes
+reutilizáveis foi incorporada com operações limitadas e terminais no boot; os
+ajustes de renome e colisão também foram fechados. O documento está preparado
+para nova análise de implementabilidade; implementação ainda depende de
+análise, promoção e autorização explícitas do Arquiteto.

@@ -8,7 +8,7 @@
 
 **Estado do workflow:** Rascunho; preparada para análise de implementabilidade
 
-**Versão:** 0.4
+**Versão:** 0.5
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -55,6 +55,11 @@ se o Arquiteto promover o documento:
   firmware `door_sensor` para `door_sensor_battery_h2` e acrescenta o requisito
   de composição `wake_led`. O alcance completo do renome está definido na
   seção 5.
+- **Altera (`Amends`) `ISSP-Reusable-Components.md` v1.1:** por decisão do
+  Arquiteto, amplia materialmente e de forma limitada as APIs públicas de
+  `issp_core`, `issp_behaviors` e `issp_transport_154` com as operações de
+  quiescência definidas na seção 6. A ampliação serve somente ao encerramento
+  seguro antes de deep sleep e não autoriza generalização adicional.
 - **Preserva `ISSP-Architecture.md` v1.2:** a aplicação continua dona da regra
   de produto; transporte, reports e device conservam suas responsabilidades. A
   quiescência usa seus contratos de encerramento sem transferir política de
@@ -191,10 +196,17 @@ O renome de `door_sensor` abrange:
 - rótulo de menu para `Door sensor battery H2`;
 - seleção, branch e nome correspondentes no CMake;
 - referências atuais do product firmware em documentação normativa, mapa e
-  dossiê.
+  dossiê;
+- referência ao símbolo em `client_154/sdkconfig`, atualizada diretamente no
+  mesmo renome, sem depender de regeneração por build.
 
 Nomes de board e símbolos próprios do board não são renomeados. Relatórios,
 commits e demais registros históricos preservam o nome observado à época.
+
+A validação de colisão é aditiva e restrita ao `wake_led`: ao configurá-lo, a
+fachada o compara aos GPIOs de capabilities e factory reset já registrados; ao
+registrar esses recursos depois dele, faz a comparação inversa. Com deep sleep
+ou LED desabilitado, não se cria validação global entre pares antes aceitos.
 
 ## 6. Ciclo acordado, quiescência e falhas
 
@@ -205,10 +217,11 @@ em cada boot e não é persistida pela fachada.
 wakeup/reset
 → setup captura o início da janela, registra a causa e acende o LED
 → executa setup e trabalho do ciclo
-→ solicita quiescência antecipada quando os producers do boot terminarem e
-  pendingReportCount() == 0, ou força-a ao atingir maxAwakeTimeMs
-→ fecha admissão de novo trabalho e estabiliza producers, executor e transporte
-→ registra o resultado, apaga o LED, configura wakeup e inicia deep sleep
+→ após Running, inicia quiescência antecipada quando os reports de boot já
+  puderam ser admitidos, ou força-a ao atingir maxAwakeTimeMs
+→ prepara a fonte de wakeup solicitada; falha interrompe o encerramento
+→ fecha admissão e estabiliza producers, executor e transporte
+→ registra o resultado, apaga o LED e inicia deep sleep
 ```
 
 `SmartSysApp` é dona do deadline contado desde a entrada de `setup()`. O
@@ -217,23 +230,75 @@ enquanto a pilha chamadora não recuperou o controle. A implementação deve
 possuir mecanismo capaz de observar o prazo independentemente do retorno de
 `app_main()` ou de uma etapa bloqueante de `setup()`.
 
-Depois que os producers do boot terminaram e não podem admitir novo report,
-`pendingReportCount() == 0` é o oráculo de sleep antecipado: a contagem inclui
-slots reservados e transmissões em andamento. Falha não retryable que conserve
-slot ocupado impede o sleep antecipado e é resolvida somente pelo deadline.
+Depois que o device fechou a admissão e os behaviors foram colocados em
+quiescência, `pendingReportCount() == 0` é o oráculo de sleep antecipado: a
+contagem inclui slots reservados e transmissões em andamento. Falha não
+retryable que conserve slot ocupado impede o sleep antecipado e é resolvida
+somente pelo deadline.
 
-A quiescência é operação interna, privada e limitada ao preparo do deep sleep.
-Ela fecha a produção de trabalho, encerra ou estabiliza as tasks e o transporte
-pelos contratos existentes e mantém fachada e objetos estáticos vivos até o
-reboot. Não é novo lifecycle público, não torna `setup()` repetível e não
-autoriza reinício do runtime no mesmo boot.
+A quiescência é lifecycle privado da fachada, limitado ao preparo do deep
+sleep. Para torná-lo executável, esta especificação autoriza somente as
+seguintes ampliações materiais dos contratos reutilizáveis:
+
+- `virtual IsspResult IDeviceBehavior::quiesce()`: operação pública,
+  idempotente e terminal no boot. A implementação padrão só é válida para
+  behavior que não produz trabalho autonomamente; `DigitalInputBehavior` a
+  sobrescreve para parar e excluir seu timer sem destruir o objeto nem publicar
+  novo report;
+- `IsspResult IsspDevice::beginQuiescence()`: operação pública e idempotente
+  que fecha atomicamente o despacho de novos comandos e a admissão de novos
+  reports, responde `IsspCommandResult::Failed` a comandos ainda recebidos,
+  retorna `IsspResult::NotReady` às novas publicações e preserva todos os slots
+  já admitidos;
+- `IsspResult Issp154ReportExecutor::stop()`: operação pública, idempotente e
+  terminal no boot. Desregistra notificações, interrompe espera ou delay de
+  retry, aguarda de forma limitada a tentativa de transporte já ativa e
+  encerra sua task sem destruir o executor;
+- `Issp154Transport::end()` permanece o contrato vigente e não recebe nova
+  semântica.
+
+Nenhuma dessas operações permite reiniciar o objeto no mesmo boot. A ampliação
+não cria `SmartSysApp::stop()`, não torna `setup()` repetível e não autoriza
+outra generalização das APIs compartilhadas.
+
+A ordem obrigatória é:
+
+```text
+preparar a fonte de wakeup solicitada, quando houver
+→ beginQuiescence no device
+→ quiesce em todos os behaviors registrados
+→ aguardar pendingReportCount() == 0 no caminho antecipado
+  ou apenas registrar a contagem no deadline
+→ stop no report executor
+→ end no transporte
+→ apagar LED e iniciar deep sleep
+```
+
+Falha ao preparar uma fonte solicitada aborta a sequência antes de qualquer
+operação terminal, preservando o runtime acessível. Ausência intencional de
+fonte não aborta e é diagnosticada conforme a seção 4.2.
+
+No caminho antecipado, a fachada inicia essa sequência depois que `setup()`
+atinge `Running` e os reports de boot já puderam ser admitidos. Fechar a
+admissão e parar os producers torna estável o oráculo
+`pendingReportCount() == 0`. No deadline, a mesma sequência não aguarda entrega
+das pendências.
 
 Ao atingir `maxAwakeTimeMs`, a fachada inicia quiescência forçada e dorme mesmo
 com report sem ACK ou rede `NotReady`. Antes do sleep, registra causa, contagem
 e estado das pendências sem payload e não persiste reports. Falha de
-quiescência é registrada, não reabre operação ou retry e não impede o sleep.
-Falha ao configurar uma fonte de wakeup solicitada bloqueia o sleep para não
-tornar o dispositivo inacessível sem intenção.
+quiescência é sempre registrada e não reabre operação ou retry. No caminho
+antecipado, ela cancela somente a antecipação e o device aguarda o deadline no
+estado já alcançado. No deadline, a falha não impede o sleep. Falha ao
+preparar uma fonte de wakeup solicitada bloqueia a própria sequência, antes da
+quiescência, para não tornar o dispositivo inacessível sem intenção.
+
+Os pontos cooperativos hoje observáveis têm ordem de grandeza de até 0,7 s
+entre canais do commissioning e 1,15 s entre tentativas do executor. Esses
+valores são nota de análise, não limite contratual nem mínimo para
+`maxAwakeTimeMs`. Um supervisor pode atuar como backstop, mas não pode iniciar
+deep sleep durante escrita do descritor em NVS; essa exclusão e o comportamento
+sob `persistNetwork()` exigem o experimento da seção 8.
 
 Configuração inválida falha antes de tocar NVS, rádio, RTC ou GPIO. Falha de
 plataforma durante o início de `setup()` produz o `SetupResult` vigente quando
@@ -250,7 +315,8 @@ bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
 - **DEEPSLEEP-AC-002 — Configuração:** configuração válida é copiada antes de
   `setup()`; duração máxima zero, valores inválidos, colisão de GPIO e chamada
   duplicada ou tardia são rejeitados antes da operação normal pelos resultados
-  públicos vigentes.
+  públicos vigentes. A colisão compara somente `wake_led` aos demais GPIOs e
+  não altera validações quando o recurso está desabilitado.
 - **DEEPSLEEP-AC-003 — Timer:** minutos e horas válidos são convertidos sem
   perda semântica; zero, unidade inválida e overflow são rejeitados antes de
   configurar RTC.
@@ -267,8 +333,9 @@ bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
   deadline.
 - **DEEPSLEEP-AC-007 — Deadline e quiescência:** o deadline é observado em
   `setup()`, commissioning, `NotReady` e `Running`, inclusive sob etapa
-  bloqueante; a quiescência é privada, limitada, não destrói objetos e não cria
-  `stop()` ou retry público.
+  bloqueante; a quiescência segue a ordem da seção 6, usa somente as operações
+  públicas autorizadas nos componentes, não destrói objetos e não cria
+  `SmartSysApp::stop()` ou retry público.
 - **DEEPSLEEP-AC-008 — Sleep forçado:** no deadline, reports, rede e falhas
   pendentes são registrados sem persistência; falha de quiescência não reabre
   trabalho e o sleep começa. Falha da fonte de wakeup solicitada bloqueia o
@@ -297,17 +364,23 @@ executar builds ou testes.
 - **DEEPSLEEP-DEC-005:** a primeira composição renomeia `door_sensor` para
   `door_sensor_battery_h2` e usa o LED GPIO 13 do board
   `Door Sensor Battery H2`.
+- **DEEPSLEEP-DEC-006:** fica autorizada a ampliação material e limitada das
+  APIs reutilizáveis por `IDeviceBehavior::quiesce()`,
+  `IsspDevice::beginQuiescence()` e `Issp154ReportExecutor::stop()`, com
+  semântica terminal no boot e sem `SmartSysApp::stop()` público.
 
-A v0.4 incorpora os achados normativos da análise de verificação da v0.3. Uma
-nova análise de implementabilidade deve confrontar as relações da seção 2, o
-contrato de quiescência, o alcance do renome e a capacidade de observar o
-deadline durante operações bloqueantes. Essa última capacidade exige
-experimento explícito; não é presumida por inspeção ou build.
+A v0.5 incorpora os achados da análise de implementabilidade da v0.4. Uma nova
+análise deve confirmar a relação com `ISSP-Reusable-Components.md`, a suficiência
+e o limite das três novas operações, a sequência de quiescência, a atualização
+direta do `sdkconfig` e a validação restrita de colisão. A exclusão da janela de
+NVS e o deadline durante `persistNetwork()` continuam exigindo experimento
+explícito; não são presumidos por inspeção ou build.
 
 Fontes de evidência existentes:
 
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-initial-analysis.md`;
-- `docs/reports/client-deep-sleep/analysis/2026-08-11-verification-analysis.md`.
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-verification-analysis.md`;
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v04-implementability-analysis.md`.
 
 O documento permanece `Draft`. Estar preparado para análise não autoriza
 implementação, promoção, execução de testes ou integração.
