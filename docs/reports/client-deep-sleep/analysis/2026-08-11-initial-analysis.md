@@ -6,7 +6,7 @@
 
 **Especificação:** `docs/specs/Client-Deep-Sleep.md`
 
-**Revisão confrontada:** v0.1, Draft de 11/08/2026
+**Revisão confrontada:** v0.2 experimental, Draft de 11/08/2026
 
 **Estado:** Concluído com bloqueadores normativos
 
@@ -18,6 +18,10 @@
 
 > Este relatório registra evidências e recomendações. Não altera a fonte
 > normativa, não promove estado e não autoriza implementação ou testes.
+
+A v0.2 reorganiza e deduplica o contrato sem resolver pendências ou alterar a
+semântica confrontada nesta análise; portanto, as evidências e os bloqueadores
+abaixo permanecem aplicáveis.
 
 ## Evidências observadas
 
