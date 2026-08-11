@@ -1,9 +1,11 @@
 idf_component_register(
     SRCS
+        "src/digital_input_behavior.cpp"
         "src/digital_output_behavior.cpp"
     INCLUDE_DIRS
         "include"
     REQUIRES
         issp_core
         esp_driver_gpio
+        esp_timer
 )

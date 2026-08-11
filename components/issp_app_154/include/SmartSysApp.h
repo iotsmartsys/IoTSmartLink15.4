@@ -23,6 +23,27 @@ struct SwitchConfig
     std::uint8_t eventType;
 };
 
+enum class DigitalInputPull : std::uint8_t
+{
+    Floating,
+    PullUp,
+    PullDown,
+};
+
+struct DoorSensorConfig
+{
+    gpio_num_t pin;
+    bool activeHigh;
+    DigitalInputPull pull;
+    bool reportOnStart;
+    std::uint8_t endpointId;
+    std::uint8_t eventType;
+    std::uint32_t samplePeriodMs;
+    std::uint8_t samplesPerWindow;
+    std::uint8_t majorityThreshold;
+    std::uint8_t consecutiveWindows;
+};
+
 struct PushButtonConfig
 {
     gpio_num_t pin;
@@ -47,6 +68,19 @@ public:
 
     SwitchPlugCapability(StateFn stateFn, void *context);
 
+    bool state() const;
+
+private:
+    StateFn stateFn_;
+    void *context_;
+};
+
+class DoorSensorCapability
+{
+public:
+    using StateFn = bool (*)(void *context);
+
+    DoorSensorCapability(StateFn stateFn, void *context);
     bool state() const;
 
 private:
@@ -128,6 +162,9 @@ public:
 
     core::SwitchPlugCapability *
     addSwitchPlugCapability(const app::SwitchConfig &config);
+
+    core::DoorSensorCapability *
+    addDoorSensorCapability(const app::DoorSensorConfig &config);
 
     AppResult
     configureFactoryResetButton(const app::PushButtonConfig &config);

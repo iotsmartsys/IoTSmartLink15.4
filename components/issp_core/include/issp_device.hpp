@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 
+#include "freertos/FreeRTOS.h"
 #include "ibehavior_state_publisher.hpp"
 #include "iissp_transport.hpp"
 #include "issp_limits.hpp"
@@ -40,8 +41,9 @@ public:
     IsspTransportState transportState() const;
     IsspResult publishState(const IsspReport &report) override;
     IsspResult publishReport(const IsspReport &report);
-    /// Pending-report publication, reservation, and completion are serial;
-    /// concurrent callers are not supported.
+    /// Pending-report publication, reservation, completion, and inspection are
+    /// internally serialized. Callbacks, encoding, notifications, and transport
+    /// operations execute outside the critical section.
     std::size_t pendingReportCount() const;
     /// Copy the oldest available pending report without reserving it.
     /// Reports already in flight are ignored.
@@ -71,6 +73,8 @@ private:
     };
 
     static void advanceGeneration(std::uint32_t &generation);
+    bool acquirePendingReportLocked(IsspReport &report,
+                                    IsspPendingReportToken &token);
     void notifyPendingReport();
     void finishCommandProcessing();
     std::uint32_t nextPendingReportOrder();
@@ -93,6 +97,7 @@ private:
     void *commandContext_;
     PendingReportHandler pendingReportHandler_;
     void *pendingReportContext_;
+    mutable portMUX_TYPE reportLock_ = portMUX_INITIALIZER_UNLOCKED;
     bool processingCommand_;
     bool reportNotificationDeferred_;
     bool hasLastCommand_;

@@ -2,7 +2,7 @@
 
 // Private, target-agnostic declaration of SmartSysApp::Impl, shared by
 // smart_sys_app.cpp (state machine core, buildable on any target because it
-// only needs issp_core/issp_behaviors for switch capability storage) and
+// only needs issp_core/issp_behaviors for capability storage) and
 // smart_sys_app_hardware.cpp (the real platform/network/device/executor
 // hooks and the production single-argument SmartSysApp constructor, which
 // need issp_transport_154; every admitted target carries an IEEE 802.15.4
@@ -18,7 +18,9 @@
 #include <optional>
 
 #include "SmartSysApp.h"
+#include "digital_input_behavior.hpp"
 #include "digital_output_behavior.hpp"
+#include "idevice_behavior.hpp"
 #include "issp_limits.hpp"
 
 namespace iotsmartsys
@@ -29,6 +31,7 @@ struct SmartSysApp::Impl
     Impl(const app::SmartSysAppConfig &config, const SetupHooks *hooksOverride);
 
     core::SwitchPlugCapability *addSwitchPlugCapability(const app::SwitchConfig &config);
+    core::DoorSensorCapability *addDoorSensorCapability(const app::DoorSensorConfig &config);
     AppResult configureFactoryResetButton(const app::PushButtonConfig &config);
     SetupResult setup();
 
@@ -37,7 +40,7 @@ struct SmartSysApp::Impl
     AppResult lastConfigurationResult() const { return lastConfigurationResult_; }
     std::uint32_t deviceId() const { return config_.deviceId; }
 
-    static constexpr std::size_t kMaxSwitchCapabilities = issp::kMaxDeviceBehaviors;
+    static constexpr std::size_t kMaxCapabilities = issp::kMaxDeviceBehaviors;
 
     // Opaque storage for the hardware-backed objects (transport, network
     // manager, device, report executor, factory reset service/monitor,
@@ -48,7 +51,7 @@ struct SmartSysApp::Impl
     alignas(alignof(std::max_align_t)) unsigned char hardwareStorage_[kHardwareStorageBytes];
 
     void recordConfigurationFailure(AppResult result);
-    bool hasDuplicateSwitchEndpoint(const app::SwitchConfig &config) const;
+    bool hasDuplicateEndpoint(std::uint8_t endpointId, std::uint8_t eventType) const;
     SetupResult fail(SetupStage stage, AppResult result);
 
     // Defined only in smart_sys_app_hardware.cpp (hardware-capable targets).
@@ -65,12 +68,29 @@ struct SmartSysApp::Impl
     AppResult lastConfigurationResult_;
     SetupHooks hooks_;
 
-    std::array<app::SwitchConfig, kMaxSwitchCapabilities> switchConfigs_;
-    std::array<std::optional<issp::DigitalOutputBehavior>, kMaxSwitchCapabilities>
+    struct EndpointEventPair
+    {
+        std::uint8_t endpointId;
+        std::uint8_t eventType;
+    };
+
+    std::array<issp::IDeviceBehavior *, kMaxCapabilities> behaviors_;
+    std::array<EndpointEventPair, kMaxCapabilities> endpointEventPairs_;
+    std::size_t behaviorCount_;
+
+    std::array<app::SwitchConfig, kMaxCapabilities> switchConfigs_;
+    std::array<std::optional<issp::DigitalOutputBehavior>, kMaxCapabilities>
         switchBehaviors_;
-    std::array<std::optional<core::SwitchPlugCapability>, kMaxSwitchCapabilities>
+    std::array<std::optional<core::SwitchPlugCapability>, kMaxCapabilities>
         switchCapabilities_;
     std::size_t switchCount_;
+
+    std::array<app::DoorSensorConfig, kMaxCapabilities> doorSensorConfigs_;
+    std::array<std::optional<issp::DigitalInputBehavior>, kMaxCapabilities>
+        doorSensorBehaviors_;
+    std::array<std::optional<core::DoorSensorCapability>, kMaxCapabilities>
+        doorSensorCapabilities_;
+    std::size_t doorSensorCount_;
 
     bool factoryResetConfigured_;
     app::PushButtonConfig factoryResetConfig_;

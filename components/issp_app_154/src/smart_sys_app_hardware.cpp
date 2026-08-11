@@ -164,7 +164,7 @@ AppResult SmartSysApp::Impl::realRegisterCapability(void *context, std::size_t i
 {
     auto *self = static_cast<Impl *>(context);
     return mapIsspResult(
-        hardwareOf(self).device->addBehavior(*self->switchBehaviors_[index]));
+        hardwareOf(self).device->addBehavior(*self->behaviors_[index]));
 }
 
 AppResult SmartSysApp::Impl::realStartDevice(void *context)

@@ -27,6 +27,25 @@ bool switchStateThunk(void *context)
     return static_cast<issp::DigitalOutputBehavior *>(context)->state();
 }
 
+bool doorSensorStateThunk(void *context)
+{
+    return static_cast<issp::DigitalInputBehavior *>(context)->state();
+}
+
+issp::DigitalInputPull mapInputPull(app::DigitalInputPull pull)
+{
+    switch (pull)
+    {
+    case app::DigitalInputPull::Floating:
+        return issp::DigitalInputPull::Floating;
+    case app::DigitalInputPull::PullUp:
+        return issp::DigitalInputPull::PullUp;
+    case app::DigitalInputPull::PullDown:
+        return issp::DigitalInputPull::PullDown;
+    }
+    return issp::DigitalInputPull::Floating;
+}
+
 } // namespace
 
 namespace core
@@ -42,6 +61,16 @@ bool SwitchPlugCapability::state() const
     return stateFn_(context_);
 }
 
+DoorSensorCapability::DoorSensorCapability(StateFn stateFn, void *context)
+    : stateFn_(stateFn), context_(context)
+{
+}
+
+bool DoorSensorCapability::state() const
+{
+    return stateFn_(context_);
+}
+
 } // namespace core
 
 SmartSysApp::Impl::Impl(const app::SmartSysAppConfig &config,
@@ -52,10 +81,17 @@ SmartSysApp::Impl::Impl(const app::SmartSysAppConfig &config,
       lastSetupResult_{AppState::Configuring, SetupStage::None, AppResult::Ok},
       lastConfigurationResult_(AppResult::Ok),
       hooks_{},
+      behaviors_{},
+      endpointEventPairs_{},
+      behaviorCount_(0),
       switchConfigs_{},
       switchBehaviors_{},
       switchCapabilities_{},
       switchCount_(0),
+      doorSensorConfigs_{},
+      doorSensorBehaviors_{},
+      doorSensorCapabilities_{},
+      doorSensorCount_(0),
       factoryResetConfigured_(false),
       factoryResetConfig_{}
 {
@@ -93,12 +129,13 @@ void SmartSysApp::Impl::recordConfigurationFailure(AppResult result)
     }
 }
 
-bool SmartSysApp::Impl::hasDuplicateSwitchEndpoint(const app::SwitchConfig &config) const
+bool SmartSysApp::Impl::hasDuplicateEndpoint(std::uint8_t endpointId,
+                                             std::uint8_t eventType) const
 {
-    for (std::size_t index = 0; index < switchCount_; ++index)
+    for (std::size_t index = 0; index < behaviorCount_; ++index)
     {
-        if (switchConfigs_[index].endpointId == config.endpointId &&
-            switchConfigs_[index].eventType == config.eventType)
+        if (endpointEventPairs_[index].endpointId == endpointId &&
+            endpointEventPairs_[index].eventType == eventType)
         {
             return true;
         }
@@ -119,12 +156,12 @@ SmartSysApp::Impl::addSwitchPlugCapability(const app::SwitchConfig &config)
         recordConfigurationFailure(AppResult::InvalidArgument);
         return nullptr;
     }
-    if (hasDuplicateSwitchEndpoint(config))
+    if (hasDuplicateEndpoint(config.endpointId, config.eventType))
     {
         recordConfigurationFailure(AppResult::InvalidArgument);
         return nullptr;
     }
-    if (switchCount_ >= kMaxSwitchCapabilities)
+    if (behaviorCount_ >= kMaxCapabilities || switchCount_ >= kMaxCapabilities)
     {
         recordConfigurationFailure(AppResult::Failed);
         return nullptr;
@@ -144,7 +181,68 @@ SmartSysApp::Impl::addSwitchPlugCapability(const app::SwitchConfig &config)
     switchCapabilities_[switchCount_].emplace(
         &switchStateThunk, static_cast<void *>(&*switchBehaviors_[switchCount_]));
     core::SwitchPlugCapability *capability = &*switchCapabilities_[switchCount_];
+    behaviors_[behaviorCount_] = &*switchBehaviors_[switchCount_];
+    endpointEventPairs_[behaviorCount_] = {config.endpointId, config.eventType};
+    ++behaviorCount_;
     ++switchCount_;
+    return capability;
+}
+
+core::DoorSensorCapability *
+SmartSysApp::Impl::addDoorSensorCapability(const app::DoorSensorConfig &config)
+{
+    if (state_ != AppState::Configuring)
+    {
+        recordConfigurationFailure(AppResult::Failed);
+        return nullptr;
+    }
+    const bool validPull = config.pull == app::DigitalInputPull::Floating ||
+                           config.pull == app::DigitalInputPull::PullUp ||
+                           config.pull == app::DigitalInputPull::PullDown;
+    if (!GPIO_IS_VALID_GPIO(config.pin) || !validPull ||
+        config.samplePeriodMs == 0U ||
+        config.samplesPerWindow == 0U || config.majorityThreshold == 0U ||
+        config.majorityThreshold > config.samplesPerWindow ||
+        config.consecutiveWindows == 0U)
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return nullptr;
+    }
+    if (hasDuplicateEndpoint(config.endpointId, config.eventType))
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return nullptr;
+    }
+    if (behaviorCount_ >= kMaxCapabilities || doorSensorCount_ >= kMaxCapabilities)
+    {
+        recordConfigurationFailure(AppResult::Failed);
+        return nullptr;
+    }
+
+    const issp::DigitalInputConfig behaviorConfig = {
+        .endpointId = config.endpointId,
+        .eventType = config.eventType,
+        .pin = config.pin,
+        .activeLevel = config.activeHigh ? 1U : 0U,
+        .pull = mapInputPull(config.pull),
+        .reportOnStart = config.reportOnStart,
+        .samplePeriodMs = config.samplePeriodMs,
+        .samplesPerWindow = config.samplesPerWindow,
+        .majorityThreshold = config.majorityThreshold,
+        .consecutiveWindows = config.consecutiveWindows,
+    };
+
+    doorSensorConfigs_[doorSensorCount_] = config;
+    doorSensorBehaviors_[doorSensorCount_].emplace(behaviorConfig);
+    doorSensorCapabilities_[doorSensorCount_].emplace(
+        &doorSensorStateThunk,
+        static_cast<void *>(&*doorSensorBehaviors_[doorSensorCount_]));
+    core::DoorSensorCapability *capability =
+        &*doorSensorCapabilities_[doorSensorCount_];
+    behaviors_[behaviorCount_] = &*doorSensorBehaviors_[doorSensorCount_];
+    endpointEventPairs_[behaviorCount_] = {config.endpointId, config.eventType};
+    ++behaviorCount_;
+    ++doorSensorCount_;
     return capability;
 }
 
@@ -190,7 +288,7 @@ SetupResult SmartSysApp::Impl::setup()
     }
 
     ESP_LOGI(kTag, "app_setup begin capabilities=%u factory_reset=%s",
-             static_cast<unsigned>(switchCount_),
+             static_cast<unsigned>(behaviorCount_),
              factoryResetConfigured_ ? "configured" : "disabled");
 
     ESP_LOGI(kTag, "app_setup stage=%u",
@@ -231,7 +329,7 @@ SetupResult SmartSysApp::Impl::setup()
 
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::RegisterCapabilities));
-    for (std::size_t index = 0; index < switchCount_; ++index)
+    for (std::size_t index = 0; index < behaviorCount_; ++index)
     {
         result = hooks_.registerCapability(hooks_.context, index);
         if (result != AppResult::Ok)
@@ -293,6 +391,12 @@ core::SwitchPlugCapability *
 SmartSysApp::addSwitchPlugCapability(const app::SwitchConfig &config)
 {
     return impl().addSwitchPlugCapability(config);
+}
+
+core::DoorSensorCapability *
+SmartSysApp::addDoorSensorCapability(const app::DoorSensorConfig &config)
+{
+    return impl().addDoorSensorCapability(config);
 }
 
 AppResult SmartSysApp::configureFactoryResetButton(const app::PushButtonConfig &config)
