@@ -71,6 +71,9 @@ polaridade e tempo ligado.
   necessárias, sem lifecycle público na fachada.
 - na v0.6, o Arquiteto decidiu que factory reset e deep sleep obedecem à
   primeira transição aceita, com exclusão sobre operações NVS e encerramento.
+- na v0.7, o Arquiteto aceitou preempção diagnosticada de `persistNetwork()` e
+  exigiu evidência positiva de report para sleep antecipado, sem quarta
+  ampliação da API reutilizável.
 
 ### Lacunas
 
@@ -90,8 +93,6 @@ polaridade e tempo ligado.
 - a v0.6 incorpora os pontos devolvidos: arbitragem e parada do monitor de
   factory reset, correção da nota para cerca de 1,47 s, waits notificáveis sem
   Kconfig e precisão de que `stop()` encerra tentativas do boot corrente;
-- a concorrência entre transições permanece risco técnico dependente de
-  experimento;
 - a análise da v0.6 confirmou a arbitragem em código privado da fachada e as
   duas paradas notificáveis, e devolveu ao Arquiteto duas decisões: a exclusão
   sobre `persistNetwork()`, que é privado e inalcançável pela fachada dentro do
@@ -99,7 +100,13 @@ polaridade e tempo ligado.
   satisfeito por ausência de report em vez de entrega;
 - a mesma análise devolveu duas precisões de redação: limite e estouro da espera
   de `stop()` antes de `end()`, e re-arme do hold do factory reset rejeitado por
-  arbitragem perdida.
+  arbitragem perdida;
+- a v0.7 incorpora essas decisões e precisões com preempção diagnosticada,
+  critério positivo de admissão e entrega, timeout de 600 ms com supressão de
+  `end()` e re-arme do pedido rejeitado;
+- preempção de NVS, corrida entre transições e usabilidade do hold permanecem
+  riscos experimentais ou de produto, não decisões normativas pendentes deste
+  recorte.
 
 ### Relatórios e evidências materiais
 
@@ -117,8 +124,8 @@ polaridade e tempo ligado.
 
 ### Resultado
 
-Contrato v0.6 registrado em rascunho. A arbitragem entre factory reset e deep
-sleep, a exclusão sobre NVS, a parada do monitor e os waits notificáveis foram
-explicitados. A análise da v0.6 recomenda prontidão condicionada a duas decisões
-normativas e duas precisões de redação; implementação ainda depende de promoção
-e autorização explícitas do Arquiteto.
+Contrato v0.7 registrado em rascunho. As duas decisões e as duas precisões
+devolvidas pela análise da v0.6 foram incorporadas sem ampliar novamente a API
+reutilizável. O documento está preparado para nova análise de
+implementabilidade; implementação ainda depende de análise, promoção e
+autorização explícitas do Arquiteto.
