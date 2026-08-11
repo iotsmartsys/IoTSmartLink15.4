@@ -8,7 +8,7 @@
 
 **Estado do workflow:** Rascunho; preparada para análise de implementabilidade
 
-**Versão:** 0.8
+**Versão:** 0.9
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -155,8 +155,14 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
 - a conversão usa `std::uint64_t`; para `interval` de 32 bits em minutos ou
   horas, o limite material é o aceito por `esp_sleep_enable_timer_wakeup()` no
   ESP32-H2 com ESP-IDF 6.0.1, não overflow aritmético de 64 bits;
-- o preparo confronta esse limite e o retorno da API. `ESP_ERR_INVALID_ARG` ou
-  outro erro bloqueia a sequência antes de qualquer operação terminal;
+- `configureDeepSleep()` confronta o intervalo convertido com esse limite por
+  helper privado, puro e sem configurar RTC, derivado das capacidades do target
+  e da fonte de slow clock fixada no projeto. Retorna
+  `AppResult::InvalidArgument` quando estiver fora da faixa. A costura admite
+  limite injetado nos doubles sem criar API normativa;
+- o preparo repete a validação e confronta o retorno da API como defesa em
+  profundidade. `ESP_ERR_INVALID_ARG` ou outro erro bloqueia a sequência antes
+  de qualquer operação terminal;
 - timer desabilitado não configura essa fonte e permite acordar somente por
   reset ou nova energização;
 - antes de dormir sem fonte configurada, a fachada registra diagnóstico
@@ -235,12 +241,23 @@ wakeup/reset
 ```
 
 `SmartSysApp` é dona do deadline contado desde a entrada de `setup()`. Uma única
-task privada de lifecycle de energia é a dona exclusiva da transição e da
-sequência completa. Ela observa o prazo durante commissioning, `NotReady`,
-`Running` e mesmo enquanto a pilha chamadora não recuperou o controle. Outros
-callbacks e tasks apenas sinalizam eventos; não executam passos de quiescência
-ou sleep. A task começa em `InitializePlatform`, depois do acionamento do LED,
-e não existe quando a configuração falha em `ValidateConfiguration`.
+task privada de lifecycle de energia é dona exclusiva da sequência de deep
+sleep; o token de transição continua disputado com factory reset. Outros
+callbacks e tasks apenas sinalizam eventos e não executam passos de
+quiescência ou sleep.
+
+`InitializePlatform` é uma janela não preemptível. O deadline continua sendo
+contado durante LED, inicialização ou recuperação da NVS, leitura de MAC e
+construção de transport, network manager, device, executor e monitor, mas
+nenhuma sequência de sleep começa nesse estágio. A task de lifecycle nasce
+somente ao final de `InitializePlatform` bem-sucedido, quando todos os recursos
+obrigatórios existem e o monitor opcional já foi tratado. Se o deadline já
+tiver expirado, ela entra imediatamente no caminho forçado. Falha em
+`ValidateConfiguration` ou `InitializePlatform` não cria a task e não tenta
+deep sleep nesse boot.
+
+Depois de criada, a task observa o prazo durante commissioning, `NotReady`,
+`Running` e mesmo enquanto a pilha chamadora não recuperou o controle.
 
 Sleep antecipado exige evidência positiva de report neste boot. São reports
 iniciais esperados aqueles cujos behaviors têm `reportOnStart=true`. Deve
@@ -252,7 +269,10 @@ esperado ou a estabilização não concluir, somente o deadline permite dormir.
 Enquanto o deadline não chega, a task de lifecycle reavalia a prontidão dos
 reports iniciais. Assim, confirmação do `DigitalInputBehavior` posterior a
 `Running` ainda pode habilitar sleep antecipado; a avaliação não ocorre somente
-uma vez na transição para `Running`.
+uma vez na transição para `Running`. Como o device oferece um único handler de
+report, já pertencente ao executor, a reavaliação usa polling de
+`pendingReportCount()` com período máximo de 10 ms e cada espera é limitada pelo
+tempo restante até o deadline.
 
 A fachada determina essa evidência com dados que já possui: configuração
 `reportOnStart`, sucesso síncrono de `DigitalOutputBehavior::begin()` e
@@ -412,12 +432,11 @@ da seção 8.
 Configuração inválida em `ValidateConfiguration` falha antes de tocar NVS,
 rádio, RTC ou GPIO; nesse boot não há LED, task de lifecycle ou deep sleep. É
 defeito de desenvolvimento da composição constante, não condição operacional
-de campo. Falha de plataforma durante o início de `setup()` produz o
-`SetupResult` vigente quando o fluxo puder retornar; se o deadline conduzir
-diretamente ao deep sleep, o resultado operacional permanece no log
-estruturado. Causa de boot, configuração desabilitada, sleep antecipado,
-deadline, pendências, início e bloqueio do sleep devem ser distinguíveis sem
-conteúdo sensível.
+de campo. Falha de `InitializePlatform` produz o `SetupResult` vigente e também
+não inicia lifecycle. Depois desse estágio, se o deadline conduzir diretamente
+ao deep sleep, o resultado operacional permanece no log estruturado. Causa de
+boot, configuração desabilitada, sleep antecipado, deadline, pendências, início
+e bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
 
 ## 7. Critérios de aceitação
 
@@ -430,9 +449,9 @@ conteúdo sensível.
   públicos vigentes. A colisão compara somente `wake_led` aos demais GPIOs e
   não altera validações quando o recurso está desabilitado.
 - **DEEPSLEEP-AC-003 — Timer:** minutos e horas válidos são convertidos sem
-  perda semântica; zero e unidade inválida falham na configuração, e intervalo
-  acima do limite aceito pelo ESP-IDF/H2 falha no preparo antes de qualquer
-  operação terminal.
+  perda semântica; zero, unidade inválida e intervalo acima do limite do
+  ESP-IDF/H2 retornam `InvalidArgument` em `configureDeepSleep()`. O preparo
+  repete a validação e trata o retorno da API antes de operação terminal.
 - **DEEPSLEEP-AC-004 — LED:** polaridades HIGH e LOW, `DurationMs` e
   `UntilSleep` produzem nível e tempo configurados; em todo boot com
   configuração válida que alcance `InitializePlatform`, o LED acende como
@@ -450,12 +469,14 @@ conteúdo sensível.
   por falha não retryable também aguarda. A espera de entrega usa apenas o tempo
   restante até o deadline.
 - **DEEPSLEEP-AC-007 — Deadline e quiescência:** o deadline é observado em
-  `setup()`, commissioning, `NotReady` e `Running`, inclusive sob etapa
-  bloqueante; uma única task privada possui e executa a sequência, converte o
-  caminho antecipado em forçado no deadline e reconhece a transição já detida
-  pelo próprio deep sleep. A quiescência usa somente as operações públicas
-  autorizadas, não destrói objetos e não cria `SmartSysApp::stop()` ou retry
-  público. `stop()` possui limite de 600 ms; no estouro, `end()` não é chamado.
+  contado desde `setup()`, mas `InitializePlatform` não é preemptível. Ao final
+  bem-sucedido do estágio, uma única task privada possui e executa a sequência,
+  entra imediatamente no caminho forçado se o prazo expirou, converte o caminho
+  antecipado em forçado no deadline e reconhece a transição já detida pelo
+  próprio deep sleep. O polling é no máximo 10 ms. A quiescência usa somente as
+  operações públicas autorizadas, não destrói objetos e não cria
+  `SmartSysApp::stop()` ou retry público. `stop()` possui limite de 600 ms; no
+  estouro, `end()` não é chamado.
 - **DEEPSLEEP-AC-008 — Sleep forçado:** no deadline, reports, rede e falhas
   pendentes são registrados sem persistência; falha de quiescência não reabre
   trabalho e o sleep começa. Falha da fonte de wakeup solicitada bloqueia o
@@ -511,12 +532,15 @@ executar builds ou testes.
   esperado, todos os reports iniciais esperados admitidos e, depois da
   quiescência, `pendingReportCount() == 0`. Ausência de report não equivale a
   entrega.
+- **DEEPSLEEP-DEC-010:** `InitializePlatform` não é preemptível. O deadline é
+  contado durante o estágio, mas a task de lifecycle nasce somente após sucesso
+  e inicia o caminho forçado imediatamente se o prazo já tiver expirado.
 
-A v0.8 incorpora os achados da análise de implementabilidade da v0.7. Uma nova
-análise deve confirmar o dono único, a espera limitada pelo deadline, os três
-estados da arbitragem, o alcance do LED e a validação do limite real do timer.
-Os comportamentos de NVS e as corridas continuam exigindo experimento
-explícito; não são presumidos por inspeção ou build.
+A v0.9 incorpora os achados da análise de implementabilidade da v0.8. Uma nova
+análise deve confirmar a janela não preemptível, a criação tardia da task, a
+distinção entre dona da sequência e detentor do token, a validação antecipada
+do timer e o polling limitado. Os comportamentos de NVS e as corridas continuam
+exigindo experimento explícito; não são presumidos por inspeção ou build.
 
 Fontes de evidência existentes:
 
@@ -525,7 +549,8 @@ Fontes de evidência existentes:
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v04-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v05-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v06-implementability-analysis.md`;
-- `docs/reports/client-deep-sleep/analysis/2026-08-11-v07-implementability-analysis.md`.
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v07-implementability-analysis.md`;
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v08-implementability-analysis.md`.
 
 O documento permanece `Draft`. Estar preparado para análise não autoriza
 implementação, promoção, execução de testes ou integração.

@@ -76,6 +76,8 @@ polaridade e tempo ligado.
   ampliação da API reutilizável.
 - a v0.8 atribui a sequência a uma única task privada, limita a espera de
   entrega pelo deadline e distingue o detentor da transição.
+- na v0.9, o Arquiteto tornou `InitializePlatform` não preemptível; o deadline
+  continua contado e dispara encerramento forçado após o estágio, se expirado.
 
 ### Lacunas
 
@@ -128,7 +130,13 @@ polaridade e tempo ligado.
 - a mesma análise devolveu duas precisões: "dona exclusiva da transição", que
   induz token de escritor único e quebraria a arbitragem, e a validação da faixa
   do intervalo também em `configureDeepSleep()`, sem a qual intervalo constante
-  fora de faixa produz dispositivo a bateria que nunca dorme.
+  fora de faixa produz dispositivo a bateria que nunca dorme;
+- a v0.9 incorpora a decisão e as precisões: criação da task somente após
+  `InitializePlatform` bem-sucedido, dona exclusiva apenas da sequência,
+  validação antecipada e defensiva do timer e polling limitado a 10 ms;
+- preempção de `persistNetwork()`, corridas e consumo no caminho sem `end()`
+  permanecem riscos dependentes dos experimentos futuros já declarados, não
+  decisões normativas pendentes deste recorte.
 
 ### Relatórios e evidências materiais
 
@@ -150,8 +158,8 @@ polaridade e tempo ligado.
 
 ### Resultado
 
-Contrato v0.8 registrado em rascunho. As precisões e os pontos de método
-devolvidos pela análise da v0.7 foram incorporados, sem novo contrato público de
-lifecycle. O documento está preparado para nova análise de implementabilidade;
-implementação ainda depende de análise, promoção e autorização explícitas do
-Arquiteto.
+Contrato v0.9 registrado em rascunho. A janela não preemptível de plataforma e
+as precisões devolvidas pela análise da v0.8 foram incorporadas, sem tornar
+passos obrigatórios aplicáveis a objetos inexistentes. O documento está
+preparado para nova análise de implementabilidade; implementação ainda depende
+de análise, promoção e autorização explícitas do Arquiteto.
