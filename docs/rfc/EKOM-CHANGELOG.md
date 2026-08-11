@@ -64,17 +64,19 @@ polaridade e tempo ligado.
 - ADR-0002 preserva a separação entre política do product firmware e recurso
   físico do board model;
 - o recurso permanece desabilitado por padrão e não altera o coordenador.
+- a v0.4 declara alteração limitada do bootstrap e das variantes, preservando
+  arquitetura, commissioning e política de execução de testes.
 
 ### Lacunas
 
-- bloqueadores normativos da versão 0.1 resolvidos pelo Arquiteto na versão 0.3;
-- a análise de verificação da v0.3 devolve três pontos normativos ao Arquiteto:
-  relação com `ISSP-Configurable-Bootstrap.md` quanto a encerramento e ampliação
-  da API pública, alcance do renome da variante sobre Kconfig e
-  `Firmware-Variants-Menuconfig.md`, e ordem do acionamento do LED em relação a
-  `setup()`;
-- o dono do orçamento de tempo acordado permanece risco técnico a confrontar por
-  experimento, não lacuna de contrato.
+- bloqueadores normativos da versão 0.1 foram resolvidos pelo Arquiteto na
+  versão 0.3;
+- a v0.4 incorporou os pontos normativos devolvidos pela verificação: relação
+  com o bootstrap, quiescência sem `stop()` público, ampliação da API, alcance
+  integral do renome e ordem do LED em `setup()`;
+- a capacidade de observar o deadline durante operação bloqueante permanece
+  risco técnico que a nova análise deve delimitar e um experimento futuro deve
+  provar; não há alegação antecipada de viabilidade desse mecanismo.
 
 ### Relatórios e evidências materiais
 
@@ -86,7 +88,7 @@ polaridade e tempo ligado.
 
 ### Resultado
 
-Contrato proposto registrado em rascunho, com decisões bloqueantes da v0.1
-resolvidas. A análise de verificação confirma viabilidade sobre as fronteiras
-atuais e devolve pontos normativos ao Arquiteto. A implementação ainda depende
-de promoção e autorização explícitas do Arquiteto.
+Contrato v0.4 registrado em rascunho, com relações de autoridade e fronteiras
+de quiescência, API, renome e inicialização explicitadas. O documento está
+preparado para nova análise de implementabilidade; implementação ainda depende
+de análise, promoção e autorização explícitas do Arquiteto.
