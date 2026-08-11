@@ -67,18 +67,26 @@ polaridade e tempo ligado.
 
 ### Lacunas
 
-- bloqueadores normativos resolvidos pelo Arquiteto na versão 0.3;
-- encerramento coordenado do runtime permanece trabalho técnico da futura
-  implementação, não lacuna de contrato.
+- bloqueadores normativos da versão 0.1 resolvidos pelo Arquiteto na versão 0.3;
+- a análise de verificação da v0.3 devolve três pontos normativos ao Arquiteto:
+  relação com `ISSP-Configurable-Bootstrap.md` quanto a encerramento e ampliação
+  da API pública, alcance do renome da variante sobre Kconfig e
+  `Firmware-Variants-Menuconfig.md`, e ordem do acionamento do LED em relação a
+  `setup()`;
+- o dono do orçamento de tempo acordado permanece risco técnico a confrontar por
+  experimento, não lacuna de contrato.
 
 ### Relatórios e evidências materiais
 
 - análise inicial em
   `docs/reports/client-deep-sleep/analysis/2026-08-11-initial-analysis.md`;
+- análise de verificação em
+  `docs/reports/client-deep-sleep/analysis/2026-08-11-verification-analysis.md`;
 - testes e hardware permanecem `Not Executed`.
 
 ### Resultado
 
-Contrato proposto registrado em rascunho, com decisões bloqueantes resolvidas e
-prontidão recomendada pela análise. A implementação ainda depende de promoção e
-autorização explícitas do Arquiteto.
+Contrato proposto registrado em rascunho, com decisões bloqueantes da v0.1
+resolvidas. A análise de verificação confirma viabilidade sobre as fronteiras
+atuais e devolve pontos normativos ao Arquiteto. A implementação ainda depende
+de promoção e autorização explícitas do Arquiteto.

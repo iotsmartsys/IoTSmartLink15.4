@@ -36,7 +36,7 @@ não criam autoridade paralela.
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md`; ADR-0001 | Concluída | `components/issp_*` | Dois consumidores locais | Revisado |
 | Bootstrap `SmartSysApp` | `docs/specs/ISSP-Configurable-Bootstrap.md`; ADR-0001 | Concluída para v1.5 | `components/issp_app_154` | Build H2 e hardware históricos; suítes não executadas | Revisado |
 | Variantes de firmware | `docs/specs/Firmware-Variants-Menuconfig.md`; ADR-0002 | Concluída | `client_154/main/` | Builds e hardware aprovados; suítes não executadas | Revisado |
-| Deep sleep do client | `docs/specs/Client-Deep-Sleep.md`; ADR-0002 | Rascunho; prontidão recomendada | `SmartSysApp`; product firmware; board model | Análise v0.3; testes e hardware não executados | Especificado |
+| Deep sleep do client | `docs/specs/Client-Deep-Sleep.md`; ADR-0002 | Rascunho; pontos normativos devolvidos ao Arquiteto | `SmartSysApp`; product firmware; board model | Análises inicial e de verificação da v0.3; testes e hardware não executados | Especificado |
 | Registry do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Implementação; validação pendente | `coordinator_154/main/device_registry*` | Build C6; 24 casos não executados | Especificado |
 | Targets e testes | `docs/specs/Repository-Test-Execution-Policy.md`; ADR-0003 | Concluída | guards CMake e test apps | 63 casos preservados e não executados; builds H2/C6 | Revisado |
 | Consolidação ISSP | `docs/specs/ISSP-Consolidation.md` | Concluída | Client e coordenador | Auditoria e hardware históricos | Revisado |
