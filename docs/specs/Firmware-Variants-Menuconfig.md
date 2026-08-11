@@ -2,11 +2,11 @@
 
 **Estado normativo:** Proposed
 **Estado da implementação:** In Progress
-**Revisão de implementabilidade:** Implementable para a direção integral por
-decisão do Arquiteto; B1 a B4 e C1 a C3 foram resolvidos e as decisões 20 a 31
-foram confrontadas com o repositório, sem bloqueador remanescente
-**Prontidão:** Ready — o Arquiteto considerou o confronto suficiente, resolveu
-C1 a C3 e autorizou a implementação da Fase 2
+**Revisão de implementabilidade:** Implementable para a direção integral e para
+o recorte corretivo pós-revisão por decisão do Arquiteto; B1 a B4 e C1 a C3
+foram resolvidos, e A1 a A9 receberam resolução nas decisões 32 a 39
+**Prontidão:** Ready — implementação corretiva focada autorizada; conclusão da
+Fase 2 permanece pendente de revisão e evidência final
 
 ## Missão
 
@@ -464,10 +464,19 @@ build isolado não substituem a observação do firmware em execução.
 - **Dada** a mesma composição com a entrada estabilizada em nível baixo,
   **quando** o firmware inicia, **então** publica endpoint 1, evento 1 e valor 0
   (`closed`).
+- **Dada** a entrada sem convergência nas duas janelas da tentativa síncrona
+  inicial, **quando** o firmware inicia, **então** o behavior arma o timer,
+  retorna sucesso ao runtime e continua o mesmo classificador; ao obter duas
+  classificações consecutivas iguais, publica uma única vez o primeiro estado
+  confirmado, sem exigir reboot.
 - **Dado** o firmware em execução, **quando** a entrada muda e satisfaz o
   debounce especificado, **então** publica uma vez o novo estado sem reboot e
   o behavior confirma a transição em até 150 ms após a estabilização física; o
   prazo não inclui fila, transporte, ACK, retry ou recepção pelo coordenador.
+- **Dada** uma transição confirmada, **quando** seu log é inspecionado, **então**
+  ele informa o instante da primeira amostra divergente mantida pelo
+  classificador, o instante da confirmação e o limite superior calculado como
+  a diferença entre ambos mais um período de amostragem.
 - **Dada** uma sequência controlada que não produz duas janelas consecutivas
   com maioria do novo nível, **quando** a entrada volta ao estado anterior,
   **então** nenhum novo report é publicado.
@@ -557,7 +566,8 @@ do documento.
   binário e com diagnóstico do recurso ausente;
 - caso negativo ESP32-C6 para os dois boards, sempre com `SDKCONFIG` isolado;
 - testes automatizados do `DigitalInputBehavior`, com fonte de níveis injetável,
-  cobrindo período de 10 ms, sequências explícitas por janela, maioria, limite
+  cobrindo período de 10 ms em caso próprio, sequências explícitas por janela,
+  maioria, limite
   de 150 ms na fronteira do behavior, estado inicial síncrono, transição,
   supressão de duplicatas, falha de publicação, destruição com timer ativo e
   comando `Unsupported` reconhecido pelo par;
@@ -575,6 +585,9 @@ do documento.
   por sequência rejeitada, latência máxima de 150 ms medida até a confirmação
   pelo behavior, factory reset e evento correspondente observado no
   coordenador sem limite de entrega associado ao debounce.
+- após a correção de A1, confirmação focada em hardware de que uma entrada
+  estável mantém o boot vigente e uma entrada que não converge no orçamento
+  inicial não impede `Running`, publicando o primeiro estado quando estabilizar.
 
 Para cada item, falha, execução não iniciada ou resultado desconhecido não
 constitui aprovação. A evidência deve permitir distinguir aprovação, reprovação
@@ -1116,9 +1129,10 @@ uma especificação futura.
 - os testes preparados para concorrência exercitam a máquina de estados e as
   interações entre tarefas, mas a suficiência da exclusão mútua depende de sua
   execução e revisão;
-- não foram executados os casos automatizados nem os cenários em hardware de
-  estado inicial, transições, rejeição de oscilações, latência e preservação da
-  tomada;
+- os casos automatizados não foram executados. O Arquiteto declarou a composição
+  Door sensor + Door Sensor Battery H2 funcional em hardware; essa declaração
+  não discrimina todos os cenários do conjunto de validação nem cobre A1, a
+  instrumentação de A2 ou a cadência de A3;
 - o teste 3 do experimento EKOM está estruturalmente materializado por duas
   variantes reais, mas seu encerramento e a avaliação de manutenibilidade
   permanecem decisões do Arquiteto após as evidências pendentes.
@@ -1325,3 +1339,79 @@ Os demais achados são registros para não regredirem na leitura das evidências
 não condicionam a continuidade. A execução das suítes e da validação em
 hardware permanece pendente e fora desta atuação; ausência de achados
 adicionais não é prova de correção.
+
+## Decisão arquitetural após a revisão da Fase 2
+
+O Arquiteto aceitou a revisão do commit `a6028d3`, declarou a composição Door
+sensor + Door Sensor Battery H2 funcional em hardware e determinou que o ciclo
+corretivo permaneça nesta especificação. A validação é evidência funcional do
+build revisado, sem inferir cenários, medições ou logs que não foram fornecidos.
+Ela não encerra os achados nem promove o estado integral.
+
+### Resoluções normativas
+
+32. **A1 — boot com entrada inicialmente instável.** `begin()` mantém a
+    tentativa síncrona vigente por duas janelas. Se houver confirmação, publica
+    o estado inicial como hoje. Se as classificações divergirem, não retorna
+    `Failed`: arma o timer periódico, retorna `Ok` e continua o mesmo
+    classificador, preservando a última classificação já observada. O primeiro
+    par consecutivo confirmado produz um único report inicial. Falha ao criar ou
+    armar o timer continua sendo falha de inicialização; falha ao publicar não
+    confirma o estado e pode ser tentada novamente pelo classificador. Um caso
+    automatizado próprio deve atravessar classificações iniciais divergentes,
+    comprovar que `begin()` retorna `Ok` e observar o primeiro report somente
+    depois da convergência.
+33. **A2 — instrumentação de latência.** Para uma transição posterior ao estado
+    inicial, o behavior registra o instante da primeira amostra que diverge do
+    estado confirmado e o mantém enquanto a tentativa de transição não for
+    descartada por duas classificações consecutivas do estado anterior. Na
+    confirmação, registra também o instante final e o limite superior
+    `confirmação − primeira divergência + samplePeriodMs`. A instrumentação não
+    altera o protocolo nem inclui fila, transporte, ACK, retry ou coordenador.
+34. **A3 — caso próprio de cadência.** O test app acrescenta um caso separado
+    que arma o `esp_timer`, registra ao menos dez intervalos consecutivos com
+    `esp_timer_get_time()` e verifica média entre 9 ms e 11 ms para a
+    configuração nominal de 10 ms. O caso também registra o maior intervalo
+    observado para tornar visível o efeito de eventos descartados, mas essa
+    observação não redefine o oráculo de debounce.
+35. **A7 — leitura concorrente do estado.** O estado público do
+    `DigitalInputBehavior` deve usar uma representação atômica coerente para
+    `unknown/open/closed`, ou proteção equivalente, de modo que callback e
+    leitor não participem de data race. Não se amplia a API pública nem a seção
+    crítica de `IsspDevice`.
+36. **A8 — força dos oráculos.** Pino inválido e configuração inválida de
+    debounce passam a ser casos distintos. O caso vigente de registro é
+    renomeado para comprovar somente que duas capabilities do registro
+    unificado são registradas. A ordem por tipo permanece evidência estática do
+    vetor unificado; não se cria nova junção ou alteração em `SetupHooks` apenas
+    para observá-la.
+37. **A9 — configuração rastreada.** `client_154/sdkconfig` volta a selecionar
+    Single smart plug + Current client ESP32-H2 wiring. Os defaults do `Kconfig`
+    permanecem iguais. A seleção usada pelo Arquiteto para validar o Door sensor
+    é evidência local e não altera o build autoritativo rastreado.
+38. **A4 aceito.** `skip_unhandled_events = true` permanece para evitar rajadas
+    de callbacks atrasadas. Cadência real e latência devem tornar o efeito
+    observável; não se assume que cada janela sempre ocupa exatamente 50 ms.
+39. **A5 e A6 aceitos.** A lacuna de sequência em falha de codificação de
+    `publishReport()` é aceita enquanto o método permanecer sem consumidor; um
+    consumidor futuro exige novo confronto. Os slots fixos por tipo são aceitos
+    enquanto `kImplStorageBytes` não crescer e o `static_assert` permanecer
+    válido; não se introduz união, alocação dinâmica ou novo framework neste
+    ciclo.
+
+### Recorte da implementação corretiva
+
+A correção limita-se a `DigitalInputBehavior`, seus casos automatizados, aos
+casos afetados de `SmartSysApp`, a `client_154/sdkconfig` e à reconciliação
+documental. Não autoriza mudança de protocolo, transporte, commissioning,
+coordenador, composição de produto, recursos do board ou `SetupHooks`.
+
+O Implementador deve compilar os projetos afetados e registrar evidência, sem
+executar suítes, QEMU, flash ou hardware. Depois, uma revisão focada confronta
+somente A1, A2, A3, A7, A8 e A9 e confirma que A4, A5 e A6 permaneceram dentro
+das limitações aceitas. A execução de casos automatizados continua `Not
+Executed` sob TESTEXEC-009. O recorte acrescenta dois casos de
+`DigitalInputBehavior` — fallback inicial e cadência — e separa em dois o caso
+de validação de `SmartSysApp`; o total preparado esperado passa de 36 para 39.
+Após a revisão e a confirmação focada de hardware definida no conjunto de
+validação, o Arquiteto decide a conclusão da Fase 2 e do experimento EKOM.
