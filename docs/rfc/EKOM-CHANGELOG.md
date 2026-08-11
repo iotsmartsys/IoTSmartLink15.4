@@ -74,6 +74,8 @@ polaridade e tempo ligado.
 - na v0.7, o Arquiteto aceitou preempção diagnosticada de `persistNetwork()` e
   exigiu evidência positiva de report para sleep antecipado, sem quarta
   ampliação da API reutilizável.
+- a v0.8 atribui a sequência a uma única task privada, limita a espera de
+  entrega pelo deadline e distingue o detentor da transição.
 
 ### Lacunas
 
@@ -113,7 +115,10 @@ polaridade e tempo ligado.
   do detentor da transição e alcance de DEEPSLEEP-AC-004 diante de
   `ValidateConfiguration` — e dois pontos de método: o meio admissível do
   experimento de DEEPSLEEP-AC-008B e o limite de sono do ESP32-H2 relevante para
-  DEEPSLEEP-AC-003.
+  DEEPSLEEP-AC-003;
+- a v0.8 incorpora as três precisões, define instrumentação temporária H2 como
+  meio futuro do experimento de NVS, valida timer pelo limite efetivo do
+  ESP-IDF/H2 e explicita as costuras de teste sem ampliar a API normativa.
 
 ### Relatórios e evidências materiais
 
@@ -133,8 +138,8 @@ polaridade e tempo ligado.
 
 ### Resultado
 
-Contrato v0.7 registrado em rascunho. As duas decisões e as duas precisões
-devolvidas pela análise da v0.6 foram incorporadas sem ampliar novamente a API
-reutilizável. O documento está preparado para nova análise de
-implementabilidade; implementação ainda depende de análise, promoção e
-autorização explícitas do Arquiteto.
+Contrato v0.8 registrado em rascunho. As precisões e os pontos de método
+devolvidos pela análise da v0.7 foram incorporados, sem novo contrato público de
+lifecycle. O documento está preparado para nova análise de implementabilidade;
+implementação ainda depende de análise, promoção e autorização explícitas do
+Arquiteto.

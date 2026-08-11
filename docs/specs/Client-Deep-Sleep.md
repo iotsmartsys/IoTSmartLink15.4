@@ -8,7 +8,7 @@
 
 **Estado do workflow:** Rascunho; preparada para análise de implementabilidade
 
-**Versão:** 0.7
+**Versão:** 0.8
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -32,9 +32,10 @@ smartSysApp.configureDeepSleep({
 ```
 
 O recurso oferece wakeup periódico por timer, com intervalo em minutos ou
-horas, e um LED opcional que acende em todo boot. O LED aceita polaridade
-`HIGH` ou `LOW` e permanece ligado por uma duração em milissegundos ou até o
-próximo deep sleep.
+horas, e um LED opcional que acende em todo boot operacional cuja configuração
+válida alcance a inicialização de plataforma. O LED aceita polaridade `HIGH` ou
+`LOW` e permanece ligado por uma duração em milissegundos ou até o próximo deep
+sleep.
 
 O recorte cobre somente o `client_154` em ESP32-H2. Não cobre light sleep,
 sleep isolado do rádio, outras fontes de wakeup, retenção arbitrária em RTC
@@ -151,7 +152,11 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
 - timer habilitado exige `interval > 0` e unidade `Minutes` ou `Hours`;
 - o intervalo é contado desde a entrada em deep sleep e não inclui o tempo
   acordado;
-- a conversão para microssegundos detecta overflow antes de configurar RTC;
+- a conversão usa `std::uint64_t`; para `interval` de 32 bits em minutos ou
+  horas, o limite material é o aceito por `esp_sleep_enable_timer_wakeup()` no
+  ESP32-H2 com ESP-IDF 6.0.1, não overflow aritmético de 64 bits;
+- o preparo confronta esse limite e o retorno da API. `ESP_ERR_INVALID_ARG` ou
+  outro erro bloqueia a sequência antes de qualquer operação terminal;
 - timer desabilitado não configura essa fonte e permite acordar somente por
   reset ou nova energização;
 - antes de dormir sem fonte configurada, a fachada registra diagnóstico
@@ -164,7 +169,8 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
 - `DurationMs` exige `onTimeMs > 0` e apaga o LED ao final do período;
 - `UntilSleep` ignora `onTimeMs` e apaga o LED imediatamente antes do sleep;
 - LED desabilitado não configura nem toma o GPIO;
-- na entrada de `setup()`, a fachada captura o início da janela acordada; a
+- na entrada de `setup()`, a fachada captura o início da janela acordada; em
+  todo boot com configuração válida que alcance `InitializePlatform`, a
   primeira operação de plataforma é identificar a causa do boot e configurar
   e acender o LED, antes de NVS, commissioning, rádio ou reports;
 - a inicialização evita pulso visível de polaridade oposta na medida suportada
@@ -218,7 +224,7 @@ em cada boot e não é persistida pela fachada.
 
 ```text
 wakeup/reset
-→ setup captura o início da janela, registra a causa e acende o LED
+→ com configuração válida, setup captura a janela, registra a causa e acende LED
 → executa setup e trabalho do ciclo
 → após Running, inicia quiescência antecipada somente quando ao menos um report
   inicial esperado foi admitido e todos os reports iniciais esperados estão
@@ -228,11 +234,13 @@ wakeup/reset
 → registra o resultado, apaga o LED e inicia deep sleep
 ```
 
-`SmartSysApp` é dona do deadline contado desde a entrada de `setup()`. O
-deadline continua ativo durante commissioning, `NotReady`, `Running` e mesmo
-enquanto a pilha chamadora não recuperou o controle. A implementação deve
-possuir mecanismo capaz de observar o prazo independentemente do retorno de
-`app_main()` ou de uma etapa bloqueante de `setup()`.
+`SmartSysApp` é dona do deadline contado desde a entrada de `setup()`. Uma única
+task privada de lifecycle de energia é a dona exclusiva da transição e da
+sequência completa. Ela observa o prazo durante commissioning, `NotReady`,
+`Running` e mesmo enquanto a pilha chamadora não recuperou o controle. Outros
+callbacks e tasks apenas sinalizam eventos; não executam passos de quiescência
+ou sleep. A task começa em `InitializePlatform`, depois do acionamento do LED,
+e não existe quando a configuração falha em `ValidateConfiguration`.
 
 Sleep antecipado exige evidência positiva de report neste boot. São reports
 iniciais esperados aqueles cujos behaviors têm `reportOnStart=true`. Deve
@@ -241,11 +249,20 @@ foi admitida. Para `DigitalInputBehavior`, `initial_stabilization_pending` não 
 essa confirmação e mantém o device acordado. Se nenhum report inicial for
 esperado ou a estabilização não concluir, somente o deadline permite dormir.
 
+Enquanto o deadline não chega, a task de lifecycle reavalia a prontidão dos
+reports iniciais. Assim, confirmação do `DigitalInputBehavior` posterior a
+`Running` ainda pode habilitar sleep antecipado; a avaliação não ocorre somente
+uma vez na transição para `Running`.
+
 A fachada determina essa evidência com dados que já possui: configuração
 `reportOnStart`, sucesso síncrono de `DigitalOutputBehavior::begin()` e
 `DigitalInputBehavior::hasConfirmedState()`, que só confirma o estado inicial
 depois de uma publicação requerida bem-sucedida. Não se adiciona quarta
 operação à API reutilizável para esse controle.
+
+O comentário do header deve separar `hasConfirmedState()`, agora consulta usada
+em produção, das costuras `beginForTest()` e `sampleForTest()`, que permanecem
+exclusivas de teste. Nenhuma assinatura muda por essa correção.
 
 Depois da admissão dos reports iniciais, o device fecha novas admissões e os
 behaviors entram em quiescência. Então `pendingReportCount() == 0` prova a
@@ -288,6 +305,9 @@ generalização das APIs compartilhadas.
 Factory reset e deep sleep compartilham uma arbitragem atômica de transição. A
 primeira transição aceita vence:
 
+- o detentor possui três estados distinguíveis: livre, deep sleep ou factory
+  reset;
+
 - factory reset é aceito quando o hold configurado se completa e a transição é
   adquirida; nesse caso, qualquer início de deep sleep é cancelado, a limpeza
   exclusiva do vínculo de rede termina e `esp_restart()` prossegue;
@@ -326,16 +346,28 @@ segura se estiver inválido. O experimento só aceita a preempção se observar
 descritor anterior válido, novo válido ou ausência, nunca conteúdo parcial ou
 inválido. Esse comportamento não é certificado por leitura ou build.
 
+Quando uma especificação futura autorizar execução, o meio admissível para
+provocar essa corrida é um build H2 temporariamente instrumentado, não
+entregável, com barreira privada imediatamente antes de `nvs_commit()` e uma
+varredura controlada de atrasos para disparar o deadline durante o commit. A
+instrumentação deve ser removida do artefato entregável; o relatório registra
+atrasos, repetições e cada resultado de boot. Uma varredura estatística sem a
+barreira pode complementar, mas não substituir, a provocação controlada.
+
 A ordem obrigatória é:
 
 ```text
-adquirir a transição de deep sleep; abortar se factory reset já venceu
+adquirir ou confirmar a transição de deep sleep
+  prosseguir se livre ou já detida pelo próprio deep sleep
+  abortar somente se detida pelo factory reset
 → preparar a fonte de wakeup solicitada, quando houver
 → encerrar ResetButtonMonitor, quando configurado
 → beginQuiescence no device
 → quiesce em todos os behaviors registrados
-→ aguardar pendingReportCount() == 0 no caminho antecipado
-  ou apenas registrar a contagem no deadline
+→ no caminho antecipado, aguardar pendingReportCount() == 0 somente até o
+  deadline absoluto
+→ ao atingir o deadline, a mesma task e o mesmo detentor mudam para o caminho
+  forçado e apenas registram a contagem pendente
 → stop no report executor
 → se stop concluir em até 600 ms, end no transporte
   senão registrar o timeout e preservar o transporte sem chamar end
@@ -349,8 +381,10 @@ intencional de fonte não aborta e é diagnosticada conforme a seção 4.2.
 No caminho antecipado, a fachada inicia essa sequência depois que `setup()`
 atinge `Running`, existe ao menos um report inicial esperado e todos foram
 admitidos. Fechar a admissão e parar os producers torna estável o oráculo
-`pendingReportCount() == 0`. No deadline, a mesma sequência não exige report
-admitido nem aguarda entrega das pendências.
+`pendingReportCount() == 0`. A espera usa somente o tempo restante de
+`maxAwakeTimeMs`; não possui timeout próprio nem pode bloquear a observação do
+deadline. No deadline, a mesma dona continua a sequência sem readquirir a
+transição, não exige report admitido e não aguarda entrega das pendências.
 
 Os 600 ms de espera por `stop()` cobrem o pior caso estimado de aproximadamente
 465 ms para a tentativa ativa, com margem de escalonamento. Se o limite
@@ -375,12 +409,15 @@ deep sleep enquanto a limpeza de factory reset detiver a transição. A preempç
 durante `persistNetwork()` e a corrida com factory reset exigem os experimentos
 da seção 8.
 
-Configuração inválida falha antes de tocar NVS, rádio, RTC ou GPIO. Falha de
-plataforma durante o início de `setup()` produz o `SetupResult` vigente quando
-o fluxo puder retornar; se o deadline conduzir diretamente ao deep sleep, o
-resultado operacional permanece no log estruturado. Causa de boot,
-configuração desabilitada, sleep antecipado, deadline, pendências, início e
-bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
+Configuração inválida em `ValidateConfiguration` falha antes de tocar NVS,
+rádio, RTC ou GPIO; nesse boot não há LED, task de lifecycle ou deep sleep. É
+defeito de desenvolvimento da composição constante, não condição operacional
+de campo. Falha de plataforma durante o início de `setup()` produz o
+`SetupResult` vigente quando o fluxo puder retornar; se o deadline conduzir
+diretamente ao deep sleep, o resultado operacional permanece no log
+estruturado. Causa de boot, configuração desabilitada, sleep antecipado,
+deadline, pendências, início e bloqueio do sleep devem ser distinguíveis sem
+conteúdo sensível.
 
 ## 7. Critérios de aceitação
 
@@ -393,11 +430,14 @@ bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
   públicos vigentes. A colisão compara somente `wake_led` aos demais GPIOs e
   não altera validações quando o recurso está desabilitado.
 - **DEEPSLEEP-AC-003 — Timer:** minutos e horas válidos são convertidos sem
-  perda semântica; zero, unidade inválida e overflow são rejeitados antes de
-  configurar RTC.
+  perda semântica; zero e unidade inválida falham na configuração, e intervalo
+  acima do limite aceito pelo ESP-IDF/H2 falha no preparo antes de qualquer
+  operação terminal.
 - **DEEPSLEEP-AC-004 — LED:** polaridades HIGH e LOW, `DurationMs` e
-  `UntilSleep` produzem nível e tempo configurados; o LED acende em todo boot
-  como primeira operação de plataforma e apaga antes do sleep.
+  `UntilSleep` produzem nível e tempo configurados; em todo boot com
+  configuração válida que alcance `InitializePlatform`, o LED acende como
+  primeira operação de plataforma e apaga antes do sleep. Configuração inválida
+  não toca GPIO.
 - **DEEPSLEEP-AC-005 — Composição e renome:** política permanece no produto e
   recurso físico no board; `door_sensor_battery_h2` recebe `wake_led` GPIO 13
   do board, composição incompatível falha antes do binário e todo o alcance do
@@ -406,14 +446,16 @@ bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
   deve haver pelo menos um report inicial esperado e todos precisam ter sido
   admitidos; só então `pendingReportCount() == 0` permite sleep antecipado e
   prova entrega sem reserva ou transmissão. Ausência de report e
-  `initial_stabilization_pending` aguardam o deadline; slot ocupado por falha
-  não retryable também.
+  `initial_stabilization_pending` são reavaliados até o deadline; slot ocupado
+  por falha não retryable também aguarda. A espera de entrega usa apenas o tempo
+  restante até o deadline.
 - **DEEPSLEEP-AC-007 — Deadline e quiescência:** o deadline é observado em
   `setup()`, commissioning, `NotReady` e `Running`, inclusive sob etapa
-  bloqueante; a quiescência segue a ordem da seção 6, usa somente as operações
-  públicas autorizadas nos componentes, não destrói objetos e não cria
-  `SmartSysApp::stop()` ou retry público. `stop()` possui limite de 600 ms; no
-  estouro, `end()` não é chamado.
+  bloqueante; uma única task privada possui e executa a sequência, converte o
+  caminho antecipado em forçado no deadline e reconhece a transição já detida
+  pelo próprio deep sleep. A quiescência usa somente as operações públicas
+  autorizadas, não destrói objetos e não cria `SmartSysApp::stop()` ou retry
+  público. `stop()` possui limite de 600 ms; no estouro, `end()` não é chamado.
 - **DEEPSLEEP-AC-008 — Sleep forçado:** no deadline, reports, rede e falhas
   pendentes são registrados sem persistência; falha de quiescência não reabre
   trabalho e o sleep começa. Falha da fonte de wakeup solicitada bloqueia o
@@ -431,10 +473,12 @@ bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
 - **DEEPSLEEP-AC-009 — Wakeup:** timer wakeup, cold boot e outras causas são
   distinguíveis; o boot reaplica a configuração e sleep sem timer é permitido
   com diagnóstico.
-- **DEEPSLEEP-AC-010 — Evidência futura:** lógica de validação e falhas é
-  verificável com doubles; build H2 cobre composições habilitada e desabilitada;
-  hardware H2 confronta timer, LED, corrente e o deadline sob bloqueio somente
-  quando especificação futura autorizar execução.
+- **DEEPSLEEP-AC-010 — Evidência futura:** `SetupHooks` pode ser estendido como
+  costura interna para verificar com doubles lifecycle, validação e falhas, sem
+  integrar o contrato normativo do produto. Build H2 cobre composições
+  habilitada e desabilitada; hardware H2 confronta timer, LED, deadline e
+  corrente tanto com `end()` quanto no timeout que o suprime, somente quando
+  especificação futura autorizar execução.
 
 Build não comprova comportamento físico. Esta especificação não autoriza
 executar builds ou testes.
@@ -443,8 +487,9 @@ executar builds ou testes.
 
 - **DEEPSLEEP-DEC-001:** há duração máxima acordado e sleep antecipado quando
   todos os reports do ciclo forem entregues.
-- **DEEPSLEEP-DEC-002:** o LED habilitado acende em todo boot; a causa é
-  registrada separadamente.
+- **DEEPSLEEP-DEC-002:** o LED habilitado acende em todo boot operacional com
+  configuração válida que alcance `InitializePlatform`; a causa é registrada
+  separadamente. Falha em `ValidateConfiguration` não toca GPIO.
 - **DEEPSLEEP-DEC-003:** deep sleep sem fonte de wakeup é permitido com
   diagnóstico explícito.
 - **DEEPSLEEP-DEC-004:** no deadline, o dispositivo dorme após registrar
@@ -467,11 +512,11 @@ executar builds ou testes.
   quiescência, `pendingReportCount() == 0`. Ausência de report não equivale a
   entrega.
 
-A v0.7 incorpora os achados da análise de implementabilidade da v0.6. Uma nova
-análise deve confirmar a preempção diagnosticada de `persistNetwork()`, a
-evidência positiva de report inicial, o timeout de `stop()` com supressão de
-`end()` e o re-arme do hold. Os comportamentos de NVS e as corridas continuam
-exigindo experimento explícito; não são presumidos por inspeção ou build.
+A v0.8 incorpora os achados da análise de implementabilidade da v0.7. Uma nova
+análise deve confirmar o dono único, a espera limitada pelo deadline, os três
+estados da arbitragem, o alcance do LED e a validação do limite real do timer.
+Os comportamentos de NVS e as corridas continuam exigindo experimento
+explícito; não são presumidos por inspeção ou build.
 
 Fontes de evidência existentes:
 
@@ -479,7 +524,8 @@ Fontes de evidência existentes:
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-verification-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v04-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v05-implementability-analysis.md`;
-- `docs/reports/client-deep-sleep/analysis/2026-08-11-v06-implementability-analysis.md`.
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v06-implementability-analysis.md`;
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v07-implementability-analysis.md`.
 
 O documento permanece `Draft`. Estar preparado para análise não autoriza
 implementação, promoção, execução de testes ou integração.
