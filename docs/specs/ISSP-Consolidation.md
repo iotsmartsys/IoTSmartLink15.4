@@ -117,6 +117,11 @@ client_154/main/reset/
 coordinator_154/
 ```
 
+Esses caminhos registram a baseline histórica da consolidação. A evolução
+posterior moveu o entrypoint para `client_154/main/app_main.cpp` e o factory
+reset para `components/issp_app_154/src/reset/`; o mapa e o dossiê localizam o
+estado vigente.
+
 ### 4.4 Verificações após remoção
 
 Confirmar que:
@@ -469,9 +474,9 @@ A consolidação estará concluída quando:
 
 ---
 
-## 13. Formato obrigatório do relatório do Codex
+## 13. Evidências exigidas da consolidação
 
-Entregar o relatório nesta ordem:
+O relatório separado deve preservar, nesta ordem:
 
 1. resultado executivo;
 2. arquivos modificados;

@@ -1,5 +1,9 @@
 # EKM — Histórico de Mudanças do Conhecimento
 
+> **Registro histórico:** este changelog preserva as transações conduzidas sob
+> a EKM 1.x. O resumo vigente e as novas transações estão em
+> `docs/rfc/EKOM-CHANGELOG.md`.
+
 **Tipo:** Operacional
 **Status:** Active
 **Versão:** 1.8

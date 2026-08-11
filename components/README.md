@@ -7,11 +7,13 @@
 Este diretório contém os componentes reutilizáveis do runtime ISSP:
 
 - `issp_core`: tipos, protocolo, abstrações de behavior e transporte,
-  `IsspDevice` e fila lógica de reports; não depende do ESP-IDF;
+  `IsspDevice` e fila lógica de reports; usa a seção crítica do FreeRTOS para
+  proteger reports pendentes;
 - `issp_transport_154`: transporte IEEE 802.15.4, commissioning, NVS e executor
   de reports; depende de `issp_core`, `ieee802154` e `nvs_flash`;
 - `issp_behaviors`: behaviors reutilizáveis; atualmente expõe
-  `DigitalOutputBehavior` e depende de `issp_core` e `esp_driver_gpio`;
+  `DigitalOutputBehavior` e `DigitalInputBehavior` e depende de `issp_core`,
+  `esp_driver_gpio` e `esp_timer`;
 - `issp_app_154`: fachada pública `iotsmartsys::SmartSysApp`; compõe por
   delegação `issp_core`, `issp_behaviors` e `issp_transport_154`, além de
   possuir o factory reset local (`FactoryResetService`,
@@ -58,9 +60,9 @@ As dependências CMake são:
 
 | Componente | Públicas (`REQUIRES`) | Privadas (`PRIV_REQUIRES`) |
 |---|---|---|
-| `issp_core` | nenhuma | nenhuma |
+| `issp_core` | `freertos` | nenhuma |
 | `issp_transport_154` | `ieee802154`, `issp_core`, `nvs_flash` | nenhuma |
-| `issp_behaviors` | `issp_core`, `esp_driver_gpio` | nenhuma |
+| `issp_behaviors` | `issp_core`, `esp_driver_gpio`, `esp_timer` | nenhuma |
 | `issp_app_154` | `esp_driver_gpio` | `issp_core`, `issp_behaviors` (todo alvo); `issp_transport_154`, `nvs_flash`, `esp_timer`, `esp_hw_support` (somente `esp32h2`/`esp32c6`) |
 
 Em `issp_core`, `issp_transport_154` e `issp_behaviors`, as dependências
@@ -116,7 +118,7 @@ QEMU não é mais um runner permitido. Esses testes podem executar host-native
 quando os fakes preservarem integralmente a semântica material; o fallback
 físico vigente é
 `test_apps/smart_sys_app_test/pytest_smart_sys_app.py`, em ESP32-H2; ele exige
-o resumo terminal dos 20 casos Unity. Sob TESTEXEC-009 esses casos permanecem
+o resumo terminal dos 25 casos Unity. Sob TESTEXEC-009 esses casos permanecem
 `Not Executed`: somente uma especificação futura pode solicitar sua coleta,
 gravação ou execução. A validação de rádio, NVS, GPIO e factory reset
 permanece em hardware real, conforme

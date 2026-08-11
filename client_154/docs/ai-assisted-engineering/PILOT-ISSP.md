@@ -1,5 +1,9 @@
 Piloto de Engenharia Assistida por IA — Refatoração ISSP
 
+> **Registro histórico:** este piloto antecede o EKOM 3.2 e preserva o contexto
+> experimental da refatoração. Novas atuações seguem `AGENTS.md`, as fontes em
+> `docs/` e os perfis externos do EKOM.
+
 Status: Em andamento
 Início: 17/07/2026
 Projeto: IoTSmartLink15.4
