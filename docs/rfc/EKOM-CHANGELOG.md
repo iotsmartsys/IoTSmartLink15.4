@@ -69,6 +69,8 @@ polaridade e tempo ligado.
 - na v0.5, o Arquiteto autorizou alteração limitada de
   `ISSP-Reusable-Components.md` para criar as operações públicas de quiescência
   necessárias, sem lifecycle público na fachada.
+- na v0.6, o Arquiteto decidiu que factory reset e deep sleep obedecem à
+  primeira transição aceita, com exclusão sobre operações NVS e encerramento.
 
 ### Lacunas
 
@@ -83,11 +85,13 @@ polaridade e tempo ligado.
   `ISSP-Reusable-Components.md`, três operações mínimas de quiescência,
   atualização direta de `client_154/sdkconfig` e colisão restrita ao
   `wake_led`;
-- a análise da v0.5 confirma a relação com `ISSP-Reusable-Components.md` e a
-  suficiência das três operações, e devolve ao Arquiteto o tratamento do monitor
-  de factory reset na sequência de quiescência, a correção da nota de 1,15 s
-  para cerca de 1,47 s e a precisão de que `stop()` encerra as tentativas do
-  boot corrente.
+- a análise da v0.5 confirmou a relação com `ISSP-Reusable-Components.md` e a
+  suficiência das três operações;
+- a v0.6 incorpora os pontos devolvidos: arbitragem e parada do monitor de
+  factory reset, correção da nota para cerca de 1,47 s, waits notificáveis sem
+  Kconfig e precisão de que `stop()` encerra tentativas do boot corrente;
+- a concorrência com escrita NVS e entre transições permanece risco técnico
+  dependente de experimento, não decisão normativa pendente.
 
 ### Relatórios e evidências materiais
 
@@ -103,8 +107,8 @@ polaridade e tempo ligado.
 
 ### Resultado
 
-Contrato v0.5 registrado em rascunho. A decisão arquitetural sobre componentes
-reutilizáveis foi incorporada com operações limitadas e terminais no boot; os
-ajustes de renome e colisão também foram fechados. A análise da v0.5 recomenda
-prontidão com uma lacuna normativa pontual e duas correções de redação;
-implementação ainda depende de promoção e autorização explícitas do Arquiteto.
+Contrato v0.6 registrado em rascunho. A arbitragem entre factory reset e deep
+sleep, a exclusão sobre NVS, a parada do monitor e os waits notificáveis foram
+explicitados. O documento está preparado para nova análise de
+implementabilidade; implementação ainda depende de análise, promoção e
+autorização explícitas do Arquiteto.

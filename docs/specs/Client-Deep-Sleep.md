@@ -8,7 +8,7 @@
 
 **Estado do workflow:** Rascunho; preparada para análise de implementabilidade
 
-**Versão:** 0.5
+**Versão:** 0.6
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -48,9 +48,10 @@ se o Arquiteto promover o documento:
 
 - **Altera (`Amends`) `ISSP-Configurable-Bootstrap.md` v1.5:** acrescenta
   `configureDeepSleep()` à API pública e uma quiescência privada e limitada
-  imediatamente antes do deep sleep. Não cria `stop()` público, retry de
-  `setup()`, destruição de objetos nem novo estado público; o lifetime estático
-  permanece válido até o reboot causado pelo deep sleep.
+  imediatamente antes do deep sleep, incluindo arbitragem com o factory reset.
+  Não cria `stop()` público, retry de `setup()`, destruição de objetos nem novo
+  estado público; o lifetime estático permanece válido até o reboot causado
+  pelo deep sleep ou pelo factory reset.
 - **Altera (`Amends`) `Firmware-Variants-Menuconfig.md`:** renomeia o product
   firmware `door_sensor` para `door_sensor_battery_h2` e acrescenta o requisito
   de composição `wake_led`. O alcance completo do renome está definido na
@@ -253,18 +254,51 @@ seguintes ampliações materiais dos contratos reutilizáveis:
 - `IsspResult Issp154ReportExecutor::stop()`: operação pública, idempotente e
   terminal no boot. Desregistra notificações, interrompe espera ou delay de
   retry, aguarda de forma limitada a tentativa de transporte já ativa e
-  encerra sua task sem destruir o executor;
+  encerra sua task sem destruir o executor. O retry de 1000 ms usa espera por
+  notificação com timeout, preservando a duração vigente e permitindo a
+  interrupção sem `xTaskAbortDelay`, opção de Kconfig ou dependência externa;
 - `Issp154Transport::end()` permanece o contrato vigente e não recebe nova
   semântica.
 
-Nenhuma dessas operações permite reiniciar o objeto no mesmo boot. A ampliação
-não cria `SmartSysApp::stop()`, não torna `setup()` repetível e não autoriza
-outra generalização das APIs compartilhadas.
+Nenhuma dessas operações permite reiniciar o objeto no mesmo boot. `stop()`
+encerra somente as tentativas do boot atual; reports não entregues permanecem
+nos slots voláteis até o deep sleep e não são persistidos. A ampliação não cria
+`SmartSysApp::stop()`, não torna `setup()` repetível e não autoriza outra
+generalização das APIs compartilhadas.
+
+### 6.1 Arbitragem com factory reset e persistência
+
+Factory reset e deep sleep compartilham uma arbitragem atômica de transição. A
+primeira transição aceita vence:
+
+- factory reset é aceito quando o hold configurado se completa e a transição é
+  adquirida; nesse caso, qualquer início de deep sleep é cancelado, a limpeza
+  exclusiva do vínculo de rede termina e `esp_restart()` prossegue;
+- deep sleep é aceito quando seu gatilho adquire a transição; a partir daí,
+  novas solicitações de factory reset são rejeitadas e diagnosticadas neste
+  boot;
+- se a preparação de uma fonte de wakeup solicitada falhar, a fachada libera a
+  transição antes de qualquer encerramento terminal, e factory reset volta a
+  poder ser aceito;
+- escrita do descritor por `persistNetwork()`, limpeza do vínculo e commit da
+  entrada em deep sleep são mutuamente exclusivos. Uma transição já aceita
+  aguarda a operação NVS atômica em curso; o deadline pode ultrapassar seu valor
+  somente por essa janela protegida.
+
+Depois que o deep sleep vence e a fonte de wakeup está preparada,
+`ResetButtonMonitor` deve encerrar sua task por operação interna, idempotente e
+terminal no boot. Seu polling usa espera por notificação com
+`pollIntervalMs` como timeout, preservando o período configurado e permitindo
+parada limitada sem depender de Kconfig. A parada não altera GPIO, polaridade,
+hold ou semântica do factory reset fora da transição para sleep.
 
 A ordem obrigatória é:
 
 ```text
-preparar a fonte de wakeup solicitada, quando houver
+adquirir a transição de deep sleep; abortar se factory reset já venceu
+→ aguardar o término de operação NVS atômica em curso
+→ preparar a fonte de wakeup solicitada, quando houver
+→ encerrar ResetButtonMonitor, quando configurado
 → beginQuiescence no device
 → quiesce em todos os behaviors registrados
 → aguardar pendingReportCount() == 0 no caminho antecipado
@@ -275,8 +309,8 @@ preparar a fonte de wakeup solicitada, quando houver
 ```
 
 Falha ao preparar uma fonte solicitada aborta a sequência antes de qualquer
-operação terminal, preservando o runtime acessível. Ausência intencional de
-fonte não aborta e é diagnosticada conforme a seção 4.2.
+operação terminal, libera a arbitragem e preserva o runtime acessível. Ausência
+intencional de fonte não aborta e é diagnosticada conforme a seção 4.2.
 
 No caminho antecipado, a fachada inicia essa sequência depois que `setup()`
 atinge `Running` e os reports de boot já puderam ser admitidos. Fechar a
@@ -294,11 +328,11 @@ preparar uma fonte de wakeup solicitada bloqueia a própria sequência, antes da
 quiescência, para não tornar o dispositivo inacessível sem intenção.
 
 Os pontos cooperativos hoje observáveis têm ordem de grandeza de até 0,7 s
-entre canais do commissioning e 1,15 s entre tentativas do executor. Esses
+entre canais do commissioning e 1,47 s entre iterações do executor. Esses
 valores são nota de análise, não limite contratual nem mínimo para
 `maxAwakeTimeMs`. Um supervisor pode atuar como backstop, mas não pode iniciar
 deep sleep durante escrita do descritor em NVS; essa exclusão e o comportamento
-sob `persistNetwork()` exigem o experimento da seção 8.
+sob `persistNetwork()` e factory reset exigem o experimento da seção 8.
 
 Configuração inválida falha antes de tocar NVS, rádio, RTC ou GPIO. Falha de
 plataforma durante o início de `setup()` produz o `SetupResult` vigente quando
@@ -340,6 +374,10 @@ bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
   pendentes são registrados sem persistência; falha de quiescência não reabre
   trabalho e o sleep começa. Falha da fonte de wakeup solicitada bloqueia o
   sleep.
+- **DEEPSLEEP-AC-008A — Arbitragem:** factory reset e deep sleep obedecem à
+  primeira transição aceita; persistência, limpeza do vínculo e commit do sleep
+  não se sobrepõem. Se sleep vencer, o monitor termina antes da quiescência; se
+  factory reset vencer, a limpeza e o restart não são preemptados pelo sleep.
 - **DEEPSLEEP-AC-009 — Wakeup:** timer wakeup, cold boot e outras causas são
   distinguíveis; o boot reaplica a configuração e sleep sem timer é permitido
   com diagnóstico.
@@ -368,19 +406,23 @@ executar builds ou testes.
   APIs reutilizáveis por `IDeviceBehavior::quiesce()`,
   `IsspDevice::beginQuiescence()` e `Issp154ReportExecutor::stop()`, com
   semântica terminal no boot e sem `SmartSysApp::stop()` público.
+- **DEEPSLEEP-DEC-007:** factory reset e deep sleep seguem a regra "primeira
+  transição aceita vence", com exclusão mútua sobre persistência e encerramento;
+  o perdedor não preempta a transição aceita.
 
-A v0.5 incorpora os achados da análise de implementabilidade da v0.4. Uma nova
-análise deve confirmar a relação com `ISSP-Reusable-Components.md`, a suficiência
-e o limite das três novas operações, a sequência de quiescência, a atualização
-direta do `sdkconfig` e a validação restrita de colisão. A exclusão da janela de
-NVS e o deadline durante `persistNetwork()` continuam exigindo experimento
-explícito; não são presumidos por inspeção ou build.
+A v0.6 incorpora os achados da análise de implementabilidade da v0.5. Uma nova
+análise deve confirmar a arbitragem entre factory reset, persistência e deep
+sleep, a parada notificável do monitor e do executor e a ordem completa da
+seção 6. O deadline durante `persistNetwork()` e a corrida entre transições
+continuam exigindo experimento explícito; não são presumidos por inspeção ou
+build.
 
 Fontes de evidência existentes:
 
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-initial-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-verification-analysis.md`;
-- `docs/reports/client-deep-sleep/analysis/2026-08-11-v04-implementability-analysis.md`.
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v04-implementability-analysis.md`;
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v05-implementability-analysis.md`.
 
 O documento permanece `Draft`. Estar preparado para análise não autoriza
 implementação, promoção, execução de testes ou integração.
