@@ -1415,3 +1415,125 @@ Executed` sob TESTEXEC-009. O recorte acrescenta dois casos de
 de validação de `SmartSysApp`; o total preparado esperado passa de 36 para 39.
 Após a revisão e a confirmação focada de hardware definida no conjunto de
 validação, o Arquiteto decide a conclusão da Fase 2 e do experimento EKOM.
+
+## Resultado da implementação corretiva (Engenheiro Implementador)
+
+**Estado desta correção:** implementação escrita e compilada; os 39 casos
+automatizados permanecem `Not Executed` por TESTEXEC-009. A Fase 2 e o estado
+integral continuam `In Progress` e esta seção não declara aprovação nem
+substitui a revisão focada prevista.
+
+Recorte executado: decisões 32 a 39, limitado a `DigitalInputBehavior`, seus
+casos automatizados, aos casos afetados de `SmartSysApp`, a
+`client_154/sdkconfig` e à reconciliação documental. Protocolo, transporte,
+commissioning, coordenador, composição de produto, recursos do board e
+`SetupHooks` não foram alterados.
+
+### Correções implementadas
+
+- **A1 (decisão 32).** `beginTimerBacked()` deixou de retornar `Failed` quando
+  as duas janelas síncronas divergem. Ele registra
+  `initial_stabilization_pending`, arma o `esp_timer` periódico e retorna `Ok`,
+  preservando a classificação já observada; o primeiro par consecutivo
+  confirmado publica um único report inicial. Falha ao criar o timer, período
+  de zero tick e falha ao armar o timer continuam sendo falha de
+  inicialização, com o mesmo desfazimento anterior;
+- **A2 (decisão 33).** O behavior marca o instante da primeira amostra que
+  diverge do estado confirmado, mantém essa marca enquanto a tentativa de
+  transição não for descartada por duas classificações consecutivas do estado
+  anterior e a descarta ao confirmar. O log de transição passou a ser
+  `transition_report endpoint=… event=… value=… first_divergence_us=…
+  confirmed_us=… latency_upper_ms=…`, com o limite superior calculado como
+  `confirmação − primeira divergência + samplePeriodMs`. O log do report
+  inicial permanece com o texto anterior. A instrumentação não toca protocolo,
+  fila, ACK, retry nem coordenador;
+- **A3 (decisão 34).** Novo caso `the periodic timer samples at the configured
+  10 ms cadence`, que arma o timer real, mede os intervalos entre amostras com
+  `esp_timer_get_time()`, exige ao menos onze intervalos e média entre 9 ms e
+  11 ms, e registra o maior intervalo observado sem usá-lo como oráculo de
+  debounce. As amostras da estabilização síncrona são descartadas do cálculo
+  para que o caso meça somente a cadência do timer;
+- **A7 (decisão 35).** `hasConfirmedState_` e `confirmedState_` foram
+  substituídos por um único `std::atomic<std::uint8_t>` com os valores
+  desconhecido/inativo/ativo. Leitor e callback observam uma palavra coerente
+  sem data race. A API pública do behavior e do capability não mudou e a seção
+  crítica de `IsspDevice` não foi ampliada;
+- **A8 (decisão 36).** `addDoorSensorCapability validates pin and debounce` foi
+  separado em `rejects an invalid pin` e `rejects an invalid debounce
+  configuration`, cada um violando exatamente uma regra. O caso de registro foi
+  renomeado para `setup registers both capabilities of the unified registry` e
+  afirma somente `Running` e duas chamadas de registro; as asserções de posição
+  na sequência de estágios foram removidas por não discriminarem o tipo de
+  capability. Nenhuma junção nova foi criada e `SetupHooks` permanece
+  inalterado;
+- **A9 (decisão 37).** `client_154/sdkconfig` volta a selecionar
+  `CONFIG_IOTSMARTLINK154_PRODUCT_SINGLE_SMART_PLUG=y` e
+  `CONFIG_IOTSMARTLINK154_BOARD_CURRENT_CLIENT_ESP32H2_WIRING=y`. Os defaults
+  do `Kconfig` não mudaram e nenhuma outra chave do arquivo foi alterada;
+- **A4, A5 e A6 (decisões 38 e 39).** Preservados. `skip_unhandled_events =
+  true` continua no `esp_timer_create_args_t`; `publishReport()` mantém a
+  reserva de sequência antes da codificação; `kImplStorageBytes` continua em
+  10240 com os slots fixos por tipo e o `static_assert` vigente.
+
+### Decisões locais de implementação
+
+- **falha de publicação durante `begin()` deixou de abortar a inicialização.**
+  A decisão 32 mantém como falha de inicialização apenas a criação e o
+  armamento do timer e determina que falha ao publicar não confirme o estado e
+  possa ser tentada novamente pelo classificador. A tentativa síncrona passou a
+  registrar `initial_report failed result=…` e a prosseguir; como o
+  classificador já mantém a contagem saturada em `consecutiveWindows`, a
+  próxima janela com a mesma classificação tenta publicar de novo. Falha de
+  leitura do nível — retorno fora de `{0,1}` — continua abortando `begin()`,
+  por ser defeito de leitura da entrada e não divergência de estabilização;
+- **separação entre ler e classificar.** `sampleCurrentLevel()` foi dividido em
+  `readLevel()` e `processSample()` para que a tentativa síncrona distinga esses
+  dois casos sem duplicar a máquina de debounce;
+- **descarte da marca de divergência.** A marca é limpa quando uma
+  classificação igual ao estado confirmado atinge `consecutiveWindows`, isto é,
+  quando a tentativa de transição é efetivamente descartada, e também ao
+  confirmar um novo estado.
+
+### Evidências obtidas sem executar suítes
+
+Ambiente: ESP-IDF v6.0.1 (`v6.0.1-dirty`), toolchain `riscv32-esp-elf-gcc`
+15.2.0, macOS. Todos os builds usaram diretório e `SDKCONFIG` isolados fora da
+árvore do repositório; nenhum QEMU, `pytest`, flash, monitor ou suíte Unity foi
+executado.
+
+| Verificação | Resultado |
+|---|---|
+| build Single smart plug + Current client ESP32-H2 wiring | sucesso, 0 warnings, 288624 bytes |
+| build Door sensor + Door Sensor Battery H2 | sucesso, 0 warnings, 288880 bytes |
+| build `digital_input_behavior_test`, ESP32-H2 | sucesso, 0 warnings, 147616 bytes |
+| build `smart_sys_app_test`, ESP32-H2 | sucesso, 0 warnings, 266864 bytes |
+| build `issp_device_concurrency_test`, ESP32-H2 | sucesso, 0 warnings, 137808 bytes |
+| build `examples/issp_minimal_client`, ESP32-H2 | sucesso, 0 warnings, 253472 bytes |
+| seleção de fontes | `build.ninja` de cada composição contém somente o product firmware e o board selecionados |
+| casos preparados | 25 `SmartSysApp` + 10 `DigitalInputBehavior` + 4 concorrência = 39, conforme o recorte |
+| configuração rastreada | `client_154/sdkconfig` seleciona Single smart plug e o board atual |
+| integridade textual | `git diff --check` sem erro; diff restrito aos cinco arquivos do recorte mais especificação e mapa |
+
+Os tamanhos acima foram medidos com a configuração rastreada como base e não
+são comparáveis diretamente aos 252896 e 253120 bytes registrados na entrega
+anterior, que partiu de outra configuração de build. `coordinator_154` não foi
+recompilado: ele não consome `issp_behaviors` e nenhum arquivo do seu grafo de
+dependências foi tocado por esta correção.
+
+### Limitações e validações pendentes
+
+- os 39 casos permanecem `Not Executed` por TESTEXEC-009; compilar não comprova
+  comportamento. Em particular, A1, A2, A3 e A7 têm o código escrito, mas seus
+  oráculos ainda não foram observados;
+- o caso de cadência e o de fallback inicial dependem do `esp_timer` real e da
+  tarefa `esp_timer` em ESP32-H2; a média de 9 ms a 11 ms e o descarte de
+  eventos de A4 só se tornam observáveis na execução;
+- a janela de callback em voo do `esp_timer` descrita em O2 permanece limitação
+  conhecida da API, sem alteração nesta correção;
+- a instrumentação de A2 subestima a latência real em até um período de
+  amostragem, o que é a razão de o limite superior somar `samplePeriodMs`; a
+  confirmação focada em hardware prevista no conjunto de validação continua
+  pendente;
+- a leitura da decisão 32 quanto à falha de publicação em `begin()` é registrada
+  acima como decisão local e fica sujeita à revisão focada e à avaliação do
+  Arquiteto.

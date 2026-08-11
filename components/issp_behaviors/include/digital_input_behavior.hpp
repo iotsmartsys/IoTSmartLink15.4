@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 
 #include "driver/gpio.h"
@@ -61,6 +62,12 @@ public:
     bool state() const;
 
 private:
+    // Single atomic word so the esp_timer task and any reader task observe a
+    // coherent unknown/inactive/active state without a data race.
+    static constexpr std::uint8_t kStateUnknown = 0;
+    static constexpr std::uint8_t kStateInactive = 1;
+    static constexpr std::uint8_t kStateActive = 2;
+
     static void timerCallback(void *context);
 
     bool validConfig() const;
@@ -68,8 +75,10 @@ private:
     IsspResult beginTimerBacked(IBehaviorStatePublisher &publisher);
     IsspResult createTimer();
     void stopAndDeleteTimer();
+    IsspResult readLevel(std::uint32_t &level) const;
     IsspResult sampleCurrentLevel();
     IsspResult processSample(std::uint32_t level);
+    void trackDivergence(std::uint32_t level);
     IsspResult publishConfirmedState(bool state, bool initial);
 
     DigitalInputConfig config_;
@@ -83,8 +92,9 @@ private:
     bool hasWindowClassification_;
     bool lastWindowClassification_;
     std::uint8_t consecutiveClassificationCount_;
-    bool hasConfirmedState_;
-    bool confirmedState_;
+    bool hasDivergenceStart_;
+    std::int64_t divergenceStartUs_;
+    std::atomic<std::uint8_t> confirmedState_;
 };
 
 } // namespace issp

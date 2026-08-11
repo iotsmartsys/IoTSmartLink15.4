@@ -228,12 +228,23 @@ TEST_CASE("addDoorSensorCapability accepts a valid config", "[smart_sys_app][doo
                       static_cast<int>(app.lastConfigurationResult()));
 }
 
-TEST_CASE("addDoorSensorCapability validates pin and debounce", "[smart_sys_app][door]")
+TEST_CASE("addDoorSensorCapability rejects an invalid pin", "[smart_sys_app][door]")
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
     app::DoorSensorConfig config = makeDoorSensorConfig(1, 1);
     config.pin = GPIO_NUM_NC;
+    TEST_ASSERT_NULL(app.addDoorSensorCapability(config));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.lastConfigurationResult()));
+}
+
+TEST_CASE("addDoorSensorCapability rejects an invalid debounce configuration",
+          "[smart_sys_app][door]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DoorSensorConfig config = makeDoorSensorConfig(1, 1);
     config.majorityThreshold = 6;
     TEST_ASSERT_NULL(app.addDoorSensorCapability(config));
     TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
@@ -249,7 +260,11 @@ TEST_CASE("endpoint and event pairs are unique across capability types",
     TEST_ASSERT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
 }
 
-TEST_CASE("setup registers switch and door capabilities in addition order",
+// The hook only reports an index, so it cannot distinguish which capability
+// type was registered first. This case proves that both entries of the unified
+// registry are registered; the order by type remains static evidence of the
+// unified vector, without adding a seam to SetupHooks.
+TEST_CASE("setup registers both capabilities of the unified registry",
           "[smart_sys_app][door][setup]")
 {
     FakeScenario scenario;
@@ -260,10 +275,6 @@ TEST_CASE("setup registers switch and door capabilities in addition order",
     const SetupResult result = app.setup();
     TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running), static_cast<int>(result.state));
     TEST_ASSERT_EQUAL_size_t(2, scenario.registerCapabilityCalls);
-    TEST_ASSERT_EQUAL(static_cast<int>(Step::RegisterCapability),
-                      static_cast<int>(scenario.callOrder[2]));
-    TEST_ASSERT_EQUAL(static_cast<int>(Step::RegisterCapability),
-                      static_cast<int>(scenario.callOrder[3]));
 }
 
 TEST_CASE("capability pointers remain stable as more capabilities are added", "[smart_sys_app]")

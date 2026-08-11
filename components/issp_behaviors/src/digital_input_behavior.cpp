@@ -32,8 +32,9 @@ DigitalInputBehavior::DigitalInputBehavior(const DigitalInputConfig &config,
       hasWindowClassification_(false),
       lastWindowClassification_(false),
       consecutiveClassificationCount_(0),
-      hasConfirmedState_(false),
-      confirmedState_(false)
+      hasDivergenceStart_(false),
+      divergenceStartUs_(0),
+      confirmedState_(kStateUnknown)
 {
 }
 
@@ -138,20 +139,31 @@ IsspResult DigitalInputBehavior::beginTimerBacked(IBehaviorStatePublisher &publi
     for (std::uint32_t index = 0; index < initialSamples; ++index)
     {
         vTaskDelay(sampleDelay);
-        const IsspResult sampleResult = sampleCurrentLevel();
-        if (sampleResult != IsspResult::Ok)
+        std::uint32_t level = 0;
+        if (readLevel(level) != IsspResult::Ok)
         {
             stopAndDeleteTimer();
             publisher_ = nullptr;
-            return sampleResult;
+            return IsspResult::Failed;
+        }
+        // A publication failure leaves the candidate unconfirmed and is retried
+        // by the classifier; it is not an initialization failure.
+        const IsspResult sampleResult = processSample(level);
+        if (sampleResult != IsspResult::Ok)
+        {
+            ESP_LOGW(kTag, "initial_report failed result=%u",
+                     static_cast<unsigned>(sampleResult));
         }
     }
 
-    if (!hasConfirmedState_)
+    if (confirmedState_.load(std::memory_order_relaxed) == kStateUnknown)
     {
-        stopAndDeleteTimer();
-        publisher_ = nullptr;
-        return IsspResult::Failed;
+        // The synchronous budget did not converge. The periodic classifier keeps
+        // the classification already observed and publishes the first confirmed
+        // state without requiring a reboot.
+        ESP_LOGI(kTag, "initial_stabilization_pending endpoint=%u event=%u",
+                 static_cast<unsigned>(config_.endpointId),
+                 static_cast<unsigned>(config_.eventType));
     }
 
     const std::uint64_t periodUs =
@@ -209,7 +221,7 @@ void DigitalInputBehavior::timerCallback(void *context)
     }
 }
 
-IsspResult DigitalInputBehavior::sampleCurrentLevel()
+IsspResult DigitalInputBehavior::readLevel(std::uint32_t &level) const
 {
     const int rawLevel = levelReader_ != nullptr
                              ? levelReader_(levelReaderContext_)
@@ -218,11 +230,41 @@ IsspResult DigitalInputBehavior::sampleCurrentLevel()
     {
         return IsspResult::Failed;
     }
-    return processSample(static_cast<std::uint32_t>(rawLevel));
+    level = static_cast<std::uint32_t>(rawLevel);
+    return IsspResult::Ok;
+}
+
+IsspResult DigitalInputBehavior::sampleCurrentLevel()
+{
+    std::uint32_t level = 0;
+    const IsspResult readResult = readLevel(level);
+    if (readResult != IsspResult::Ok)
+    {
+        return readResult;
+    }
+    return processSample(level);
+}
+
+void DigitalInputBehavior::trackDivergence(std::uint32_t level)
+{
+    const std::uint8_t confirmed = confirmedState_.load(std::memory_order_relaxed);
+    if (confirmed == kStateUnknown)
+    {
+        return;
+    }
+    const bool sampleState = level == config_.activeLevel;
+    if (sampleState == (confirmed == kStateActive) || hasDivergenceStart_)
+    {
+        return;
+    }
+    divergenceStartUs_ = esp_timer_get_time();
+    hasDivergenceStart_ = true;
 }
 
 IsspResult DigitalInputBehavior::processSample(std::uint32_t level)
 {
+    trackDivergence(level);
+
     if (level == config_.activeLevel)
     {
         ++activeSampleCount_;
@@ -252,13 +294,26 @@ IsspResult DigitalInputBehavior::processSample(std::uint32_t level)
         consecutiveClassificationCount_ = 1;
     }
 
+    const std::uint8_t confirmed = confirmedState_.load(std::memory_order_relaxed);
+    const bool alreadyConfirmed = confirmed != kStateUnknown;
+    const bool matchesConfirmed =
+        alreadyConfirmed && (confirmed == kStateActive) == classification;
+
+    if (matchesConfirmed &&
+        consecutiveClassificationCount_ >= config_.consecutiveWindows)
+    {
+        // The transition attempt was discarded by consecutive classifications of
+        // the previous state: the divergence mark no longer applies.
+        hasDivergenceStart_ = false;
+    }
+
     if (consecutiveClassificationCount_ < config_.consecutiveWindows ||
-        (hasConfirmedState_ && confirmedState_ == classification))
+        matchesConfirmed)
     {
         return IsspResult::Ok;
     }
 
-    return publishConfirmedState(classification, !hasConfirmedState_);
+    return publishConfirmedState(classification, !alreadyConfirmed);
 }
 
 IsspResult DigitalInputBehavior::publishConfirmedState(bool state, bool initial)
@@ -280,15 +335,39 @@ IsspResult DigitalInputBehavior::publishConfirmedState(bool state, bool initial)
         {
             return result;
         }
-        ESP_LOGI(kTag, "%s endpoint=%u event=%u value=%u",
-                 initial ? "initial_report" : "transition_report",
-                 static_cast<unsigned>(report.endpointId),
-                 static_cast<unsigned>(report.eventType),
-                 static_cast<unsigned>(report.value));
+        if (initial)
+        {
+            ESP_LOGI(kTag, "initial_report endpoint=%u event=%u value=%u",
+                     static_cast<unsigned>(report.endpointId),
+                     static_cast<unsigned>(report.eventType),
+                     static_cast<unsigned>(report.value));
+        }
+        else
+        {
+            // Latency instrumentation bounded by the behavior: the upper bound
+            // adds one sampling period because the physical edge is only
+            // observable at the first divergent sample. Queue, transport, ACK,
+            // retry and coordinator reception are outside this budget.
+            const std::int64_t confirmedUs = esp_timer_get_time();
+            const std::int64_t firstDivergenceUs =
+                hasDivergenceStart_ ? divergenceStartUs_ : confirmedUs;
+            const std::int64_t upperBoundMs =
+                (confirmedUs - firstDivergenceUs) / 1000 +
+                static_cast<std::int64_t>(config_.samplePeriodMs);
+            ESP_LOGI(kTag,
+                     "transition_report endpoint=%u event=%u value=%u "
+                     "first_divergence_us=%lld confirmed_us=%lld "
+                     "latency_upper_ms=%lld",
+                     static_cast<unsigned>(report.endpointId),
+                     static_cast<unsigned>(report.eventType),
+                     static_cast<unsigned>(report.value),
+                     firstDivergenceUs, confirmedUs, upperBoundMs);
+        }
     }
 
-    confirmedState_ = state;
-    hasConfirmedState_ = true;
+    hasDivergenceStart_ = false;
+    confirmedState_.store(state ? kStateActive : kStateInactive,
+                          std::memory_order_relaxed);
     return IsspResult::Ok;
 }
 
@@ -306,12 +385,12 @@ IsspCommandResult DigitalInputBehavior::handle(const IsspCommand &command)
 
 bool DigitalInputBehavior::hasConfirmedState() const
 {
-    return hasConfirmedState_;
+    return confirmedState_.load(std::memory_order_relaxed) != kStateUnknown;
 }
 
 bool DigitalInputBehavior::state() const
 {
-    return confirmedState_;
+    return confirmedState_.load(std::memory_order_relaxed) == kStateActive;
 }
 
 } // namespace issp
