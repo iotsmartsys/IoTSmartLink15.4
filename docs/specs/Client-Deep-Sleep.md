@@ -8,7 +8,7 @@
 
 **Estado do workflow:** Rascunho e análise
 
-**Versão:** 0.2 experimental
+**Versão:** 0.3
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -78,6 +78,7 @@ struct WakeLedConfig
 struct DeepSleepConfig
 {
     bool enabled;
+    std::uint32_t maxAwakeTimeMs;
     TimerWakeupConfig timerWakeup;
     WakeLedConfig wakeLed;
 };
@@ -99,6 +100,7 @@ semântica exige nova decisão, não mero ajuste de implementação.
 - ausência da chamada ou `enabled=false` preserva o runtime atual e não toca
   GPIO nem fontes de wakeup;
 - somente uma chamada é aceita, sempre em `AppState::Configuring`;
+- deep sleep habilitado exige `maxAwakeTimeMs > 0`;
 - configuração duplicada, tardia ou inválida retorna resultado explícito e é
   preservada em `lastConfigurationResult()`;
 - a configuração é copiada, mas nenhum recurso é iniciado antes de `setup()`.
@@ -110,8 +112,10 @@ semântica exige nova decisão, não mero ajuste de implementação.
   acordado;
 - a conversão para microssegundos deve detectar overflow antes de configurar a
   fonte RTC;
-- timer desabilitado não configura essa fonte de wakeup; a validade de deep
-  sleep sem timer depende de `DEEPSLEEP-PEND-003`.
+- timer desabilitado não configura essa fonte de wakeup e permite acordar
+  somente por reset ou nova energização;
+- antes de dormir sem fonte configurada, a fachada registra diagnóstico
+  explícito.
 
 ### 3.3 LED
 
@@ -126,7 +130,8 @@ semântica exige nova decisão, não mero ajuste de implementação.
 
 ## 4. Responsabilidades e compatibilidade
 
-- o product firmware decide ativação, intervalo e duração do indicador;
+- o product firmware decide ativação, duração máxima acordado, intervalo e
+  duração do indicador;
 - o board model fornece somente GPIO e polaridade elétrica do LED;
 - `SmartSysApp` valida a configuração, identifica a causa do boot, controla o
   LED e coordena timer e entrada segura em deep sleep;
@@ -138,6 +143,12 @@ semântica exige nova decisão, não mero ajuste de implementação.
   composição;
 - nenhum produto atual passa a usar deep sleep implicitamente, mesmo que sua
   board seja alimentada por bateria;
+- a primeira composição será o product firmware `door_sensor_battery_h2`,
+  renomeado de `door_sensor`, com o board `Door Sensor Battery H2`;
+- o nome do produto contém `h2` por decisão do Arquiteto, mas não autoriza
+  pinagem ou outra responsabilidade física dentro do product firmware;
+- esse board oferece o recurso `wake_led` no GPIO 13; produto e fachada
+  recebem o GPIO exclusivamente pelo board model;
 - Kconfig não governa lógica interna dos componentes compartilhados.
 
 ## 5. Ciclo de wakeup, sleep e falhas
@@ -147,22 +158,36 @@ em cada boot e não precisa ser persistida pela fachada.
 
 ```text
 wakeup/reset
-→ identificar causa e acionar LED, quando aplicável
+→ identificar e registrar a causa
+→ acionar LED em todo boot, quando habilitado
 → executar setup e trabalho do ciclo
-→ atingir o gatilho de sleep ainda pendente
+→ dormir antecipadamente quando todos os reports do ciclo forem entregues
+  ou iniciar encerramento forçado ao atingir maxAwakeTimeMs
 → estabilizar producers, reports, tasks e transporte
 → apagar LED, configurar wakeup e iniciar deep sleep
 ```
 
-Antes do sleep não pode haver report reservado, transmissão em andamento ou
-task afetada sem resultado terminal. O runtime atual ainda não possui parada
-coordenada e pode repetir reports indefinidamente; a política terminal depende
-de `DEEPSLEEP-PEND-001` e `DEEPSLEEP-PEND-004`.
+`maxAwakeTimeMs` é a janela operacional contada desde o início de `setup()` e
+limita também commissioning e o estado `NotReady`. Ao expirar, começa o
+encerramento forçado e limitado, sem retomar operação ou retry. Após `Running`,
+a fachada pode antecipar o encerramento quando todos os reports produzidos no
+boot estiverem entregues e não houver report reservado ou transmissão em
+andamento. Se nenhum report for produzido, essa condição é satisfeita após o
+setup.
+
+Ao atingir a duração máxima, a fachada estabiliza producers, encerra tasks e
+transporte e dorme mesmo com report sem ACK ou rede `NotReady`. Antes do sleep,
+registra causa, contagem e estado das pendências, sem payload, e não as persiste
+nesta versão. O encerramento deve ser limitado e não pode reabrir retry
+indefinido. Reports entregues não são classificados como pendentes.
 
 Configuração inválida falha antes de tocar NVS, rádio, RTC ou GPIO. Falha ao
-preparar o runtime ou configurar wakeup impede o deep sleep e informa etapa e
-resultado. Causa de boot, configuração desabilitada, início e bloqueio do sleep
-devem ser distinguíveis por retorno ou log estruturado, sem conteúdo sensível.
+preparar o encerramento antecipado adia o sleep até a duração máxima. Nesse
+prazo, falha ao encerrar trabalho é registrada e não reabre retry; o deep sleep
+ainda começa. Falha ao configurar uma fonte de wakeup solicitada bloqueia o
+sleep para não tornar o device inacessível sem intenção. Causa de boot,
+configuração desabilitada, início e bloqueio do sleep devem ser distinguíveis
+por retorno ou log estruturado, sem conteúdo sensível.
 
 ## 6. Critérios de aceitação
 
@@ -170,8 +195,8 @@ devem ser distinguíveis por retorno ou log estruturado, sem conteúdo sensível
   API, setup e execução vigentes são preservados e nenhum recurso de sleep ou
   LED é iniciado.
 - **DEEPSLEEP-AC-002 — Configuração:** configuração válida é copiada antes de
-  `setup()`; valores inválidos, colisão de GPIO e chamada duplicada ou tardia
-  são rejeitados antes da operação normal.
+  `setup()`; duração máxima zero, outros valores inválidos, colisão de GPIO e
+  chamada duplicada ou tardia são rejeitados antes da operação normal.
 - **DEEPSLEEP-AC-003 — Timer:** intervalos válidos em minutos e horas são
   convertidos sem perda semântica; zero, unidade inválida e overflow são
   rejeitados antes de configurar RTC.
@@ -180,13 +205,17 @@ devem ser distinguíveis por retorno ou log estruturado, sem conteúdo sensível
   toma o GPIO e o indicador é apagado antes do sleep.
 - **DEEPSLEEP-AC-005 — Fronteiras:** política permanece no product firmware,
   recurso físico no board model e lifecycle nos componentes responsáveis;
-  composição sem `wake_led` exigido falha antes do binário.
-- **DEEPSLEEP-AC-006 — Encerramento:** deep sleep começa somente após producers,
-  reports, tasks e transporte atingirem a condição terminal aprovada; falha de
-  preparação bloqueia o sleep, enquanto orçamento expirado só permite dormir
-  se tiver sido definido como resultado terminal, sempre observável.
-- **DEEPSLEEP-AC-007 — Wakeup:** timer wakeup, cold boot e outras causas
-  confrontadas permanecem distinguíveis, e o boot reaplica a configuração.
+  `door_sensor_battery_h2` recebe do board o `wake_led` no GPIO 13, e composição
+  sem esse recurso falha antes do binário.
+- **DEEPSLEEP-AC-006 — Encerramento:** reports entregues permitem sleep
+  antecipado após producers, tasks e transporte encerrarem. No fim de
+  `maxAwakeTimeMs`, o encerramento forçado não reabre operação ou retry:
+  registra reports, rede ou falhas pendentes sem persisti-los e inicia o sleep
+  após finalização limitada. Falha da fonte de wakeup solicitada bloqueia o
+  sleep.
+- **DEEPSLEEP-AC-007 — Wakeup:** o LED acende em todo boot; timer wakeup, cold
+  boot e outras causas permanecem distinguíveis, e o boot reaplica a
+  configuração. Sleep sem timer é permitido e diagnosticado.
 - **DEEPSLEEP-AC-008 — Evidência:** lógica cobre validação e falhas com doubles;
   build H2 cobre configurações habilitada e desabilitada; hardware H2 confronta
   timer, LED e corrente quando uma especificação futura autorizar execução.
@@ -195,25 +224,22 @@ Build não comprova comportamento físico, e nenhuma execução é autorizada po
 esta especificação. Aplicam-se `Repository-Test-Execution-Policy.md` e a guarda
 documental EKOM.
 
-## 7. Decisões pendentes do Arquiteto
+## 7. Decisões confirmadas pelo Arquiteto
 
-- **DEEPSLEEP-PEND-001 — Gatilho para dormir (bloqueante):** escolher chamada
-  explícita, duração máxima acordado, conclusão de reports ou combinação. A
-  autoria recomenda duração máxima com encerramento antecipado após reports.
-- **DEEPSLEEP-PEND-002 — Boots que acendem o LED (bloqueante):** decidir entre
-  somente wakeup de deep sleep ou todo boot/reset. A autoria recomenda todo
-  boot, registrando a causa separadamente.
-- **DEEPSLEEP-PEND-003 — Sleep sem fonte de wakeup:** decidir se timer
-  desabilitado permite acordar apenas por reset/alimentação. A autoria recomenda
-  permitir com diagnóstico explícito.
-- **DEEPSLEEP-PEND-004 — Report e rede sem resultado (bloqueante):** definir o
-  orçamento para retry, report sem ACK e rede `NotReady`. A autoria recomenda
-  dormir ao fim da duração máxima, registrando pendências sem persistir reports
-  nesta versão.
-- **DEEPSLEEP-PEND-005 — Primeira composição:** escolher product firmware e
-  confirmar o LED oferecido pela board da primeira implementação.
+- **DEEPSLEEP-DEC-001:** o dispositivo possui duração máxima acordado e dorme
+  antes dela quando todos os reports do ciclo são entregues.
+- **DEEPSLEEP-DEC-002:** o LED habilitado acende em todo boot; a causa é
+  registrada separadamente.
+- **DEEPSLEEP-DEC-003:** deep sleep sem fonte de wakeup é permitido com
+  diagnóstico explícito.
+- **DEEPSLEEP-DEC-004:** ao fim da duração máxima, o dispositivo dorme após
+  registrar reports e rede pendentes, sem persistir reports nesta versão.
+- **DEEPSLEEP-DEC-005:** a primeira composição renomeia o product firmware
+  `door_sensor` para `door_sensor_battery_h2` e usa o LED GPIO 13 oferecido pelo
+  board `Door Sensor Battery H2`.
 
 A análise de implementabilidade e os impactos técnicos permanecem no relatório
 `docs/reports/client-deep-sleep/analysis/2026-08-11-initial-analysis.md`. A
-especificação continua em `Draft`; somente o Arquiteto pode promover seu estado
-e autorizar implementação.
+análise não identifica bloqueador normativo remanescente e recomenda prontidão,
+mas a especificação continua em `Draft` até promoção e autorização explícitas
+do Arquiteto.

@@ -67,10 +67,9 @@ polaridade e tempo ligado.
 
 ### Lacunas
 
-- gatilho de entrada em deep sleep;
-- orçamento terminal para reports, retry e rede `NotReady`;
-- causas de boot que devem acender o LED;
-- product firmware e board da primeira implementação.
+- bloqueadores normativos resolvidos pelo Arquiteto na versão 0.3;
+- encerramento coordenado do runtime permanece trabalho técnico da futura
+  implementação, não lacuna de contrato.
 
 ### Relatórios e evidências materiais
 
@@ -80,5 +79,6 @@ polaridade e tempo ligado.
 
 ### Resultado
 
-Contrato proposto registrado em rascunho. A implementação não está autorizada
-nem recomendada até decisão das pendências bloqueantes pelo Arquiteto.
+Contrato proposto registrado em rascunho, com decisões bloqueantes resolvidas e
+prontidão recomendada pela análise. A implementação ainda depende de promoção e
+autorização explícitas do Arquiteto.

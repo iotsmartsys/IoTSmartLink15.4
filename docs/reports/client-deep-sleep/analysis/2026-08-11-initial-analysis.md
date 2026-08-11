@@ -6,22 +6,23 @@
 
 **Especificação:** `docs/specs/Client-Deep-Sleep.md`
 
-**Revisão confrontada:** v0.2 experimental, Draft de 11/08/2026
+**Revisão confrontada:** v0.3, Draft de 11/08/2026
 
-**Estado:** Concluído com bloqueadores normativos
+**Estado:** Concluído; bloqueadores normativos resolvidos pelo Arquiteto
 
 **Capacidade:** Autor da Especificação com análise inicial
 
 **Data:** 11/08/2026
 
-**Resultado:** Plausível com bloqueadores normativos
+**Resultado:** Implementabilidade recomendada; validações não executadas
 
 > Este relatório registra evidências e recomendações. Não altera a fonte
 > normativa, não promove estado e não autoriza implementação ou testes.
 
-A v0.2 reorganiza e deduplica o contrato sem resolver pendências ou alterar a
-semântica confrontada nesta análise; portanto, as evidências e os bloqueadores
-abaixo permanecem aplicáveis.
+A v0.2 reorganizou o contrato sem mudar sua semântica. Na v0.3, o Arquiteto
+resolveu as cinco pendências: duração máxima com encerramento antecipado,
+indicador em todo boot, sleep sem timer, tratamento terminal sem persistência
+de reports e primeira composição `door_sensor_battery_h2` com LED GPIO 13.
 
 ## Evidências observadas
 
@@ -66,14 +67,16 @@ abaixo permanecem aplicáveis.
 - não se pode declarar entrega de report apenas porque a fila parece vazia sem
   excluir reserva ou transmissão concorrente.
 
-## Bloqueadores
+## Bloqueadores identificados na v0.1 e resolução
 
-1. não há decisão para o gatilho de entrada em deep sleep;
-2. não há orçamento terminal para retry/report e `NotReady`;
-3. não há ciclo de parada das tasks iniciadas por `SmartSysApp`;
-4. o conjunto de causas de boot que acende o LED não foi confirmado;
-5. não foi escolhido o product firmware nem confirmado board/LED da primeira
-   implementação.
+1. gatilho: resolvido por duração máxima e encerramento antecipado após reports;
+2. retry/report e `NotReady`: resolvido pelo prazo máximo, registro e ausência
+   de persistência nesta versão;
+3. parada das tasks: o contrato agora exige encerramento limitado; sua criação
+   é trabalho técnico de implementação, não decisão normativa pendente;
+4. indicador: resolvido para todo boot, com causa registrada separadamente;
+5. composição: resolvida como `door_sensor_battery_h2`, board Door Sensor
+   Battery H2 e LED GPIO 13.
 
 ## Experimentos necessários antes de validação
 
@@ -92,6 +95,7 @@ permanece `Not Executed` para comportamento real.
 
 ## Recomendação
 
-Manter a especificação em `Draft`. Após decisão do Arquiteto sobre as
-pendências da seção 12, atualizar primeiro o contrato, complementar esta
-análise e somente então avaliar promoção para `Implementable`.
+As decisões são implementáveis sobre as fronteiras atuais, desde que a atuação
+técnica introduza encerramento coordenado e limitado para tasks, reports e
+transporte. Recomenda-se ao Arquiteto promover a especificação quando considerar
+o contrato suficiente. Builds, testes e hardware permanecem `Not Executed`.
