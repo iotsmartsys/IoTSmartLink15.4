@@ -74,9 +74,15 @@ polaridade e tempo ligado.
 - a v0.4 incorporou os pontos normativos devolvidos pela verificação: relação
   com o bootstrap, quiescência sem `stop()` público, ampliação da API, alcance
   integral do renome e ordem do LED em `setup()`;
-- a capacidade de observar o deadline durante operação bloqueante permanece
-  risco técnico que a nova análise deve delimitar e um experimento futuro deve
-  provar; não há alegação antecipada de viabilidade desse mecanismo.
+- a capacidade de observar o deadline durante operação bloqueante foi delimitada
+  pela análise da v0.4 em pontos cooperativos limitados; a preempção durante
+  escrita em NVS permanece risco técnico dependente de experimento futuro, sem
+  alegação antecipada de viabilidade;
+- a análise da v0.4 devolve ao Arquiteto a relação com
+  `ISSP-Reusable-Components.md`, acionada pela ampliação de API que a
+  quiescência exige, e dois ajustes de recorte: a expressão "pelos contratos
+  existentes" na seção 6 e o alcance do renome sobre `client_154/sdkconfig`,
+  além da leitura aplicável à colisão de GPIO.
 
 ### Relatórios e evidências materiais
 
@@ -84,11 +90,14 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/analysis/2026-08-11-initial-analysis.md`;
 - análise de verificação em
   `docs/reports/client-deep-sleep/analysis/2026-08-11-verification-analysis.md`;
+- análise de implementabilidade da v0.4 em
+  `docs/reports/client-deep-sleep/analysis/2026-08-11-v04-implementability-analysis.md`;
 - testes e hardware permanecem `Not Executed`.
 
 ### Resultado
 
 Contrato v0.4 registrado em rascunho, com relações de autoridade e fronteiras
-de quiescência, API, renome e inicialização explicitadas. O documento está
-preparado para nova análise de implementabilidade; implementação ainda depende
-de análise, promoção e autorização explícitas do Arquiteto.
+de quiescência, API, renome e inicialização explicitadas. A análise de
+implementabilidade da v0.4 recomenda prontidão condicionada a uma decisão
+arquitetural e a dois ajustes de recorte; implementação ainda depende de
+promoção e autorização explícitas do Arquiteto.
