@@ -106,7 +106,14 @@ polaridade e tempo ligado.
   `end()` e re-arme do pedido rejeitado;
 - preempção de NVS, corrida entre transições e usabilidade do hold permanecem
   riscos experimentais ou de produto, não decisões normativas pendentes deste
-  recorte.
+  recorte;
+- a análise da v0.7 confirmou os quatro pontos pedidos pela seção 8 no código e
+  não encontrou bloqueador estrutural remanescente; devolveu três precisões de
+  redação — limite e dono da espera por `pendingReportCount() == 0`, distinção
+  do detentor da transição e alcance de DEEPSLEEP-AC-004 diante de
+  `ValidateConfiguration` — e dois pontos de método: o meio admissível do
+  experimento de DEEPSLEEP-AC-008B e o limite de sono do ESP32-H2 relevante para
+  DEEPSLEEP-AC-003.
 
 ### Relatórios e evidências materiais
 
@@ -120,6 +127,8 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v05-implementability-analysis.md`;
 - análise de implementabilidade da v0.6 em
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v06-implementability-analysis.md`;
+- análise de implementabilidade da v0.7 em
+  `docs/reports/client-deep-sleep/analysis/2026-08-11-v07-implementability-analysis.md`;
 - testes e hardware permanecem `Not Executed`.
 
 ### Resultado
