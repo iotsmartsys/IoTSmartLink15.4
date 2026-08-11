@@ -48,3 +48,37 @@ A fundação EKOM 3.2 foi adotada, as ADRs locais foram aceitas, os registros EK
 1.x foram preservados e 39 seções históricas foram separadas em relatórios. O
 Arquiteto confirmou a reconciliação e autorizou commit, push, merge e publicação
 da `main`.
+
+## EKOM-CHG-0002 — Deep sleep configurável do client
+
+**Estado:** Rascunho e análise [`Draft`]
+
+**Especificação relacionada:** `docs/specs/Client-Deep-Sleep.md`
+
+**Objetivo:** Especificar deep sleep opt-in para devices client a bateria,
+wakeup periódico em minutos ou horas e LED indicador configurável por GPIO,
+polaridade e tempo ligado.
+
+### Decisões relacionadas
+
+- ADR-0002 preserva a separação entre política do product firmware e recurso
+  físico do board model;
+- o recurso permanece desabilitado por padrão e não altera o coordenador.
+
+### Lacunas
+
+- gatilho de entrada em deep sleep;
+- orçamento terminal para reports, retry e rede `NotReady`;
+- causas de boot que devem acender o LED;
+- product firmware e board da primeira implementação.
+
+### Relatórios e evidências materiais
+
+- análise inicial em
+  `docs/reports/client-deep-sleep/analysis/2026-08-11-initial-analysis.md`;
+- testes e hardware permanecem `Not Executed`.
+
+### Resultado
+
+Contrato proposto registrado em rascunho. A implementação não está autorizada
+nem recomendada até decisão das pendências bloqueantes pelo Arquiteto.
