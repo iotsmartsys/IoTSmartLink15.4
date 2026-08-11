@@ -274,7 +274,7 @@ Esta especificação autoriza atualizar somente o necessário em:
   compartilhada e a prova de consumo;
 - `docs/rfc/KNOWLEDGE-MAP.md`, para atualizar fontes, implementação,
   evidências e `EKM-GAP-0004`;
-- `docs/rfc/EKM-CHANGELOG.md`, para manter `EKM-CHG-0004` e seu estado;
+- `docs/rfc/EKOM-CHANGELOG.md`, para localizar `EKM-CHG-0004` e seu estado;
 - `components/README.md`, como documento operacional de consumo;
 - esta especificação, exclusivamente para atualizar status e resultado após
   validação.
@@ -294,9 +294,9 @@ alteração.
 
 ---
 
-## 9. Relatório obrigatório
+## 9. Evidências exigidas
 
-Além do relatório definido em `EKM-GUIDELINES.md`, informar:
+O relatório separado de implementação ou validação deve informar:
 
 - matriz `ISSP-REUSE-001` a `ISSP-REUSE-007` com estado e evidência;
 - arquivos movidos, criados e modificados;
@@ -315,21 +315,8 @@ requisito.
 
 ---
 
-## 10. Resultado
 
-Os componentes foram movidos sem duplicação para `components/`, e tanto o
-`client_154` quanto `examples/issp_minimal_client` os localizam por
-`EXTRA_COMPONENT_DIRS`. O exemplo inclui e referencia as APIs públicas dos três
-componentes sem iniciar rádio ou executar operações de NVS.
+## 10. Estado vigente e evidência
 
-`issp154_transport.h` permanece público porque o contrato C++
-`issp154_transport.hpp` o inclui diretamente e utiliza tipos declarados pelo
-ESP-IDF. Seus consumidores diretos são a implementação C e o wrapper C++ do
-próprio componente. Frame MAC, rádio e demais detalhes de implementação
-permanecem privados em `src/`.
-
-Uma reauditoria comparou as cinco fontes apontadas como preexistentes com os
-pós-diffs registrados pela execução de consolidação. Os hashes coincidem
-exatamente na nova localização, e as três aplicações foram reconstruídas após
-essa comprovação. `EKM-CHG-0004` e `EKM-GAP-0004` estão encerrados com o
-histórico da reabertura preservado.
+O recorte está concluído. A evidência histórica foi separada em
+`docs/reports/reusable-components/validation/result.md`.

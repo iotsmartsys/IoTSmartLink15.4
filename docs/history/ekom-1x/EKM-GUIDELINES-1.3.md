@@ -1,5 +1,8 @@
 # EKM — Diretrizes de Engenharia e Preservação do Conhecimento
 
+> **Registro histórico:** esta diretriz governou atuações sob a EKM 1.3 e foi
+> substituída pelo EKOM 3.2. Os metadados abaixo registram seu estado à época.
+
 **Tipo:** Normativo
 **Status:** Active
 **Versão:** 1.3

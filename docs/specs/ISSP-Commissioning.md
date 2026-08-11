@@ -287,16 +287,10 @@ diagnóstico do commissioning.
 
 ---
 
-## 12. Resultado validado
+## 12. Estado vigente e evidência
 
-Foram comprovados em hardware os seguintes cenários:
-
-1. descoberta do coordenador durante a janela de ingresso aberta;
-2. segundo boot carregando o descritor da NVS, sem novo scan;
-3. janela fechada encerrando a descoberta de forma controlada com `NotReady`;
-4. factory reset removendo o descritor completo;
-5. redescoberta após a reabertura da janela;
-6. report inicial confirmado por ACK após commissioning.
+O recorte está concluído. A evidência histórica de hardware foi separada em
+`docs/reports/issp-commissioning/validation/hardware-result.md`.
 
 ## 13. Fora do escopo inicial
 

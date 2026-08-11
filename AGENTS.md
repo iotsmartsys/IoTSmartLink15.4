@@ -1,70 +1,76 @@
-# Instruções permanentes e roteamento EKM
+# Instruções permanentes e roteamento EKOM
 
-**Modelo EKM:** 1.14
+**Modelo EKOM:** 3.2
 
-**Modalidade:** atores com perfis referenciados
+**Modalidade:** capacidades referenciadas e governança proporcional
 
 **Estado:** vigente
 
 ## Autoridade
 
 O Arquiteto humano tem autoridade final sobre intenção, prioridade, escopo,
-arquitetura, risco, autorização, validação e integração. A ordem recebida por
-prompt ou pipeline identifica papel, resultado, recorte e especificação quando
-aplicável.
+arquitetura, risco aceitável, relevância das críticas, suficiência das
+evidências, aprovação, conclusão ou reabertura e integração. A especificação é
+a fonte da verdade para comportamento e governa a execução dos agentes.
 
 ## Fonte dos perfis
 
-**Raiz local da EKM:**
-`/Users/marcelocostamiranda/source/EKM-guidelines`
+**Raiz do EKOM:** `/Users/marcelocostamiranda/source/EKM-guidelines`
 
-Antes de qualquer atuação EKM:
+Antes de qualquer atuação EKOM:
 
-1. leia integralmente
-   `/Users/marcelocostamiranda/source/EKM-guidelines/roles/REGRAS-COMUNS.md`;
-2. leia integralmente somente o perfil correspondente ao papel recebido;
+1. leia integralmente `roles/REGRAS-COMUNS.md` na raiz do EKOM;
+2. leia o perfil correspondente à capacidade recebida;
 3. leia a especificação indicada, quando aplicável;
-4. leia apenas as fontes técnicas pertinentes ao recorte.
+4. leia somente as fontes técnicas pertinentes.
 
-| Papel recebido | Perfil |
+| Capacidade recebida | Perfil |
 |---|---|
 | Autor da Especificação | `roles/AUTOR-DA-ESPECIFICACAO.md` |
 | Engenheiro Analista | `roles/ENGENHEIRO-ANALISTA.md` |
 | Engenheiro Implementador | `roles/ENGENHEIRO-IMPLEMENTADOR.md` |
-| Engenheiro Revisor | `roles/ENGENHEIRO-REVISOR.md` |
+| Crítico ou Engenheiro Revisor | `roles/ENGENHEIRO-REVISOR.md` |
 | Consultor de Arquitetura | `roles/CONSULTOR-DE-ARQUITETURA.md` |
 
-Não carregue perfis de outros papéis nem a metodologia EKM completa. Se a
-ordem não identificar papel, resultado e recorte, ou se a fonte não estiver
-acessível, não inicie a tarefa. A especificação é obrigatória no ciclo
-funcional; o Consultor pode receber Não se aplica [`Not Applicable`] em
-governança ou apoio fora desse ciclo.
+Análise de implementabilidade é obrigatória antes da implementação, mas pode
+ser executada na mesma atuação quando autorizada. Challenge é consultivo e
+proporcional ao risco, não um gate universal.
 
 ## Fontes locais do projeto
 
 - especificações: `docs/specs/`;
-- decisões, evidências e transações: `docs/rfc/EKM-CHANGELOG.md`;
+- ADRs: `docs/adr/`;
+- relatórios: `docs/reports/`;
+- transações e lacunas: `docs/rfc/EKOM-CHANGELOG.md`;
 - mapa de conhecimento: `docs/rfc/KNOWLEDGE-MAP.md`;
-- visão e navegação do sistema: `docs/specs/SYSTEM-DOSSIER.md`;
-
-Validações adicionais pertencem à especificação aplicável. Build de imagem,
-push de pacote, webhook, deploy e scripts que publicam artefatos exigem ordem
-explícita do Arquiteto.
+- visão e navegação: `docs/specs/SYSTEM-DOSSIER.md`;
+- diretriz local de adoção: `docs/rfc/EKOM-GUIDELINES.md`;
+- arquitetura e contratos: `docs/specs/ISSP-Architecture.md`,
+  `docs/specs/ISSP-Commissioning.md` e `components/README.md`;
+- targets e execução de testes:
+  `docs/specs/Repository-Test-Execution-Policy.md`;
+- guarda documental: `python3 tools/validate_ekom_documents.py .`.
 
 ## Invariantes locais
 
-- nunca registre nem exponha senha, token, authorization code, client secret,
-  chave de assinatura, header de autorização ou connection string;
-- diferencie clientes públicos de confidenciais; segredo distribuído em
-  cliente público não constitui autenticação do cliente;
-- alterações em autorização, emissão, validação, renovação, revogação,
-  consentimento ou identidade exigem especificação e evidência proporcional ao
-  risco;
-- preserve alterações preexistentes e não execute migração, rotação,
-  reescrita de histórico, publicação ou deploy sem autorização específica;
-- código e testes comprovam o estado implementado, mas não criam intenção nem
-  contrato normativo por inferência.
+- Os únicos targets físicos admitidos são ESP32-H2 para `client_154` e
+  ESP32-C6 para `coordinator_154`; o repositório não contempla ESP32-C3.
+- QEMU não é estratégia admitida. Testes não são executados automaticamente;
+  sua execução depende de autorização em especificação futura.
+- Product firmware define composição funcional; board model define recursos e
+  pinagem físicos; Kconfig escolhe a composição e não governa lógica interna
+  de componentes compartilhados.
+- O client e o coordenador são alvos separados conectados pelo protocolo ISSP
+  sobre IEEE 802.15.4; não crie dependência de código entre seus diretórios.
+- Preserve arquitetura, organização e separação de responsabilidades; desvio
+  exige decisão arquitetural explícita.
+- Análise, implementação, challenge e validação produzem relatórios separados;
+  não são anexados à especificação.
+- O mapa combina índice de autoridade, árvore e Mermaid conforme a ADR-0004 do
+  EKOM 3.2.
+- Somente o Arquiteto incorpora achados em fontes normativas, aceita ADRs,
+  promove estados e determina conclusão ou reabertura.
+- Nunca registre segredo, token, chave, header de autorização ou connection
+  string no repositório ou em saídas de agentes.
 
-As regras comuns e o perfil selecionado definem condições de entrada, promoção
-de estados, evidência, Git e encerramento. Regras específicas da tarefa
-pertencem à especificação ou à ordem do Arquiteto.
+> **Specifications orchestrate. Code implements.**

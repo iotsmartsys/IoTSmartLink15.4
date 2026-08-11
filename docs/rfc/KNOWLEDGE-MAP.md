@@ -1,119 +1,84 @@
-# EKM — Mapa das Fontes de Verdade
+# EKOM — Mapa da Fonte Única da Verdade
 
-**Tipo:** Normativo
-**Status:** Active
-**Versão:** 1.24
-**Responsável:** Marcelo Miranda
-**Última atualização:** 10/08/2026
-**Escopo:** Todo o repositório
+**Classe da fonte:** Normativa
 
----
+**Estado da fonte:** Vigente
 
-## 1. Objetivo
+**Escopo:** Todo o repositório IoTSmartLink15.4
 
-Indicar onde está o conhecimento autoritativo de cada área do projeto e como
-localizar sua implementação e suas evidências.
+O mapa localiza autoridade, estrutura e relações sem duplicar contratos
+detalhados. O índice responde onde está a fonte; a árvore, como o domínio se
+organiza; o diagrama, como os alvos separados se conectam.
 
-Este mapa não duplica contratos detalhados das fontes. Ele aponta para elas,
-registra sua classificação e estado e mantém as visões compactas necessárias
-para navegar pelas fronteiras do sistema.
-
----
-
-## 2. Governança do repositório
+## 1. Governança
 
 | Área | Fonte | Tipo | Estado |
 |---|---|---|---|
-| Instruções para assistentes | `AGENTS.md` | Normativo | Active |
-| Diretrizes EKM | `docs/rfc/EKM-GUIDELINES.md` | Normativo | Active v1.3; ciclo de vida das especificações definido em `EKM-CHG-0006` |
-| Mapa de conhecimento | `docs/rfc/KNOWLEDGE-MAP.md` | Normativo | Active |
-| Histórico de mudanças EKM | `docs/rfc/EKM-CHANGELOG.md` | Operacional | Active |
-| Manual da IA Executora | `docs/rfc/MAN-0001.md` | Normativo complementar | Active |
-| Instruções do Copilot | `.github/copilot-instructions.md` | Adaptador | Active |
-| Targets suportados e execução de testes | `docs/specs/Repository-Test-Execution-Policy.md` | Normativo | v0.4 `Active / Validated`; os projetos ESP-IDF versionados aceitam somente H2/C6 com vínculo client→H2 e coordenador→C6; os dois test apps acrescentados pela Fase 2 vinculam-se a H2 e usam o mesmo guard; casos `IDF_TARGET=linux` inoperantes removidos, host-native restrito a toolchain de host puro; implementação testada e aprovada pelo Arquiteto; suítes deliberadamente `Not Executed` sob TESTEXEC-009; `EKM-CHG-0010` Closed |
+| Instruções para agentes | `AGENTS.md` | Normativo | Active; EKOM 3.2 |
+| Método e perfis | `/Users/marcelocostamiranda/source/EKM-guidelines` | Normativo externo | EKOM 3.2 vigente |
+| Diretriz local | `docs/rfc/EKOM-GUIDELINES.md` | Normativo local | Active |
+| Mapa | `docs/rfc/KNOWLEDGE-MAP.md` | Normativo | Active |
+| Histórico EKOM | `docs/rfc/EKOM-CHANGELOG.md` | Operacional | Active |
+| Dossiê do sistema | `docs/specs/SYSTEM-DOSSIER.md` | Informativo | Active |
+| Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0003 Accepted |
+| Relatórios | `docs/reports/` | Evidência histórica | Roteamento EKOM 3.2 vigente |
+| Registros EKM 1.x | `docs/history/ekom-1x/` | Histórico | Superseded para novas atuações |
 
-Os arquivos de instrução de ferramentas são adaptadores. Em caso de diferença,
-`EKM-GUIDELINES.md` é a fonte canônica das regras EKM.
+Os arquivos `CLAUDE.md` e `.github/copilot-instructions.md` são adaptadores e
+não criam autoridade paralela.
 
----
+## 2. Índice de domínios e autoridade
 
-## 3. Especificações ISSP e IEEE 802.15.4
-
-| Área | Fonte normativa | Estado normativo | Estado da implementação | Implementação principal | Evidência atual |
+| Domínio | Fonte normativa | Estado do workflow | Código principal | Evidência | Cobertura |
 |---|---|---|---|---|---|
-| Arquitetura ISSP | `docs/specs/ISSP-Architecture.md` | Active | Validated | `components/issp_*` e a composição do client em `client_154/main/` | Builds, hardware, consumidor mínimo e auditoria documental |
-| Commissioning | `docs/specs/ISSP-Commissioning.md` | Active | Validated | `Issp154NetworkManager`, transporte e coordenador | Cenários da especificação e testes em hardware |
-| Registry de devices pareados do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Proposed v0.4 | Funcional In Progress; migração de validação Regressed; Not Ready | `coordinator_154/main/device_registry.{h,c}`, `device_registry_nvs.c` e `device_registry_policy.{h,c}`, integrados em `main.c` | Target corrigido para ESP32-C6; 24 casos preservados e deliberadamente não executados nesta correção |
-| Consolidação | `docs/specs/ISSP-Consolidation.md` | Active | Validated | Client e coordenador | Relatório de execução e auditoria posterior |
-| Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md` | Active | Validated | `components/issp_*` | Dois consumidores compilando e equivalência do worktree comprovada |
-| API `SmartSysApp` e bootstrap configurável | `docs/specs/ISSP-Configurable-Bootstrap.md` | Proposed v1.5 | Funcional v1.4 `Validated`; migração v1.5 `Regressed / Not Ready` | `components/issp_app_154`; composição em `client_154/main/`, hoje com `firmwares/single_smart_plug.cpp`; `examples/issp_minimal_client` | Target corrigido para ESP32-H2; 20 casos preservados e deliberadamente não executados nesta correção |
-| Variantes de firmware por `menuconfig` | `docs/specs/Firmware-Variants-Menuconfig.md` | Active; direção integral e correção pós-revisão aprovadas | Validated; Fases 1 e 2 encerradas, revisão e hardware aprovados pelo Arquiteto | `client_154/main/` compõe Single smart plug ou Door sensor com um dos dois boards H2; `issp_app_154`, `issp_behaviors` e `issp_core` fornecem registro unificado, entrada digital e serialização dos pending reports; `DigitalInputBehavior` tolera estabilização inicial divergente, instrumenta latência e publica estado por palavra atômica | Builds H2 e casos negativos aprovados; Arquiteto declarou `9c313a7` funcional em hardware e aprovou a revisão; 39 casos permanecem deliberadamente `Not Executed`; A4/A5/A6 e a janela de callback em voo permanecem limitações aceitas; experimento EKOM encerrado como útil |
-| Protocolo wire ISSP | Especificação dedicada ainda inexistente | — | Blocked | Client em `components/issp_core/src/issp_protocol.cpp`; coordenador em `coordinator_154/main/iot154_packet.h` | Lacuna `EKM-GAP-0002` |
-| Factory reset | Requisitos distribuídos em commissioning e arquitetura | Active | Validated | `components/issp_app_154/{include,src}/reset/` (realocado de `client_154/main/reset/` por `EKM-CHG-0007`, sem mudança funcional) | Pressão por 10 segundos e redescoberta em hardware |
-| Fluxo de comandos | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, behavior e coordenador | ON/OFF/TOGGLE funcionais; confiabilidade residual de ACK em `EKM-GAP-0006` |
-| Reports confirmados | `docs/specs/ISSP-Architecture.md` | Active | Validated | `IsspDevice`, executor e coordenador | Report inicial funcional; turnaround, confirmação e sequência entre retries em `EKM-GAP-0006` |
+| Arquitetura ISSP | `docs/specs/ISSP-Architecture.md`; ADR-0001 | Concluída | `components/issp_*` | Builds e hardware históricos | Revisado |
+| Commissioning | `docs/specs/ISSP-Commissioning.md` | Concluída | Network manager, transporte e coordenador | Hardware histórico | Revisado |
+| Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md`; ADR-0001 | Concluída | `components/issp_*` | Dois consumidores locais | Revisado |
+| Bootstrap `SmartSysApp` | `docs/specs/ISSP-Configurable-Bootstrap.md`; ADR-0001 | Concluída para v1.5 | `components/issp_app_154` | Build H2 e hardware históricos; suítes não executadas | Revisado |
+| Variantes de firmware | `docs/specs/Firmware-Variants-Menuconfig.md`; ADR-0002 | Concluída | `client_154/main/` | Builds e hardware aprovados; suítes não executadas | Revisado |
+| Registry do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Implementação; validação pendente | `coordinator_154/main/device_registry*` | Build C6; 24 casos não executados | Especificado |
+| Targets e testes | `docs/specs/Repository-Test-Execution-Policy.md`; ADR-0003 | Concluída | guards CMake e test apps | 63 casos preservados e não executados; builds H2/C6 | Revisado |
+| Consolidação ISSP | `docs/specs/ISSP-Consolidation.md` | Concluída | Client e coordenador | Auditoria e hardware históricos | Revisado |
+| Protocolo wire ISSP | `EKM-GAP-0002` | Rascunho e análise | `issp_protocol.cpp`; `iot154_packet.h` | Implementações separadas | Inventariado |
+| Enlace ACK/retry | `EKM-GAP-0006` | Rascunho e análise | Transporte, executor e coordenador | Limitação observada em hardware | Inventariado |
+| Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
 
-### 3.1 Visão do repositório e conexão entre os alvos
-
-Esta árvore descreve o estado observado do repositório. `[especificado]` indica
-contrato aprovado para análise, ainda não implementado; `[proposto]` identifica
-possibilidade ainda sem recorte vigente. Os demais ramos descrevem fontes e
-responsabilidades existentes.
+## 3. Árvore de conhecimento
 
 ```text
-IoTSmartLink15.4 repository
+IoTSmartLink15.4
 ├── Runtime targets
-│   ├── client_154 (client IEEE 802.15.4; ESP32-H2 validado)
-│   │   ├── app_main.cpp (entrypoint mínimo, sem regra de produto)
-│   │   ├── SmartSysApp e componentes ISSP compartilhados
-│   │   └── seleção de produto e board (menu IoTSmartLink15.4)
-│   │       ├── Product firmware (uma escolha) — main/firmwares/
-│   │       │   ├── Single smart plug (implementado; baseline)
-│   │       │   ├── [proposto] Dual smart plug + light
-│   │       │   ├── Door sensor (validado)
-│   │       │   └── [proposto] Motion sensor
-│   │       ├── Board model (uma escolha) — main/boards/
-│   │       │   ├── Current client ESP32-H2 wiring (implementado)
-│   │       │   └── Door Sensor Battery H2 (validado)
-│   │       └── IDF_TARGET (definido pelo fluxo ESP-IDF)
-│   └── coordinator_154 (coordenador IEEE 802.15.4; ESP32-C6 validado)
-│       ├── janela de ingresso e resposta a discovery
-│       ├── recepção de reports e envio de ACKs
-│       ├── envio de comandos e tratamento de retries/ACKs
-│       └── ponte host por JSON-lines sobre UART
-├── Protocol connection
-│   ├── ISSP payload e tipos de mensagem
-│   ├── IEEE 802.15.4 frames e endereçamento
-│   ├── client: components/issp_core e issp_transport_154
-│   ├── coordinator: coordinator_154/main/iot154_packet.h e iot154_radio.*
-│   └── lacuna: especificação wire dedicada ainda inexistente
-├── Shared client platform
-│   ├── issp_app_154 / SmartSysApp
-│   │   └── capability de porta e registro unificado (implementados)
-│   ├── issp_behaviors
-│   │   └── DigitalInputBehavior (validado no recorte)
-│   ├── issp_core
-│   │   └── proteção concorrente dos pending reports (validada no recorte)
-│   └── issp_transport_154
-├── Integration evidence
+│   ├── client_154 — ESP32-H2
+│   │   ├── Product firmware
+│   │   │   ├── Single smart plug
+│   │   │   └── Door sensor
+│   │   ├── Board model
+│   │   │   ├── Current client ESP32-H2 wiring
+│   │   │   └── Door Sensor Battery H2
+│   │   └── SmartSysApp + componentes ISSP compartilhados
+│   └── coordinator_154 — ESP32-C6
+│       ├── commissioning e rádio
+│       ├── registry persistente
+│       ├── commands, reports e ACKs
+│       └── ponte JSON-lines/UART para o host
+├── Conexão lógica
+│   └── ISSP sobre IEEE 802.15.4
+├── Evidência de integração
 │   └── examples/issp_minimal_client
-├── Knowledge and governance
-│   ├── docs/specs
-│   ├── docs/rfc
-│   └── AGENTS.md
-├── Project automation
-│   └── .github (instruções e criação manual do projeto Kanban)
-└── Unclassified prototype
-    └── root ESP-IDF project
-        ├── main/: leitura de bateria e blink
-        └── README/testes: ainda descrevem o exemplo hello_world
+├── Conhecimento
+│   ├── specs — contratos
+│   ├── adr — decisões duráveis
+│   ├── reports — execuções e evidências
+│   └── rfc — mapa, diretriz local e transações
+└── Protótipo não classificado
+    └── projeto ESP-IDF da raiz
 ```
 
-O `client_154` e o `coordinator_154` são alvos fisicamente separados, mas formam
-um único fluxo lógico. O host envia comandos ao coordenador; o coordenador os
-traduz para ISSP sobre IEEE 802.15.4; o client executa a capability e responde;
-reports percorrem o caminho inverso. Discovery e ACKs sustentam a formação e a
-confiabilidade desse vínculo.
+Product firmware define comportamento e capabilities; board model define
+recursos e pinagem físicos; componentes compartilhados fornecem capacidades e
+plataforma; client e coordenador não compartilham código de aplicação.
+
+## 4. Diagrama de relações
 
 ```mermaid
 flowchart LR
@@ -121,61 +86,35 @@ flowchart LR
     Coordinator -->|"events and results · JSON-lines/UART"| Host
     Coordinator -->|"discovery responses · commands · ACKs"| Client["client_154<br/>ESP32-H2"]
     Client -->|"discovery · reports · ACKs"| Coordinator
-    Product["Product firmware<br/>current or selected"] --> Client
+    Product["Product firmware"] --> Client
     Board["Board model"] --> Product
     Shared["SmartSysApp + ISSP components"] --> Client
 ```
 
-As setas entre os alvos representam o protocolo ISSP sobre IEEE 802.15.4, não
-uma dependência de código entre seus diretórios. Hoje o contrato lógico aparece
-em implementações separadas nos dois alvos; `EKM-GAP-0002` registra a ausência
-de uma especificação wire dedicada.
+As setas entre os alvos representam protocolo ISSP sobre IEEE 802.15.4, não
+dependência de código entre seus diretórios.
 
-Para navegar dentro do ramo de variantes do client: diferença de composição
-pertence ao product firmware; diferença física pertence ao board model;
-capacidade usada por mais de um produto pertence a um componente; protocolo e
-infraestrutura pertencem à plataforma compartilhada. O contrato está em
-`docs/specs/Firmware-Variants-Menuconfig.md`.
+## 5. Lacunas
 
----
-
-## 4. Documentos históricos e do método
-
-| Documento | Tipo | Autoridade atual |
-|---|---|---|
-| `client_154/docs/ai-assisted-engineering/PILOT-ISSP.md` | Histórico/experimental | Registra o piloto; não substitui especificações técnicas |
-| `docs/rfc/MAN-0001.md` | Normativo complementar | Consultar antes de alterar o método correspondente |
-
-Documentos históricos não devem ser atualizados para simular que decisões
-passadas já refletiam o estado atual.
-
----
-
-## 5. Lacunas conhecidas de conhecimento
-
-| ID | Estado | Lacuna | Critério de encerramento | Evidência ou dependência |
+| ID | Estado | Lacuna | Critério de encerramento | Dependência |
 |---|---|---|---|---|
-| `EKM-GAP-0001` | `Closed` | Restaurar as decisões vigentes removidas de `ISSP-Architecture.md` durante a consolidação | Conteúdo restaurado, validado contra implementação e mapa atualizado | `ISSP-Architecture.md` v1.1 e `EKM-CHG-0002` |
-| `EKM-GAP-0002` | `Open` | Criar especificação dedicada do protocolo wire ISSP | Layout, tipos, checksum, endianness e compatibilidade definidos e validados | Requer recorte próprio |
-| `EKM-GAP-0003` | `Open` | Mapear requisitos estáveis para testes automatizados e de hardware | Matriz requisito–evidência vigente | Requer recorte próprio |
-| `EKM-GAP-0004` | `Closed` | Registrar contratos públicos, provar reutilização local e comprovar preservação do worktree inicial | APIs, dependências e compatibilidade documentadas; segundo consumidor compilando; cinco alterações preexistentes recuperadas e equivalência comprovada contra o worktree inicial | `ISSP-Reusable-Components.md`, `components/README.md` e `EKM-CHG-0004` |
-| `EKM-GAP-0005` | `Open` | Definir preservação dos relatórios de validação relevantes | Localização, retenção e autoridade definidas | Requer decisão operacional |
-| `EKM-GAP-0006` | `Open` | Tornar confiável o enlace confirmado entre client e coordenador | Estado explícito `TX → RX pronto`; resultado do comando coerente com a atuação; ACKs confirmados sem timeout espúrio; mesma identidade lógica preservada entre retries; cenário repetido em hardware sem eventos duplicados para o host | Evidência observada no fechamento de `EKM-CHG-0007`; requer especificação própria de transporte/ACK |
+| `EKM-GAP-0001` | Closed | Arquitetura removida durante consolidação | Conteúdo restaurado e validado | ISSP Architecture v1.1 |
+| `EKM-GAP-0002` | Open | Especificação wire ISSP dedicada ausente | Layout, tipos, checksum, endianness e compatibilidade validados | Recorte próprio |
+| `EKM-GAP-0003` | Open | Matriz estável requisito–evidência incompleta | Matriz vigente e verificável | Recorte próprio |
+| `EKM-GAP-0004` | Closed | Contratos e prova de reutilização | Dois consumidores e compatibilidade comprovados | Componentes reutilizáveis |
+| `EKM-GAP-0005` | Closed | Destino dos relatórios de validação indefinido | `docs/reports/` e roteamento EKOM 3.2 adotados | Reconciliação EKOM 3.2 concluída |
+| `EKM-GAP-0006` | Open | Enlace confirmado sujeito a timeout/retry espúrio | Identidade e ACK confiáveis repetidos em hardware | Especificação própria |
+| `EKM-GAP-0007` | Open | Projeto ESP-IDF da raiz não classificado | Propósito, target e autoridade definidos ou projeto retirado | Decisão arquitetural futura |
 
-Uma lacuna registrada não autoriza o assistente a preenchê-la por suposição.
+Uma lacuna registrada não autoriza preenchimento por suposição.
 
----
+## 6. Manutenção
 
-## 6. Regra de manutenção
+**Namespace de transações e lacunas:** `EKOM` vigente | `EKM` legado
 
-Atualizar este mapa quando:
+Atualize este mapa quando autoridade, responsabilidade, relação material,
+estado, evidência ou lacuna mudar. Reconcilie a árvore quando composição ou
+responsabilidade mudar e o diagrama quando a conexão entre alvos mudar.
 
-- uma nova fonte normativa for criada;
-- um documento for substituído, arquivado ou mudar de autoridade;
-- um componente assumir ou perder responsabilidade;
-- uma nova evidência se tornar obrigatória;
-- uma lacuna de conhecimento for identificada ou encerrada.
-- uma mudança EKM alterar o estado ou a autoridade de uma fonte.
-- uma especificação mudar de estado normativo ou de estado da implementação.
-
-Não remover uma entrada sem indicar o destino do conhecimento correspondente.
+Somente o Arquiteto determina Concluída ou Reaberta. Não remova uma entrada sem
+indicar o destino do conhecimento correspondente.
