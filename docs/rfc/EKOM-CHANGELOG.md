@@ -118,7 +118,17 @@ polaridade e tempo ligado.
   DEEPSLEEP-AC-003;
 - a v0.8 incorpora as três precisões, define instrumentação temporária H2 como
   meio futuro do experimento de NVS, valida timer pelo limite efetivo do
-  ESP-IDF/H2 e explicita as costuras de teste sem ampliar a API normativa.
+  ESP-IDF/H2 e explicita as costuras de teste sem ampliar a API normativa;
+- a análise da v0.8 confirmou as cinco confirmações pedidas pela seção 8 e
+  devolveu ao Arquiteto uma decisão: a task de lifecycle nasce em
+  `InitializePlatform` antes de device, executor e monitor existirem, e a ordem
+  obrigatória não admite passo ausente — ou os passos passam a ser condicionais
+  à existência do recurso, ou `InitializePlatform` deixa de ser preemptável,
+  saída que também cobre a janela de `nvs_flash_erase()`;
+- a mesma análise devolveu duas precisões: "dona exclusiva da transição", que
+  induz token de escritor único e quebraria a arbitragem, e a validação da faixa
+  do intervalo também em `configureDeepSleep()`, sem a qual intervalo constante
+  fora de faixa produz dispositivo a bateria que nunca dorme.
 
 ### Relatórios e evidências materiais
 
@@ -134,6 +144,8 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v06-implementability-analysis.md`;
 - análise de implementabilidade da v0.7 em
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v07-implementability-analysis.md`;
+- análise de implementabilidade da v0.8 em
+  `docs/reports/client-deep-sleep/analysis/2026-08-11-v08-implementability-analysis.md`;
 - testes e hardware permanecem `Not Executed`.
 
 ### Resultado
