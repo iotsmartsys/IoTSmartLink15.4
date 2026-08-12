@@ -216,9 +216,9 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/implementation/2026-08-11-v10-implementation.md`;
 - análise de implementabilidade da v0.11 em
   `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis.md`;
-- revisão 2 da mesma análise, refeita por ordem do Arquiteto e que a substitui,
-  em
-  `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r2.md`;
+- nova análise de implementabilidade da v0.11, sobre o texto corrigido pelo
+  Arquiteto, em
+  `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r3.md`;
 - builds, testes e hardware permanecem `Not Executed`.
 
 ### Resultado
@@ -232,19 +232,14 @@ produzida por ele sustenta conclusão. A v0.11, que acrescenta o wakeup por
 contato, permanece em `Draft`.
 
 A análise de implementabilidade da v0.11 foi executada e classificou a versão
-como **Não pronta — defeito da especificação**. Refeita por ordem do Arquiteto,
-sem insumo novo, a revisão 2 manteve a classificação e reduziu o defeito a
-**um**: a exceção do GPIO 7 na faixa elegível para EXT1, contrariada pelo
-`rtc_io_num_map` do ESP32-H2 no ESP-IDF 6.0.1 e incompatível com a derivação por
-capacidade do target exigida na mesma seção. A revisão **corrigiu** o segundo
-bloqueador do relatório original: DEEPSLEEP-AC-011 já determina que ambas as
-fontes sejam armadas antes de qualquer operação terminal, de modo que o momento
-da leitura do contato não é decisão ausente, e sim imprecisão de redação em
-4.2A e DEEPSLEEP-DEC-014. Ambos os relatórios registram que a cadeia de retenção
-do nível por HOLD é verificável por leitura em quase toda a sua extensão,
-inclusive a liberação automática do hold no boot seguinte, restando físico
-apenas o elo elétrico; DEEPSLEEP-AC-012 permanece exigindo hardware. Nenhum gate
-da v0.11 foi satisfeito por estas atuações.
+como **Não pronta — defeito da especificação**, por dois defeitos: a exceção do
+GPIO 7 na faixa elegível para EXT1, contrariada pelo `rtc_io_num_map` do
+ESP32-H2 no ESP-IDF 6.0.1 e incompatível com a derivação por capacidade do
+target exigida na mesma seção; e o momento da leitura do contato, dado de formas
+divergentes em 4.2A, 6.1 e DEEPSLEEP-DEC-014. A mesma análise registrou que a
+cadeia de retenção do nível por HOLD é verificável por leitura em quase toda a
+sua extensão, inclusive a liberação automática do hold no boot seguinte,
+restando físico apenas o elo elétrico.
 
 O Arquiteto incorporou os achados na v0.11 ainda em `Draft`: a elegibilidade é
 derivada da capacidade vigente do target, sem exceção local para GPIO 7; o board
@@ -255,3 +250,17 @@ início da sequência terminal, antes de qualquer operação terminal; e
 retenção por HOLD e liberação no boot foi incorporada, sem substituir o
 experimento elétrico de DEEPSLEEP-AC-012. A revisão aguarda nova análise de
 implementabilidade e permanece sem promoção ou autorização de implementação.
+
+A nova análise foi executada sobre o texto corrigido e confirmou que as quatro
+correções estão bem formadas e são implementáveis com dados que a fachada já
+possui, encerrando os dois defeitos anteriores. A classificação permanece **Não
+pronta — defeito da especificação** por **um defeito novo, criado pela própria
+correção**: ao vincular o wakeup a uma capability de contato seco registrada, a
+especificação passou a assumir que essa capability configura direção e pull do
+pad, mas há caminhos de boot definidos — `NotReady` de `InitializeNetwork` entre
+eles — em que ela é registrada e nunca iniciada, e nos quais a fachada armaria
+EXT1 sobre um pad em default de reset, com risco de wakeup espúrio no caminho de
+falha de rede. O relatório oferece três saídas e recomenda que a fachada aplique
+direção e pull da capability correspondente quando ela não tiver iniciado, o que
+não amplia API reutilizável. Nenhum gate da v0.11 foi satisfeito por estas
+atuações.
