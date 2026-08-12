@@ -51,7 +51,7 @@ da `main`.
 
 ## EKOM-CHG-0002 — Deep sleep configurável do client
 
-**Estado:** Rascunho e análise [`Draft`]
+**Estado:** Pronta para implementação [`Proposed`]
 
 **Especificação relacionada:** `docs/specs/Client-Deep-Sleep.md`
 
@@ -81,6 +81,8 @@ polaridade e tempo ligado.
 - a v0.10 precisa o contrato sem nova decisão arquitetural: orçamento físico
   acordado, limite conservador do timer, polling com predicados separados e
   encerramento seguro para objetos nunca iniciados.
+- após a análise da v0.10 recomendar prontidão sem ressalva contratual, o
+  Arquiteto promoveu a especificação para pronta para implementação.
 
 ### Lacunas
 
@@ -186,9 +188,8 @@ polaridade e tempo ligado.
 
 ### Resultado
 
-Contrato v0.10 registrado em rascunho. As precisões devolvidas pela análise da
-v0.9 foram incorporadas sem nova decisão normativa: orçamento acordado,
-conservadorismo do limite do timer, distinção dos predicados do polling e
-segurança de encerramento quando nunca iniciado. O documento está preparado
-para nova análise de implementabilidade; implementação ainda depende de
-análise, promoção e autorização explícitas do Arquiteto.
+Contrato v0.10 promovido pelo Arquiteto para `Proposed`, pronto para
+implementação. A análise de implementabilidade foi concluída sem bloqueador
+estrutural, decisão normativa ausente ou precisão de redação pendente. A
+promoção não inicia implementação, build, teste, hardware, integração ou push;
+cada operação ainda depende de autorização explícita no recorte aplicável.

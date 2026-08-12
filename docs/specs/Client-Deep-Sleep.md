@@ -2,11 +2,11 @@
 
 **Tipo:** Normativo
 
-**Estado normativo:** Draft
+**Estado normativo:** Proposed
 
 **Estado da implementação:** Not Implemented
 
-**Estado do workflow:** Rascunho; preparada para análise de implementabilidade
+**Estado do workflow:** Pronta para implementação
 
 **Versão:** 0.10
 
@@ -44,8 +44,8 @@ coordenador, protocolo ISSP, ACK ou retry.
 
 ## 2. Relações com autoridades vigentes
 
-Esta especificação propõe as seguintes relações normativas, efetivas somente
-se o Arquiteto promover o documento:
+Esta especificação estabelece, em estado `Proposed`, as seguintes relações
+normativas para orientar a implementação autorizada:
 
 - **Altera (`Amends`) `ISSP-Configurable-Bootstrap.md` v1.5:** acrescenta
   `configureDeepSleep()` à API pública e uma quiescência privada e limitada
@@ -130,7 +130,8 @@ iotsmartsys::SmartSysApp::configureDeepSleep(
     const iotsmartsys::app::DeepSleepConfig &config);
 ```
 
-Os nomes permanecem propostos enquanto o documento estiver em `Draft`.
+Os nomes desta seção integram o contrato `Proposed` que orienta a
+implementação.
 Erros de configuração usam o `AppResult` vigente e são preservados em
 `lastConfigurationResult()`. Falhas ao inicializar a política ou o LED durante
 `setup()` usam `SetupStage::InitializePlatform` e o `AppResult` vigente. Não se
@@ -584,10 +585,13 @@ executar builds ou testes.
 A v0.10 incorpora as precisões da análise de implementabilidade da v0.9, sem
 introduzir nova decisão normativa: orçamento total acordado, margem
 conservadora do timer com RC interno, separação dos predicados de prontidão e
-entrega e segurança de `quiesce()` e `stop()` quando nunca iniciados. Uma nova
-análise deve confirmar esses quatro pontos e a correção de DEEPSLEEP-AC-007. Os
-comportamentos de NVS e as corridas continuam exigindo experimento explícito;
-não são presumidos por inspeção ou build.
+entrega e segurança de `quiesce()` e `stop()` quando nunca iniciados. A análise
+da v0.10 confirmou esses quatro pontos e a correção de DEEPSLEEP-AC-007, sem
+encontrar bloqueador estrutural, decisão normativa ausente ou precisão de
+redação pendente. Com base nessa evidência, o Arquiteto promoveu a especificação
+para `Proposed`, pronta para implementação. Os comportamentos de NVS e as
+corridas continuam exigindo experimento explícito; não são presumidos por
+inspeção ou build.
 
 Fontes de evidência existentes:
 
@@ -598,7 +602,9 @@ Fontes de evidência existentes:
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v06-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v07-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v08-implementability-analysis.md`;
-- `docs/reports/client-deep-sleep/analysis/2026-08-11-v09-implementability-analysis.md`.
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v09-implementability-analysis.md`;
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v10-implementability-analysis.md`.
 
-O documento permanece `Draft`. Estar preparado para análise não autoriza
-implementação, promoção, execução de testes ou integração.
+O documento está `Proposed` e pronto para implementação. A promoção não inicia
+por si só implementação, build, teste, execução em hardware, integração ou
+push; essas operações dependem de autorização explícita no recorte aplicável.
