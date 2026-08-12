@@ -299,3 +299,24 @@ rejeitados em `ValidateConfiguration` com `InvalidArgument`; pulls iguais são
 equivalentes para o preparo idempotente. Como a fonte normativa mudou depois da
 r4, a revisão corrente aguarda confronto final antes de promoção e continua sem
 autorização de implementação.
+
+O confronto final da revisão corrente foi executado sobre `ea95c77` e recomenda
+**prontidão** [`Ready`]. A cláusula acrescentada depois da r4 é implementável no
+estágio que a especificação indica: `pin` e `pull` de todas as capabilities já
+estão em `doorSensorConfigs_` quando `setup()` alcança `ValidateConfiguration`,
+o estágio é anterior a qualquer toque em NVS, rádio, RTC ou GPIO, e o
+`SetupResult` com `InvalidArgument` já existe. A cláusula é condicionada ao GPIO
+do wakeup, logo não cria validação global entre pares antes aceitos, e a
+equivalência entre pulls iguais é real: são os dois únicos campos do
+`gpio_config_t` derivados do `pull`. Os fatos de target do acréscimo inteiro
+foram reverificados na fonte do ESP-IDF 6.0.1 — pureza e identidade do predicado
+de elegibilidade, faixa GPIO 7 a 14 no ESP32-H2, HOLD incondicional no ramo
+digital de `ext1_wakeup_prepare()` e liberação no boot seguinte antes de
+`app_main()` —, restando físico apenas o elo elétrico reservado a
+DEEPSLEEP-AC-012. Sem bloqueador, decisão normativa ausente ou contradição
+interna. Permanecem quatro precisões declaradas não bloqueantes: as colisões de
+pino ainda abertas fora do `wake_led`, o pull `Floating` aceito, a necessidade de
+costura em `SetupHooks` para cobrir o preparo do contato com doubles e a seleção
+explícita do ESP-IDF 6.0.1 em evidência futura. O gate de análise passa a estar
+satisfeito para a revisão `ea95c77`; promoção e autorização de implementação
+permanecem ausentes.
