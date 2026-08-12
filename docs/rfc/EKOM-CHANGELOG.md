@@ -214,6 +214,8 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v10-implementability-analysis.md`;
 - implementação da v0.10 em
   `docs/reports/client-deep-sleep/implementation/2026-08-11-v10-implementation.md`;
+- análise de implementabilidade da v0.11 em
+  `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis.md`;
 - builds, testes e hardware permanecem `Not Executed`.
 
 ### Resultado
@@ -224,5 +226,17 @@ arbitragem com factory reset, o renome completo e a composição `wake_led`. A
 implementação permanece `In Progress`: build, teste, flash e hardware não foram
 autorizados nem executados pelo agente, de modo que nenhuma verificação técnica
 produzida por ele sustenta conclusão. A v0.11, que acrescenta o wakeup por
-contato, permanece em `Draft`, não possui decisão normativa aberta e recomenda
-análise de implementabilidade antes de qualquer promoção.
+contato, permanece em `Draft`.
+
+A análise de implementabilidade da v0.11 foi executada e classificou a versão
+como **Não pronta — defeito da especificação**: a baseline comporta o acréscimo,
+que é local e não amplia API reutilizável, mas duas afirmações normativas
+precisam de decisão do Arquiteto — a faixa elegível de GPIO para EXT1 no
+ESP32-H2, cuja exceção do GPIO 7 é contrariada pelo ESP-IDF 6.0.1 e conflita com
+a derivação por capacidade do target exigida na mesma seção; e o momento da
+leitura do contato, dado como "imediatamente antes de dormir" na seção 4.2A e
+como item 1 da ordem obrigatória na seção 6.1. A mesma análise registrou que a
+cadeia de retenção do nível por HOLD é verificável por leitura em quase toda a
+sua extensão no ESP-IDF 6.0.1, restando físico apenas o elo elétrico;
+DEEPSLEEP-AC-012 permanece exigindo hardware. Nenhum gate da v0.11 foi
+satisfeito por esta atuação.
