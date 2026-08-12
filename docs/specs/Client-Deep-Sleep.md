@@ -4,9 +4,15 @@
 
 **Estado normativo:** Draft para a v0.11; a v0.10 permanece `Proposed`
 
-**Estado da implementação:** In Progress
+**Estado da implementação:** não iniciada para a v0.11; `In Progress` somente
+para a v0.10
 
 **Estado do workflow:** Rascunho e análise para a v0.11
+
+**Análise de implementabilidade:** pendente para a v0.11; `Ready` somente para
+a v0.10
+
+**Autorização de implementação desta versão:** não concedida para a v0.11
 
 **Versão:** 0.11
 
@@ -762,6 +768,11 @@ critérios, e não possui decisão normativa aberta. Recomendo que ela seja
 confrontada por análise de implementabilidade antes de qualquer promoção, com
 atenção especial a DEEPSLEEP-AC-012, que depende de hardware e não pode ser
 satisfeito por leitura ou build.
+
+Para evitar inferência entre versões, os gates da v0.11 são: análise `Ready`
+ausente, promoção para Pronta ausente e autorização de implementação ausente.
+O estado `Proposed`, a análise e a implementação existentes da v0.10 não
+satisfazem nenhum gate da v0.11.
 
 Nem a v0.11 nem sua eventual promoção iniciam por si sós implementação, build,
 teste, execução em hardware, integração ou push; essas operações dependem de

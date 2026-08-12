@@ -53,6 +53,9 @@ da `main`.
 
 **Estado:** v0.10 em implementação [`In Progress`]; v0.11 em rascunho [`Draft`]
 
+**Gates da v0.11:** análise `Ready` ausente; promoção para Pronta ausente;
+autorização de implementação ausente.
+
 **Especificação relacionada:** `docs/specs/Client-Deep-Sleep.md`
 
 **Objetivo:** Especificar deep sleep opt-in para devices client a bateria,
