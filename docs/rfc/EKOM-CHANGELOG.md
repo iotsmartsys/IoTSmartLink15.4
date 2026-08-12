@@ -51,7 +51,7 @@ da `main`.
 
 ## EKOM-CHG-0002 — Deep sleep configurável do client
 
-**Estado:** Em implementação [`In Progress`]
+**Estado:** v0.10 em implementação [`In Progress`]; v0.11 em rascunho [`Draft`]
 
 **Especificação relacionada:** `docs/specs/Client-Deep-Sleep.md`
 
@@ -172,8 +172,17 @@ polaridade e tempo ligado.
   previsto pelo item 39 de `Firmware-Variants-Menuconfig.md`, e os valores de
   política do produto a bateria, que a especificação atribui ao product firmware
   e que a implementação escolheu para viabilizar a primeira composição;
-- build, teste, flash e hardware permanecem não executados, de modo que a
-  compilação e os `static_assert` de dimensionamento seguem não verificados.
+- build, teste, flash e hardware não foram executados pelo agente. O Arquiteto
+  relatou ter compilado e executado o firmware em ESP32-H2, o que retira a
+  compilação e os `static_assert` de dimensionamento da lista de incógnitas;
+- dessa execução veio a intenção da v0.11: o dispositivo não acorda pela
+  transição do contato no GPIO 14, comportamento contratado pela v0.10, cuja
+  seção 1 exclui outras fontes de wakeup. A v0.11 especifica o wakeup por
+  contato via EXT1, com rearme para o nível oposto a cada boot, timer e contato
+  habilitados juntos e sem nova ampliação da API reutilizável;
+- a v0.11 deixa três decisões pendentes do Arquiteto: base do nível oposto
+  (elétrico ou lógico confirmado), tratamento de contato instável e confirmação
+  dos valores de política do produto herdados da implementação da v0.10.
 
 ### Relatórios e evidências materiais
 
@@ -207,4 +216,6 @@ arbitragem com factory reset, o renome completo e a composição `wake_led`. A
 implementação permanece `In Progress`: build, teste, flash e hardware não foram
 autorizados nem executados, de modo que nenhuma verificação técnica sustenta
 conclusão. Duas questões aguardam o Arquiteto e cada operação seguinte ainda
-depende de autorização explícita no recorte aplicável.
+depende de autorização explícita no recorte aplicável. A v0.11, que acrescenta
+o wakeup por contato, permanece em `Draft` e recomenda análise de
+implementabilidade antes de qualquer promoção.

@@ -239,7 +239,30 @@ Correspondência por inspeção, não por execução.
 | AC-009 Wakeup | causa do boot registrada e distinguível; sleep sem timer permitido com diagnóstico | Implementado, não executado |
 | AC-010 Evidência futura | costura de `SetupHooks` estendida e casos escritos | Preparado; execução não autorizada |
 
-## 7. Encaminhamento
+## 7. Adendo — evidência de build e hardware relatada pelo Arquiteto
+
+Registrado após a entrega da seção 5, que declarava build e hardware como não
+executados.
+
+O Arquiteto compilou o firmware e o executou em ESP32-H2, e relatou que o
+dispositivo não acorda pela transição do contato no GPIO 14. Duas consequências:
+
+- **a limitação central da seção 5 está parcialmente resolvida.** O build
+  ocorreu, logo a compilação e os `static_assert` de `kImplStorageBytes` e
+  `kHardwareStorageBytes` deixaram de ser incógnita. Não observei essa execução;
+  registro-a como fato relatado pelo Arquiteto, não como evidência que eu tenha
+  produzido, e não altero a seção 5, que preserva o que era verdade quando foi
+  escrita;
+- **o comportamento relatado não é defeito.** A seção 1 da v0.10 exclui
+  explicitamente outras fontes de wakeup, e a implementação arma apenas
+  `esp_sleep_enable_timer_wakeup()`. O dispositivo se comporta como contratado.
+  A intenção do Arquiteto passou a exigir a segunda fonte, o que é mudança de
+  contrato e foi encaminhado como v0.11 em `Draft`, não como correção de código.
+
+O restante da seção 5 continua válido: os casos automatizados seguem escritos e
+não executados, e os experimentos de hardware das análises permanecem abertos.
+
+## 8. Encaminhamento
 
 Encaminho para avaliação do Arquiteto com as duas questões da seção 4 e a
 limitação central da seção 5. A operação que mais reduz risco agora é autorizar

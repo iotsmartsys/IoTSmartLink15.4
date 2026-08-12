@@ -2,13 +2,13 @@
 
 **Tipo:** Normativo
 
-**Estado normativo:** Proposed
+**Estado normativo:** Draft para a v0.11; a v0.10 permanece `Proposed`
 
 **Estado da implementação:** In Progress
 
-**Estado do workflow:** Pronta para implementação
+**Estado do workflow:** Rascunho e análise para a v0.11
 
-**Versão:** 0.10
+**Versão:** 0.11
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -31,21 +31,33 @@ smartSysApp.configureDeepSleep({
 });
 ```
 
-O recurso oferece wakeup periódico por timer, com intervalo em minutos ou
-horas, e um LED opcional que acende em todo boot operacional cuja configuração
-válida alcance a inicialização de plataforma. O LED aceita polaridade `HIGH` ou
+O recurso oferece duas fontes de wakeup independentes — timer periódico, com
+intervalo em minutos ou horas, e transição do contato seco por EXT1 — e um LED
+opcional que acende em todo boot operacional cuja configuração válida alcance a
+inicialização de plataforma.
+
+O wakeup por contato existe para que um sensor de porta a bateria reporte a
+transição quando ela ocorre, e não somente no próximo período do timer. Em todo
+boot operacional o dispositivo reporta e rearma o contato para o nível oposto ao
+observado imediatamente antes de dormir, qualquer que seja esse nível e qualquer
+que tenha sido a causa do boot. O LED aceita polaridade `HIGH` ou
 `LOW` e permanece ligado por uma duração em milissegundos ou até o próximo deep
 sleep.
 
 O recorte cobre somente o `client_154` em ESP32-H2. Não cobre light sleep,
-sleep isolado do rádio, outras fontes de wakeup, retenção arbitrária em RTC
-memory, política de bateria, persistência de reports nem mudanças no
-coordenador, protocolo ISSP, ACK ou retry.
+sleep isolado do rádio, fontes de wakeup além do timer e do contato seco por
+EXT1, retenção arbitrária em RTC memory, política de bateria, persistência de
+reports nem mudanças no coordenador, protocolo ISSP, ACK ou retry.
+
+A v0.11 acrescenta somente o wakeup por contato e o que ele exige. Todo o
+restante do contrato da v0.10 permanece vigente e já implementado; esta versão
+não o reabre.
 
 ## 2. Relações com autoridades vigentes
 
-Esta especificação estabelece, em estado `Proposed`, as seguintes relações
-normativas para orientar a implementação autorizada:
+As relações abaixo valem para o contrato integral. As da v0.10 estão em
+`Proposed` e implementadas; as marcadas como acréscimo da v0.11 permanecem em
+`Draft` até a promoção do Arquiteto.
 
 - **Altera (`Amends`) `ISSP-Configurable-Bootstrap.md` v1.5:** acrescenta
   `configureDeepSleep()` à API pública e uma quiescência privada e limitada
@@ -56,12 +68,24 @@ normativas para orientar a implementação autorizada:
 - **Altera (`Amends`) `Firmware-Variants-Menuconfig.md`:** renomeia o product
   firmware `door_sensor` para `door_sensor_battery_h2` e acrescenta o requisito
   de composição `wake_led`. O alcance completo do renome está definido na
-  seção 5.
+  seção 5. **Acréscimo da v0.11:** acrescenta o requisito de composição
+  `dry_contact_wakeup`, oferecido pelo board somente quando sua entrada de
+  contato seco está em um GPIO elegível para EXT1 no target. A capacidade
+  física continua sendo do board e a política continua sendo do produto.
+- **Acréscimo da v0.11 — altera (`Amends`) `ISSP-Configurable-Bootstrap.md`
+  v1.5 novamente:** acrescenta `ContactWakeupConfig` ao contrato de
+  `configureDeepSleep()`, conforme a seção 3. Não cria operação pública nova,
+  estado público novo nem lifecycle adicional.
 - **Altera (`Amends`) `ISSP-Reusable-Components.md` v1.1:** por decisão do
   Arquiteto, amplia materialmente e de forma limitada as APIs públicas de
   `issp_core`, `issp_behaviors` e `issp_transport_154` com as operações de
   quiescência definidas na seção 6. A ampliação serve somente ao encerramento
   seguro antes de deep sleep e não autoriza generalização adicional.
+- **Acréscimo da v0.11 — preserva `ISSP-Reusable-Components.md` v1.1:** o
+  wakeup por contato **não** amplia novamente a API reutilizável. A fachada
+  determina o nível a rearmar com o GPIO e a polaridade que o produto já lhe
+  entrega, sem consultar `DigitalInputBehavior` e sem quarta operação
+  compartilhada.
 - **Preserva `ISSP-Architecture.md` v1.2:** a aplicação continua dona da regra
   de produto; transporte, reports e device conservam suas responsabilidades. A
   quiescência usa seus contratos de encerramento sem transferir política de
@@ -115,12 +139,22 @@ struct WakeLedConfig
     std::uint32_t onTimeMs;
 };
 
+// Acréscimo da v0.11. O produto entrega o GPIO e a polaridade que recebeu do
+// board model; a fachada não descobre pinagem por conta própria.
+struct ContactWakeupConfig
+{
+    bool enabled;
+    gpio_num_t pin;
+    bool activeHigh;
+};
+
 struct DeepSleepConfig
 {
     bool enabled;
     std::uint32_t maxAwakeTimeMs;
     TimerWakeupConfig timerWakeup;
     WakeLedConfig wakeLed;
+    ContactWakeupConfig contactWakeup;
 };
 
 }
@@ -130,8 +164,10 @@ iotsmartsys::SmartSysApp::configureDeepSleep(
     const iotsmartsys::app::DeepSleepConfig &config);
 ```
 
-Os nomes desta seção integram o contrato `Proposed` que orienta a
-implementação.
+Os nomes desta seção integram o contrato que orienta a implementação; os da
+v0.11 integram-no após a promoção. `contactWakeup` é acrescentado ao final de
+`DeepSleepConfig`, de modo que composições que não o declarem continuam válidas
+e o campo permanece inerte.
 Erros de configuração usam o `AppResult` vigente e são preservados em
 `lastConfigurationResult()`. Falhas ao inicializar a política ou o LED durante
 `setup()` usam `SetupStage::InitializePlatform` e o `AppResult` vigente. Não se
@@ -175,6 +211,41 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
 - antes de dormir sem fonte configurada, a fachada registra diagnóstico
   explícito.
 
+### 4.2A Contato seco (acréscimo da v0.11)
+
+- contato habilitado exige GPIO elegível para wakeup externo no target. No
+  ESP32-H2 com ESP-IDF 6.0.1 a faixa é GPIO 7 a 14, e o GPIO 7 é RTC GPIO mas
+  **não** é conduzido para wakeup externo; a fachada rejeita com
+  `AppResult::InvalidArgument` todo GPIO fora da faixa elegível;
+- a elegibilidade é derivada das capacidades declaradas pelo target, não de uma
+  lista de produto;
+- `activeHigh` descreve a polaridade elétrica do contato fechado, com o mesmo
+  significado que a capability de porta já usa;
+- o GPIO do contato pode coincidir com o da capability de entrada, e essa
+  coincidência é o caso normal: é o mesmo contato físico. A validação de colisão
+  do `wake_led` continua valendo e não é estendida a esse par;
+- **rearme alternado.** Imediatamente antes de dormir, e depois de preparado o
+  timer, a fachada lê o nível elétrico do GPIO do contato e arma o wakeup
+  externo para o **nível oposto** ao lido. Isso vale em todo boot, qualquer que
+  tenha sido a causa do wakeup e qualquer que seja o estado do contato;
+- as duas fontes são independentes e podem estar habilitadas juntas. Com ambas
+  habilitadas, o dispositivo acorda pelo que ocorrer primeiro;
+- o report de cada boot não exige mecanismo novo: com `reportOnStart=true` a
+  capability de entrada já estabiliza e publica o estado inicial em `begin()`,
+  em todo boot. Esta especificação não cria segundo caminho de publicação;
+- o preparo confronta o retorno da API de wakeup externo. Erro bloqueia a
+  sequência antes de qualquer operação terminal, como a seção 6.1 já determina
+  para fonte solicitada;
+- contato desabilitado não configura essa fonte e não altera o GPIO.
+
+O pull interno do contato é configurado no domínio GPIO comum enquanto o
+dispositivo está acordado, mas quem vale durante o deep sleep é o domínio LP. O
+ESP-IDF mantém o pull por HOLD quando o alvo não possui domínio `RTC_PERIPH`
+desligável e a opção correspondente está habilitada. Esse encadeamento é
+plausível para o ESP32-H2 e para a configuração vigente do projeto, **mas não é
+certificado por leitura**: pino flutuante durante o sleep produz wakeup espúrio
+ou ausência de wakeup, e a seção 8 registra o experimento obrigatório.
+
 ### 4.3 LED e ordem de inicialização
 
 - LED habilitado exige GPIO válido para saída;
@@ -191,9 +262,10 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
 
 ## 5. Responsabilidades, composição e renome
 
-- o product firmware decide ativação, duração máxima acordado, intervalo e
-  duração do indicador;
-- o board model fornece GPIO e polaridade elétrica do LED;
+- o product firmware decide ativação, duração máxima acordado, intervalo,
+  duração do indicador e uso do contato como fonte de wakeup;
+- o board model fornece GPIO e polaridade elétrica do LED e do contato seco, e
+  declara se sua entrada de contato é elegível para wakeup externo;
 - `SmartSysApp` valida a configuração, identifica a causa do boot, controla o
   LED e coordena timer, deadline e entrada segura em deep sleep;
 - componentes ISSP continuam responsáveis por device, reports e transporte e
@@ -203,7 +275,9 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
 - o GPIO do LED não pode colidir com capability, botão ou outro recurso;
 - nenhum produto atual passa a usar deep sleep implicitamente;
 - a primeira composição usa o product firmware `door_sensor_battery_h2` e o
-  board `Door Sensor Battery H2`, que oferece `wake_led` no GPIO 13;
+  board `Door Sensor Battery H2`, que oferece `wake_led` no GPIO 13 e, pela
+  v0.11, `dry_contact_wakeup` na entrada de contato seco do GPIO 14, dentro da
+  faixa elegível do ESP32-H2;
 - o nome do produto contém `h2` por decisão do Arquiteto, sem autorizar pinagem
   ou lógica de board no product firmware;
 - produto e fachada recebem o GPIO exclusivamente pelo board model; Kconfig
@@ -415,7 +489,9 @@ A ordem obrigatória é:
 adquirir ou confirmar a transição de deep sleep
   prosseguir se livre ou já detida pelo próprio deep sleep
   abortar somente se detida pelo factory reset
-→ preparar a fonte de wakeup solicitada, quando houver
+→ preparar as fontes de wakeup solicitadas, quando houver
+  timer, quando habilitado
+  contato: ler o nível atual e armar EXT1 para o nível oposto, quando habilitado
 → encerrar ResetButtonMonitor, quando configurado
 → beginQuiescence no device
 → quiesce em todos os behaviors registrados
@@ -429,9 +505,13 @@ adquirir ou confirmar a transição de deep sleep
 → apagar LED e iniciar deep sleep
 ```
 
-Falha ao preparar uma fonte solicitada aborta a sequência antes de qualquer
-operação terminal, libera a arbitragem e preserva o runtime acessível. Ausência
-intencional de fonte não aborta e é diagnosticada conforme a seção 4.2.
+Falha ao preparar **qualquer** fonte solicitada aborta a sequência antes de
+qualquer operação terminal, libera a arbitragem e preserva o runtime acessível.
+Com duas fontes habilitadas, o sucesso de uma não compensa a falha da outra: um
+dispositivo que dormisse sem o contato armado deixaria de reportar a transição
+até o próximo período do timer, e um que dormisse sem o timer perderia o sinal
+de vida. Ausência intencional de fonte não aborta e é diagnosticada conforme a
+seção 4.2.
 
 No caminho antecipado, a fachada inicia essa sequência depois que `setup()`
 atinge `Running`, existe ao menos um report inicial esperado e todos foram
@@ -533,9 +613,23 @@ e bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
   boot seguinte conserva o fluxo vigente de validação. O experimento deve
   produzir descritor anterior válido, novo válido ou ausência, sem conteúdo
   parcial ou inválido, antes da aceitação.
-- **DEEPSLEEP-AC-009 — Wakeup:** timer wakeup, cold boot e outras causas são
-  distinguíveis; o boot reaplica a configuração e sleep sem timer é permitido
-  com diagnóstico.
+- **DEEPSLEEP-AC-009 — Wakeup:** timer wakeup, wakeup externo pelo contato,
+  cold boot e outras causas são distinguíveis no log estruturado; o boot
+  reaplica a configuração e sleep sem nenhuma fonte é permitido com
+  diagnóstico.
+- **DEEPSLEEP-AC-011 — Contato (v0.11):** com o contato habilitado, todo boot
+  operacional que alcance a sequência terminal lê o nível do GPIO do contato e
+  arma o wakeup externo para o nível oposto, qualquer que seja a causa do boot e
+  o estado do contato. GPIO fora da faixa elegível do target é rejeitado em
+  `configureDeepSleep()` com `InvalidArgument`. Com as duas fontes habilitadas,
+  ambas são armadas antes de qualquer operação terminal e a falha de uma bloqueia
+  o sleep. A capability de entrada com `reportOnStart=true` continua sendo o
+  único caminho de publicação do estado a cada boot.
+- **DEEPSLEEP-AC-012 — Retenção do nível durante o sleep (v0.11):** o contato
+  não pode flutuar enquanto o dispositivo dorme. O critério só é satisfeito por
+  evidência em hardware que demonstre, no par produto/board da seção 5, ausência
+  de wakeup espúrio com o contato estável e wakeup efetivo na transição, em
+  ambos os sentidos. Leitura de código e build não satisfazem este critério.
 - **DEEPSLEEP-AC-010 — Evidência futura:** `SetupHooks` pode ser estendido como
   costura interna para verificar com doubles lifecycle, validação e falhas, sem
   integrar o contrato normativo do produto. Build H2 cobre composições
@@ -578,9 +672,62 @@ executar builds ou testes.
   esperado, todos os reports iniciais esperados admitidos e, depois da
   quiescência, `pendingReportCount() == 0`. Ausência de report não equivale a
   entrega.
+- **DEEPSLEEP-DEC-011 (v0.11):** o dispositivo passa a acordar também por
+  transição do contato seco, por EXT1, e rearma essa fonte para o nível oposto
+  ao observado imediatamente antes de dormir, em todo boot e independentemente
+  do estado do contato e da causa do wakeup.
+- **DEEPSLEEP-DEC-012 (v0.11):** timer e contato permanecem habilitados juntos
+  no produto a bateria. O timer é o sinal de vida periódico; o contato é o
+  evento. A falha de preparo de qualquer uma das duas bloqueia o sleep.
+- **DEEPSLEEP-DEC-013 (v0.11):** o wakeup por contato não amplia a API
+  reutilizável. A fachada usa o GPIO e a polaridade que o produto lhe entrega a
+  partir do board.
 - **DEEPSLEEP-DEC-010:** `InitializePlatform` não é preemptível. O deadline é
   contado durante o estágio, mas a task de lifecycle nasce somente após sucesso
   e inicia o caminho forçado imediatamente se o prazo já tiver expirado.
+
+### Decisões pendentes do Arquiteto para a v0.11
+
+Estas três permanecem abertas e impedem recomendação de prontidão da v0.11:
+
+- **PEND-A — base do nível oposto.** A proposta arma o oposto do **nível
+  elétrico** lido imediatamente antes de dormir. A alternativa é usar o estado
+  **lógico confirmado** pelo debounce, que é o que foi efetivamente reportado.
+  O nível elétrico é mais simples e não consulta o behavior, mas pode ser lido
+  no meio de um repique; o estado confirmado é coerente com o report, porém
+  exige que a fachada alcance a capability. Recomendo o nível elétrico, por
+  preservar DEEPSLEEP-DEC-013, aceitando que um rearme incorreto se autocorrige
+  no boot seguinte.
+- **PEND-B — contato instável.** Um contato em repique ou uma porta em uso
+  intenso produzem uma sequência de wakeups, cada um com ciclo acordado
+  completo. Não existe hoje limite de taxa, e o custo em bateria é real. As
+  saídas possíveis são não tratar nesta versão e medir, ou introduzir um
+  intervalo mínimo entre wakeups por contato. Não recomendo inventar o limite
+  sem a medição de corrente já prevista em DEEPSLEEP-AC-010.
+- **PEND-C — valores de política do produto.** `maxAwakeTimeMs`, o intervalo do
+  timer e a duração do indicador foram escolhidos pela implementação da v0.10
+  para viabilizar a primeira composição, e não por decisão registrada. A v0.11
+  não os altera; eles seguem pendentes de confirmação.
+
+### Origem da v0.11 e evidência observada
+
+A v0.11 nasce de um fato de campo, não de análise: com a v0.10 implementada, o
+Arquiteto compilou o firmware e o executou no ESP32-H2, e relatou que o
+dispositivo **não acorda pela transição do contato no GPIO 14**. Esse
+comportamento é o contratado pela v0.10, cuja seção 1 exclui outras fontes de
+wakeup, e não um defeito da implementação. A intenção do Arquiteto passou a
+exigir a segunda fonte, e é ela que esta versão especifica.
+
+Da mesma execução decorre a primeira evidência material da v0.10 que não veio de
+leitura: **o build e a execução em hardware ocorreram e foram relatados pelo
+Arquiteto**. O relatório de implementação registrava build e hardware como não
+executados por não haver autorização; esse registro é corrigido pela observação
+do Arquiteto, sem que esta especificação passe a autorizar execução por conta
+própria. A verificação de compilação e dos `static_assert` de dimensionamento
+deixa de ser incógnita; o comportamento físico do resto do ciclo continua sem
+evidência registrada.
+
+### Histórico das versões anteriores
 
 A v0.10 incorpora as precisões da análise de implementabilidade da v0.9, sem
 introduzir nova decisão normativa: orçamento total acordado, margem
@@ -606,6 +753,13 @@ Fontes de evidência existentes:
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v10-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/implementation/2026-08-11-v10-implementation.md`.
 
-O documento está `Proposed` e pronto para implementação. A promoção não inicia
-por si só implementação, build, teste, execução em hardware, integração ou
-push; essas operações dependem de autorização explícita no recorte aplicável.
+A v0.10 permanece `Proposed` e implementada. A v0.11 está em `Draft`: ela
+acrescenta o wakeup por contato, declara suas relações normativas e seus
+critérios, e deixa três decisões pendentes na seção 8. Recomendo que ela seja
+confrontada por análise de implementabilidade antes de qualquer promoção, com
+atenção especial a DEEPSLEEP-AC-012, que depende de hardware e não pode ser
+satisfeito por leitura ou build.
+
+Nem a v0.11 nem sua eventual promoção iniciam por si sós implementação, build,
+teste, execução em hardware, integração ou push; essas operações dependem de
+autorização explícita no recorte aplicável.
