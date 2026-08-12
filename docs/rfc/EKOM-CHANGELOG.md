@@ -361,8 +361,9 @@ disparam juntas, e a incorporação de `dry_contact_wakeup` em
 
 **Estado:** autoria [`Draft`]
 
-**Gates da revisão corrente:** análise independente ausente; promoção ausente;
-autorização de implementação ausente.
+**Gates da revisão corrente:** análise independente executada, classificada
+`Não pronta — defeito da especificação`; promoção ausente; autorização de
+implementação ausente.
 
 **Especificação relacionada:** `docs/specs/ISSP-Report-Identity.md`
 
@@ -393,10 +394,23 @@ apenas pela versão.
 
 - diagnóstico do defeito em
   `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-hardware-forwarding-diagnosis.md`;
-- análise independente de implementabilidade da v0.1 ainda não executada.
+- análise independente de implementabilidade da v0.1 em
+  `docs/reports/report-identity/analysis/2026-08-12-v01-implementability-analysis.md`.
+
+A análise confrontou os doze pontos da seção 16 sem executar build, testes ou
+hardware. A baseline comporta a funcionalidade e não há pré-requisito
+arquitetural; o impacto está delimitado. Dois contratos da própria
+funcionalidade bloqueiam a prontidão: a ampliação de API contratada alcança a
+API pública de `issp_transport_154`, não declarada entre as emendas da seção 2;
+e o critério de aceitação local da seção 8.2 é inexecutável com a API mandatada,
+porque `uart_write_bytes()` não devolve escrita parcial e aguarda o dreno físico
+quando a fila está cheia. Treze achados não bloqueantes acompanham o relatório,
+entre eles a confirmação de que o consumidor externo `SmartHome-Hub` aceita o
+`event_id` sem alteração e de que `esp_fill_random()` é admissível no H2 porque
+toda admissão de report ocorre com o rádio já habilitado.
 
 ### Próxima etapa
 
-Submeter a revisão exata da v0.1 a análise independente conforme a seção 16 da
-especificação. Autoria não altera código nem satisfaz os gates de promoção e
-implementação.
+Decisão do Arquiteto sobre os dois bloqueadores e sobre a incorporação dos
+achados não bloqueantes. Nova revisão da especificação exige nova análise da
+revisão exata. Os gates de promoção e autorização permanecem ausentes.
