@@ -183,6 +183,11 @@ polaridade e tempo ligado.
 - a v0.11 deixa três decisões pendentes do Arquiteto: base do nível oposto
   (elétrico ou lógico confirmado), tratamento de contato instável e confirmação
   dos valores de política do produto herdados da implementação da v0.10.
+- o Arquiteto resolveu as três pendências da v0.11: EXT1 usa o nível elétrico
+  imediatamente anterior ao sleep; não há rate limit nesta versão e o consumo
+  será medido; o timer da primeira composição é de 15 minutos. Os valores de
+  `maxAwakeTimeMs` e duração do LED não foram alterados nem ratificados pela
+  v0.11.
 
 ### Relatórios e evidências materiais
 
@@ -214,8 +219,7 @@ Contrato v0.10 promovido pelo Arquiteto para `Proposed` e implementado
 integralmente em código, incluindo as três ampliações de DEEPSLEEP-DEC-006, a
 arbitragem com factory reset, o renome completo e a composição `wake_led`. A
 implementação permanece `In Progress`: build, teste, flash e hardware não foram
-autorizados nem executados, de modo que nenhuma verificação técnica sustenta
-conclusão. Duas questões aguardam o Arquiteto e cada operação seguinte ainda
-depende de autorização explícita no recorte aplicável. A v0.11, que acrescenta
-o wakeup por contato, permanece em `Draft` e recomenda análise de
-implementabilidade antes de qualquer promoção.
+autorizados nem executados pelo agente, de modo que nenhuma verificação técnica
+produzida por ele sustenta conclusão. A v0.11, que acrescenta o wakeup por
+contato, permanece em `Draft`, não possui decisão normativa aberta e recomenda
+análise de implementabilidade antes de qualquer promoção.

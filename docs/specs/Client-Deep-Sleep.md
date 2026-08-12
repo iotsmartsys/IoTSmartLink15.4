@@ -228,8 +228,14 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
   timer, a fachada lê o nível elétrico do GPIO do contato e arma o wakeup
   externo para o **nível oposto** ao lido. Isso vale em todo boot, qualquer que
   tenha sido a causa do wakeup e qualquer que seja o estado do contato;
+- a base do rearme é exclusivamente essa leitura elétrica; a fachada não usa o
+  estado lógico confirmado pelo debounce e não consulta a capability para
+  decidir o nível de EXT1;
 - as duas fontes são independentes e podem estar habilitadas juntas. Com ambas
   habilitadas, o dispositivo acorda pelo que ocorrer primeiro;
+- esta versão não limita a taxa de wakeups por contato. Repique ou uso intenso
+  podem produzir ciclos acordados completos sucessivos; o comportamento e seu
+  consumo devem ser medidos antes de se criar política temporal adicional;
 - o report de cada boot não exige mecanismo novo: com `reportOnStart=true` a
   capability de entrada já estabiliza e publica o estado inicial em `begin()`,
   em todo boot. Esta especificação não cria segundo caminho de publicação;
@@ -277,7 +283,8 @@ ou ausência de wakeup, e a seção 8 registra o experimento obrigatório.
 - a primeira composição usa o product firmware `door_sensor_battery_h2` e o
   board `Door Sensor Battery H2`, que oferece `wake_led` no GPIO 13 e, pela
   v0.11, `dry_contact_wakeup` na entrada de contato seco do GPIO 14, dentro da
-  faixa elegível do ESP32-H2;
+  faixa elegível do ESP32-H2. Nessa composição, o timer periódico é configurado
+  para 15 minutos;
 - o nome do produto contém `h2` por decisão do Arquiteto, sem autorizar pinagem
   ou lógica de board no product firmware;
 - produto e fachada recebem o GPIO exclusivamente pelo board model; Kconfig
@@ -624,12 +631,15 @@ e bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
   `configureDeepSleep()` com `InvalidArgument`. Com as duas fontes habilitadas,
   ambas são armadas antes de qualquer operação terminal e a falha de uma bloqueia
   o sleep. A capability de entrada com `reportOnStart=true` continua sendo o
-  único caminho de publicação do estado a cada boot.
+  único caminho de publicação do estado a cada boot. A primeira composição usa
+  timer de 15 minutos e não aplica rate limit aos wakeups por contato.
 - **DEEPSLEEP-AC-012 — Retenção do nível durante o sleep (v0.11):** o contato
   não pode flutuar enquanto o dispositivo dorme. O critério só é satisfeito por
   evidência em hardware que demonstre, no par produto/board da seção 5, ausência
   de wakeup espúrio com o contato estável e wakeup efetivo na transição, em
-  ambos os sentidos. Leitura de código e build não satisfazem este critério.
+  ambos os sentidos. A evidência também registra wakeups e consumo diante de
+  repique ou acionamentos sucessivos, sem impor limite de taxa nesta versão.
+  Leitura de código e build não satisfazem este critério.
 - **DEEPSLEEP-AC-010 — Evidência futura:** `SetupHooks` pode ser estendido como
   costura interna para verificar com doubles lifecycle, validação e falhas, sem
   integrar o contrato normativo do produto. Build H2 cobre composições
@@ -682,32 +692,25 @@ executar builds ou testes.
 - **DEEPSLEEP-DEC-013 (v0.11):** o wakeup por contato não amplia a API
   reutilizável. A fachada usa o GPIO e a polaridade que o produto lhe entrega a
   partir do board.
+- **DEEPSLEEP-DEC-014 (v0.11):** o nível oposto de EXT1 é calculado a partir do
+  nível elétrico lido imediatamente antes do sleep. O estado lógico confirmado
+  pelo debounce não participa do rearme.
+- **DEEPSLEEP-DEC-015 (v0.11):** não há rate limit de wakeups por contato nesta
+  versão. Repique e acionamentos sucessivos serão medidos antes de eventual
+  política adicional.
+- **DEEPSLEEP-DEC-016 (v0.11):** o timer periódico da primeira composição é de
+  15 minutos. A decisão não altera nem ratifica os valores vigentes de
+  `maxAwakeTimeMs` e duração do LED, que estão fora do acréscimo da v0.11.
 - **DEEPSLEEP-DEC-010:** `InitializePlatform` não é preemptível. O deadline é
   contado durante o estágio, mas a task de lifecycle nasce somente após sucesso
   e inicia o caminho forçado imediatamente se o prazo já tiver expirado.
 
-### Decisões pendentes do Arquiteto para a v0.11
+### Decisões da v0.11 confirmadas pelo Arquiteto
 
-Estas três permanecem abertas e impedem recomendação de prontidão da v0.11:
-
-- **PEND-A — base do nível oposto.** A proposta arma o oposto do **nível
-  elétrico** lido imediatamente antes de dormir. A alternativa é usar o estado
-  **lógico confirmado** pelo debounce, que é o que foi efetivamente reportado.
-  O nível elétrico é mais simples e não consulta o behavior, mas pode ser lido
-  no meio de um repique; o estado confirmado é coerente com o report, porém
-  exige que a fachada alcance a capability. Recomendo o nível elétrico, por
-  preservar DEEPSLEEP-DEC-013, aceitando que um rearme incorreto se autocorrige
-  no boot seguinte.
-- **PEND-B — contato instável.** Um contato em repique ou uma porta em uso
-  intenso produzem uma sequência de wakeups, cada um com ciclo acordado
-  completo. Não existe hoje limite de taxa, e o custo em bateria é real. As
-  saídas possíveis são não tratar nesta versão e medir, ou introduzir um
-  intervalo mínimo entre wakeups por contato. Não recomendo inventar o limite
-  sem a medição de corrente já prevista em DEEPSLEEP-AC-010.
-- **PEND-C — valores de política do produto.** `maxAwakeTimeMs`, o intervalo do
-  timer e a duração do indicador foram escolhidos pela implementação da v0.10
-  para viabilizar a primeira composição, e não por decisão registrada. A v0.11
-  não os altera; eles seguem pendentes de confirmação.
+As antigas PEND-A, PEND-B e PEND-C foram resolvidas em
+DEEPSLEEP-DEC-014 a DEEPSLEEP-DEC-016. Não permanece decisão normativa aberta
+para o acréscimo da v0.11. Os valores vigentes de `maxAwakeTimeMs` e duração do
+LED não pertencem ao acréscimo e não foram ratificados por essas decisões.
 
 ### Origem da v0.11 e evidência observada
 
@@ -755,7 +758,7 @@ Fontes de evidência existentes:
 
 A v0.10 permanece `Proposed` e implementada. A v0.11 está em `Draft`: ela
 acrescenta o wakeup por contato, declara suas relações normativas e seus
-critérios, e deixa três decisões pendentes na seção 8. Recomendo que ela seja
+critérios, e não possui decisão normativa aberta. Recomendo que ela seja
 confrontada por análise de implementabilidade antes de qualquer promoção, com
 atenção especial a DEEPSLEEP-AC-012, que depende de hardware e não pode ser
 satisfeito por leitura ou build.
