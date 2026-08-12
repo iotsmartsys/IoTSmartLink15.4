@@ -152,7 +152,15 @@ polaridade e tempo ligado.
 - a v0.10 incorpora essas precisões. Como o deadline permanece absoluto desde
   `setup()`, o orçamento é expresso por `max(duração de InitializePlatform,
   maxAwakeTimeMs) + duração da sequência terminal`, e não pela soma simples do
-  estágio com `maxAwakeTimeMs`.
+  estágio com `maxAwakeTimeMs`;
+- a análise da v0.10 confirmou os quatro pontos e a correção de
+  DEEPSLEEP-AC-007, e recomendou prontidão sem bloqueador, decisão ausente ou
+  precisão pendente. As pendências restantes não são do contrato: verificação do
+  limite do ESP-IDF, resolvida na implementação com o toolchain presente, e os
+  experimentos de hardware já declarados;
+- a mesma análise precisou a justificativa da supressão de `end()`:
+  `issp154_transport_deinit()` já recusa sob transmissão síncrona, de modo que a
+  janela desprotegida é a da espera de ACK sobre o event group.
 
 ### Relatórios e evidências materiais
 
@@ -172,6 +180,8 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v08-implementability-analysis.md`;
 - análise de implementabilidade da v0.9 em
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v09-implementability-analysis.md`;
+- análise de implementabilidade da v0.10 em
+  `docs/reports/client-deep-sleep/analysis/2026-08-11-v10-implementability-analysis.md`;
 - testes e hardware permanecem `Not Executed`.
 
 ### Resultado
