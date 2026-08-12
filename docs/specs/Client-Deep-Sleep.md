@@ -105,8 +105,10 @@ As relações abaixo valem para o contrato integral. As da v0.10 estão em
   contínuo ou busca infinita.
 - **Preserva ADR-0002:** product firmware define política e declara recursos;
   board model fornece GPIO e polaridade; Kconfig seleciona a composição.
-- **Preserva `Repository-Test-Execution-Policy.md` v0.4:** esta especificação
-  não autoriza build, coleta, flash, teste ou execução em hardware.
+- **Preserva `Repository-Test-Execution-Policy.md` v0.4:** targets e execução
+  de testes ou hardware permanecem governados por essa política. Esta
+  especificação não autoriza coleta ou execução de testes, flash, monitor ou
+  hardware.
 
 Ficam fora deste recorte alterações nas autoridades preservadas. Divergência
 encontrada pela análise deve retornar ao Autor ou ao Arquiteto; não pode ser
@@ -685,17 +687,17 @@ quando timer e contato estiverem ambos desabilitados.
   Leitura de código e build não satisfazem este critério.
 - **DEEPSLEEP-AC-010 — Evidência futura:** `SetupHooks` pode ser estendido como
   costura interna para verificar com doubles lifecycle, validação e falhas, sem
-  integrar o contrato normativo do produto. Build H2 cobre composições
-  habilitada e desabilitada. A evidência mede separadamente a duração de
-  `InitializePlatform`, o deadline absoluto e a sequência terminal, e confronta
-  o total observado com `max(duração de InitializePlatform,
-  maxAwakeTimeMs) + duração da sequência terminal`. Hardware H2 confronta
-  timer, LED, deadline e corrente tanto com `end()` quanto no timeout que o
-  suprime, registrando também as opções vigentes de power-down e mitigação de
-  leakage da flash, somente quando especificação futura autorizar execução.
+  integrar o contrato normativo do produto. Evidência futura em hardware mede
+  separadamente a duração de `InitializePlatform`, o deadline absoluto e a
+  sequência terminal, e confronta o total observado com
+  `max(duração de InitializePlatform, maxAwakeTimeMs) + duração da sequência
+  terminal`. Hardware H2 confronta timer, LED, deadline e corrente tanto com
+  `end()` quanto no timeout que o suprime, registrando também as opções vigentes
+  de power-down e mitigação de leakage da flash, somente quando especificação
+  futura autorizar execução.
 
-Build não comprova comportamento físico. Esta especificação não autoriza
-executar builds ou testes.
+Esta especificação não autoriza coleta ou execução de testes, flash, monitor ou
+hardware.
 
 ## 8. Decisões do Arquiteto e entrega à análise
 
@@ -833,8 +835,7 @@ obrigatória de hardware que não pode ser satisfeita por leitura ou build.
 
 Os gates da revisão corrente da v0.11 são: análise `Ready` presente para
 `ea95c77`, promoção para Pronta presente e autorização de implementação
-ausente. A promoção não inicia implementação, build, teste ou hardware.
+ausente. A promoção não inicia implementação.
 
-Nem a v0.11 nem sua eventual promoção iniciam por si sós implementação, build,
-teste, execução em hardware, integração ou push; essas operações dependem de
-autorização explícita no recorte aplicável.
+Nem a v0.11 nem sua promoção autorizam implementação. Coleta ou execução de
+testes, flash, monitor e hardware permanecem dependentes de autorização própria.

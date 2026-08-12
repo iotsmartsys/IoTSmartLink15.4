@@ -324,3 +324,9 @@ permaneciam ausentes naquele momento.
 Com base no confronto final r5, o Arquiteto promoveu a v0.11 para `Proposed`,
 Pronta para implementação. A promoção satisfaz o segundo gate, mas não concede
 autorização de implementação, que permanece ausente e separada.
+
+O projeto adotou a regra transversal do EKOM 3.6: build canônico integra a
+implementação autorizada e não é permissão ou requisito repetido pela
+especificação funcional. A v0.11 removeu a antiga proibição e a menção de build
+em DEEPSLEEP-AC-010; execução de testes, flash, monitor e hardware permanece sob
+autorização própria e sob `Repository-Test-Execution-Policy.md`.

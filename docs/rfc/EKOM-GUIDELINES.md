@@ -1,10 +1,10 @@
-# Diretriz local de adoção do EKOM 3.2
+# Diretriz local de adoção do EKOM 3.6
 
 **Classe da fonte:** Normativa local
 
 **Estado da fonte:** Vigente
 
-O IoTSmartLink15.4 adota o EKOM 3.2 publicado em
+O IoTSmartLink15.4 adota o EKOM 3.6 publicado em
 `/Users/marcelocostamiranda/source/EKM-guidelines`. O método, a governança, os
 perfis e as ADRs do modelo externo prevalecem sobre instruções históricas do
 projeto.
@@ -23,3 +23,6 @@ Esta fonte registra somente escolhas locais:
 
 As regras de targets, execução de testes e hardware pertencem a
 `docs/specs/Repository-Test-Execution-Policy.md`, não a esta diretriz.
+O build canônico integra toda implementação autorizada de artefato construível,
+conforme a ADR-0008 externa; especificações funcionais não repetem sua
+permissão. Execução de testes e hardware conserva autorização própria.
