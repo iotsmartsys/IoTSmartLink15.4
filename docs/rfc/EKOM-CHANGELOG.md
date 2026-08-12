@@ -476,3 +476,16 @@ Uma divergência normativa foi devolvida ao Arquiteto: a seção 8.4 manda usar
 para o `event_id` a mesma forma textual do campo `device_id` existente, mas seu
 exemplo JSON mostra uma forma sem prefixo e em minúsculas. A implementação
 seguiu a regra em prosa; o exemplo permanece inconsistente na fonte.
+
+A revisão da v0.2 está em
+`docs/reports/report-identity/review/2026-08-12-v02-review.md` e classifica a
+implementação como aderente com ressalvas. Ela confirma a divergência da seção
+8.4 como defeito da especificação e acrescenta cinco achados: o evento de origem
+desconhecida também passou ao caminho UART sem espera, o que a seção 8.3 não
+cobre e precisa de ratificação; o parser do coordenador recusa truncamento mas
+aceita payload maior que 20 bytes, contra a seção 6.1 e o REPORT-ID-AC-004; o
+REPORT-ID-AC-003 não tem oráculo de concorrência real nem da fonte fora do
+`portMUX`; a parte UART do REPORT-ID-AC-007 não é exercitada por nenhuma suíte,
+porque a costura substitui o evento inteiro; e `publishReport()` não revalida a
+identidade contra os slots ocupados, risco residual só alcançável com gerador
+determinístico. A revisão não executou build, teste nem hardware.
