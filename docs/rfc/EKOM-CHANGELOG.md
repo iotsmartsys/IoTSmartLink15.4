@@ -51,7 +51,7 @@ da `main`.
 
 ## EKOM-CHG-0002 — Deep sleep configurável do client
 
-**Estado:** Pronta para implementação [`Proposed`]
+**Estado:** Em implementação [`In Progress`]
 
 **Especificação relacionada:** `docs/specs/Client-Deep-Sleep.md`
 
@@ -162,7 +162,18 @@ polaridade e tempo ligado.
   experimentos de hardware já declarados;
 - a mesma análise precisou a justificativa da supressão de `end()`:
   `issp154_transport_deinit()` já recusa sob transmissão síncrona, de modo que a
-  janela desprotegida é a da espera de ACK sobre o event group.
+  janela desprotegida é a da espera de ACK sobre o event group;
+- a implementação resolveu o item 16 pelo toolchain presente e registrou que, no
+  ESP-IDF 6.0.1, `esp_sleep_enable_timer_wakeup()` deriva o limite da constante
+  nominal do RC lento, não da calibração em runtime; a margem conservadora do
+  contrato permanece correta e hoje é folga adicional;
+- a implementação devolve duas questões ao Arquiteto: o crescimento de
+  `kImplStorageBytes` de 10240 para 16384 bytes, que aciona o novo confronto
+  previsto pelo item 39 de `Firmware-Variants-Menuconfig.md`, e os valores de
+  política do produto a bateria, que a especificação atribui ao product firmware
+  e que a implementação escolheu para viabilizar a primeira composição;
+- build, teste, flash e hardware permanecem não executados, de modo que a
+  compilação e os `static_assert` de dimensionamento seguem não verificados.
 
 ### Relatórios e evidências materiais
 
@@ -184,12 +195,16 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v09-implementability-analysis.md`;
 - análise de implementabilidade da v0.10 em
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v10-implementability-analysis.md`;
-- testes e hardware permanecem `Not Executed`.
+- implementação da v0.10 em
+  `docs/reports/client-deep-sleep/implementation/2026-08-11-v10-implementation.md`;
+- builds, testes e hardware permanecem `Not Executed`.
 
 ### Resultado
 
-Contrato v0.10 promovido pelo Arquiteto para `Proposed`, pronto para
-implementação. A análise de implementabilidade foi concluída sem bloqueador
-estrutural, decisão normativa ausente ou precisão de redação pendente. A
-promoção não inicia implementação, build, teste, hardware, integração ou push;
-cada operação ainda depende de autorização explícita no recorte aplicável.
+Contrato v0.10 promovido pelo Arquiteto para `Proposed` e implementado
+integralmente em código, incluindo as três ampliações de DEEPSLEEP-DEC-006, a
+arbitragem com factory reset, o renome completo e a composição `wake_led`. A
+implementação permanece `In Progress`: build, teste, flash e hardware não foram
+autorizados nem executados, de modo que nenhuma verificação técnica sustenta
+conclusão. Duas questões aguardam o Arquiteto e cada operação seguinte ainda
+depende de autorização explícita no recorte aplicável.

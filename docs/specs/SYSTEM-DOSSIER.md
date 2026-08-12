@@ -19,7 +19,7 @@ oferece uma ponte JSON-lines por UART para o host.
 | `client_154` em ESP32-H2 | Suportado | Decisão | ADR-0003 |
 | `coordinator_154` em ESP32-C6 | Suportado | Decisão | ADR-0003 |
 | ESP32-C3 e QEMU | Não suportados | Decisão | ADR-0003 |
-| Single smart plug e Door sensor | Implementados | Fato observado | Especificação de variantes |
+| Single smart plug e Door sensor battery H2 | Implementados | Fato observado | Especificação de variantes |
 
 ## 3. Arquitetura
 

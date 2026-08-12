@@ -93,7 +93,17 @@ SmartSysApp::Impl::Impl(const app::SmartSysAppConfig &config,
       doorSensorCapabilities_{},
       doorSensorCount_(0),
       factoryResetConfigured_(false),
-      factoryResetConfig_{}
+      factoryResetConfig_{},
+      deepSleepConfigured_(false),
+      deepSleepConfig_{},
+      awakeWindowStartUs_(0),
+      currentStage_(SetupStage::None),
+      transitionOwner_(static_cast<std::uint8_t>(TransitionOwner::Free)),
+      wakeLedOn_(false),
+      wakeLedTimer_(nullptr),
+      lifecycleTaskControl_{},
+      lifecycleTaskStack_{},
+      lifecycleTaskHandle_(nullptr)
 {
     if (hooksOverride != nullptr)
     {
@@ -112,6 +122,11 @@ SmartSysApp::Impl::Impl(const app::SmartSysAppConfig &config,
         hooks_.startReportExecutor = &Impl::realStartReportExecutor;
         hooks_.rollbackTransport = &Impl::realRollbackTransport;
         hooks_.context = this;
+        hooks_.beginDeviceQuiescence = &Impl::realBeginDeviceQuiescence;
+        hooks_.stopReportExecutor = &Impl::realStopReportExecutor;
+        hooks_.endTransport = &Impl::realEndTransport;
+        hooks_.pendingReportCount = &Impl::realPendingReportCount;
+        hooks_.stopResetButtonMonitor = &Impl::realStopResetButtonMonitor;
     }
 #endif
 
@@ -157,6 +172,11 @@ SmartSysApp::Impl::addSwitchPlugCapability(const app::SwitchConfig &config)
         return nullptr;
     }
     if (hasDuplicateEndpoint(config.endpointId, config.eventType))
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return nullptr;
+    }
+    if (collidesWithWakeLed(config.pin))
     {
         recordConfigurationFailure(AppResult::InvalidArgument);
         return nullptr;
@@ -213,6 +233,11 @@ SmartSysApp::Impl::addDoorSensorCapability(const app::DoorSensorConfig &config)
         recordConfigurationFailure(AppResult::InvalidArgument);
         return nullptr;
     }
+    if (collidesWithWakeLed(config.pin))
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return nullptr;
+    }
     if (behaviorCount_ >= kMaxCapabilities || doorSensorCount_ >= kMaxCapabilities)
     {
         recordConfigurationFailure(AppResult::Failed);
@@ -260,7 +285,7 @@ SmartSysApp::Impl::configureFactoryResetButton(const app::PushButtonConfig &conf
         return AppResult::Failed;
     }
     if (!GPIO_IS_VALID_GPIO(config.pin) || config.holdTimeMs == 0U ||
-        config.pollIntervalMs == 0U)
+        config.pollIntervalMs == 0U || collidesWithWakeLed(config.pin))
     {
         recordConfigurationFailure(AppResult::InvalidArgument);
         return AppResult::InvalidArgument;
@@ -287,27 +312,47 @@ SetupResult SmartSysApp::Impl::setup()
         return SetupResult{state_, SetupStage::None, AppResult::Busy};
     }
 
-    ESP_LOGI(kTag, "app_setup begin capabilities=%u factory_reset=%s",
-             static_cast<unsigned>(behaviorCount_),
-             factoryResetConfigured_ ? "configured" : "disabled");
+    // Start of the awake window. It precedes every stage because the deadline of
+    // maxAwakeTimeMs is absolute and counted from setup().
+    awakeWindowStartUs_ = esp_timer_get_time();
 
+    ESP_LOGI(kTag, "app_setup begin capabilities=%u factory_reset=%s deep_sleep=%s",
+             static_cast<unsigned>(behaviorCount_),
+             factoryResetConfigured_ ? "configured" : "disabled",
+             deepSleepConfigured_ && deepSleepConfig_.enabled ? "enabled" : "disabled");
+
+    currentStage_ = SetupStage::ValidateConfiguration;
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::ValidateConfiguration));
     if (lastConfigurationResult_ != AppResult::Ok)
     {
+        // Nothing is touched here: no NVS, radio, RTC or GPIO, so this boot has
+        // no LED, no lifecycle task and no deep sleep.
         return fail(SetupStage::ValidateConfiguration, lastConfigurationResult_);
     }
 
     state_ = AppState::Starting;
 
+    currentStage_ = SetupStage::InitializePlatform;
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::InitializePlatform));
-    AppResult result = hooks_.initializePlatform(hooks_.context);
+    // First platform operation of the stage: boot cause and LED, before NVS,
+    // commissioning, radio or reports.
+    AppResult result = beginPlatformPowerPolicy();
     if (result != AppResult::Ok)
     {
         return fail(SetupStage::InitializePlatform, result);
     }
+    result = hooks_.initializePlatform(hooks_.context);
+    if (result != AppResult::Ok)
+    {
+        return fail(SetupStage::InitializePlatform, result);
+    }
+    // Every mandatory resource exists and the optional monitor was handled: the
+    // stage is not preemptible, so the lifecycle task is born only now.
+    startPowerLifecycle();
 
+    currentStage_ = SetupStage::InitializeNetwork;
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::InitializeNetwork));
     result = hooks_.initializeNetwork(hooks_.context);
@@ -327,6 +372,7 @@ SetupResult SmartSysApp::Impl::setup()
         return fail(SetupStage::InitializeNetwork, result);
     }
 
+    currentStage_ = SetupStage::RegisterCapabilities;
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::RegisterCapabilities));
     for (std::size_t index = 0; index < behaviorCount_; ++index)
@@ -339,6 +385,7 @@ SetupResult SmartSysApp::Impl::setup()
         }
     }
 
+    currentStage_ = SetupStage::StartDevice;
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::StartDevice));
     result = hooks_.startDevice(hooks_.context);
@@ -348,6 +395,7 @@ SetupResult SmartSysApp::Impl::setup()
         return fail(SetupStage::StartDevice, result);
     }
 
+    currentStage_ = SetupStage::StartReportExecutor;
     ESP_LOGI(kTag, "app_setup stage=%u",
              static_cast<unsigned>(SetupStage::StartReportExecutor));
     result = hooks_.startReportExecutor(hooks_.context);
@@ -357,6 +405,7 @@ SetupResult SmartSysApp::Impl::setup()
         return fail(SetupStage::StartReportExecutor, result);
     }
 
+    currentStage_ = SetupStage::Completed;
     state_ = AppState::Running;
     lastSetupResult_ = {AppState::Running, SetupStage::Completed, AppResult::Ok};
     ESP_LOGI(kTag, "app_setup completed state=running");
@@ -402,6 +451,11 @@ SmartSysApp::addDoorSensorCapability(const app::DoorSensorConfig &config)
 AppResult SmartSysApp::configureFactoryResetButton(const app::PushButtonConfig &config)
 {
     return impl().configureFactoryResetButton(config);
+}
+
+AppResult SmartSysApp::configureDeepSleep(const app::DeepSleepConfig &config)
+{
+    return impl().configureDeepSleep(config);
 }
 
 SetupResult SmartSysApp::setup()

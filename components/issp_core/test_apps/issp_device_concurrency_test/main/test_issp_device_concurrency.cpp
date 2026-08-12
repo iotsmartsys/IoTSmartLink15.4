@@ -109,6 +109,47 @@ TEST_CASE("new generation survives completion of an in-flight report",
     TEST_ASSERT_EQUAL_size_t(0, device.pendingReportCount());
 }
 
+// DEEPSLEEP-AC-006 and AC-007: once quiescence begins, admission is closed and
+// the pending count becomes a stable delivery oracle -- slots already admitted
+// are preserved and can still be drained.
+TEST_CASE("beginQuiescence closes admission and preserves admitted slots",
+          "[issp_device][quiescence]")
+{
+    FakeTransport transport;
+    issp::IsspDevice device({.deviceId = 1}, transport);
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),
+                      static_cast<int>(device.publishState(report(1, 0))));
+
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),
+                      static_cast<int>(device.beginQuiescence()));
+    TEST_ASSERT_EQUAL_size_t(1, device.pendingReportCount());
+
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::NotReady),
+                      static_cast<int>(device.publishState(report(2, 1))));
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::NotReady),
+                      static_cast<int>(device.publishState(report(1, 1))));
+    TEST_ASSERT_EQUAL_size_t(1, device.pendingReportCount());
+
+    issp::IsspPreparedReport prepared{};
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),
+                      static_cast<int>(device.preparePendingReport(prepared)));
+    TEST_ASSERT_TRUE(device.completePendingReport(prepared.token, true));
+    TEST_ASSERT_EQUAL_size_t(0, device.pendingReportCount());
+}
+
+TEST_CASE("beginQuiescence is idempotent", "[issp_device][quiescence]")
+{
+    FakeTransport transport;
+    issp::IsspDevice device({.deviceId = 1}, transport);
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),
+                      static_cast<int>(device.beginQuiescence()));
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),
+                      static_cast<int>(device.beginQuiescence()));
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::NotReady),
+                      static_cast<int>(device.publishState(report(1, 0))));
+    TEST_ASSERT_EQUAL_size_t(0, device.pendingReportCount());
+}
+
 TEST_CASE("pending reports retain insertion order", "[issp_device][pending]")
 {
     FakeTransport transport;

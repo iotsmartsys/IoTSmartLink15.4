@@ -41,6 +41,13 @@ public:
     IsspTransportState transportState() const;
     IsspResult publishState(const IsspReport &report) override;
     IsspResult publishReport(const IsspReport &report);
+    /// Terminal, idempotent quiescence for the current boot. Atomically closes
+    /// the dispatch of new commands and the admission of new reports: commands
+    /// still received are answered with IsspCommandResult::Failed, new
+    /// publications return IsspResult::NotReady, and every slot already admitted
+    /// is preserved so the pending count remains a stable delivery oracle. It
+    /// does not stop the transport and cannot be reverted in the same boot.
+    IsspResult beginQuiescence();
     /// Pending-report publication, reservation, completion, and inspection are
     /// internally serialized. Callbacks, encoding, notifications, and transport
     /// operations execute outside the critical section.
@@ -100,6 +107,7 @@ private:
     mutable portMUX_TYPE reportLock_ = portMUX_INITIALIZER_UNLOCKED;
     bool processingCommand_;
     bool reportNotificationDeferred_;
+    bool quiescing_;
     bool hasLastCommand_;
     std::uint16_t lastCommandSequence_;
     IsspCommand lastCommand_;

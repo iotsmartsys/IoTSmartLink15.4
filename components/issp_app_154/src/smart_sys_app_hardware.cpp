@@ -136,7 +136,15 @@ AppResult SmartSysApp::Impl::realInitializePlatform(void *context)
 
     if (self->factoryResetConfigured_)
     {
-        hardware.factoryResetService.emplace(&clearNetworkConfiguration, self);
+        // The service only requests the single power transition; the facade owns
+        // the three-state holder, so the network-binding cleanup and the commit
+        // of a deep sleep can never overlap.
+        const FactoryResetArbiter arbiter = {
+            .acquire = &Impl::acquireFactoryResetTransition,
+            .release = &Impl::releaseFactoryResetTransition,
+            .context = self,
+        };
+        hardware.factoryResetService.emplace(&clearNetworkConfiguration, self, arbiter);
         const ResetButtonConfig resetConfig = {
             .gpio = self->factoryResetConfig_.pin,
             .holdTimeMs = self->factoryResetConfig_.holdTimeMs,
@@ -190,6 +198,76 @@ void SmartSysApp::Impl::realRollbackTransport(void *context)
     const issp::IsspResult result = hardware.transport->end();
     ESP_LOGI("SmartSysApp", "app_setup rollback transport=%u",
              static_cast<unsigned>(result));
+}
+
+// --- deep sleep seam, wired to the real runtime objects ------------------
+//
+// Each of these is the terminal, idempotent operation authorized for the
+// preparation of deep sleep. They never destroy an object and never allow a
+// restart in the same boot; when the corresponding object was never started
+// they are a successful no-op, which is what makes the sequence safe after a
+// setup() that failed past InitializePlatform.
+
+AppResult SmartSysApp::Impl::realBeginDeviceQuiescence(void *context)
+{
+    auto *self = static_cast<Impl *>(context);
+    HardwareState &hardware = hardwareOf(self);
+    if (!hardware.device.has_value())
+    {
+        return AppResult::Ok;
+    }
+    return mapIsspResult(hardware.device->beginQuiescence());
+}
+
+AppResult SmartSysApp::Impl::realStopReportExecutor(void *context)
+{
+    auto *self = static_cast<Impl *>(context);
+    HardwareState &hardware = hardwareOf(self);
+    if (!hardware.reportExecutor.has_value())
+    {
+        return AppResult::Ok;
+    }
+    return mapIsspResult(hardware.reportExecutor->stop());
+}
+
+void SmartSysApp::Impl::realEndTransport(void *context)
+{
+    auto *self = static_cast<Impl *>(context);
+    HardwareState &hardware = hardwareOf(self);
+    if (!hardware.transport.has_value())
+    {
+        return;
+    }
+    const issp::IsspResult result = hardware.transport->end();
+    ESP_LOGI("SmartSysApp", "deep_sleep transport_end result=%u",
+             static_cast<unsigned>(result));
+}
+
+std::size_t SmartSysApp::Impl::realPendingReportCount(void *context)
+{
+    auto *self = static_cast<Impl *>(context);
+    HardwareState &hardware = hardwareOf(self);
+    if (!hardware.device.has_value())
+    {
+        return 0;
+    }
+    return hardware.device->pendingReportCount();
+}
+
+void SmartSysApp::Impl::realStopResetButtonMonitor(void *context)
+{
+    auto *self = static_cast<Impl *>(context);
+    HardwareState &hardware = hardwareOf(self);
+    if (!hardware.resetButtonMonitor.has_value())
+    {
+        return;
+    }
+    const esp_err_t result = hardware.resetButtonMonitor->stop();
+    if (result != ESP_OK)
+    {
+        ESP_LOGW("SmartSysApp", "deep_sleep reset_monitor_stop result=%s",
+                 esp_err_to_name(result));
+    }
 }
 
 SmartSysApp::SmartSysApp(const app::SmartSysAppConfig &config)

@@ -18,6 +18,10 @@ constexpr UserButtonResource kUserButton = {
     .pin = GPIO_NUM_9,
     .activeLow = true,
 };
+constexpr WakeLedResource kWakeLed = {
+    .pin = GPIO_NUM_13,
+    .activeHigh = true,
+};
 }
 
 const DryContactInputResource &selectedDryContactInput()
@@ -28,6 +32,11 @@ const DryContactInputResource &selectedDryContactInput()
 const UserButtonResource &selectedUserButton()
 {
     return kUserButton;
+}
+
+const WakeLedResource &selectedWakeLed()
+{
+    return kWakeLed;
 }
 
 } // namespace client154

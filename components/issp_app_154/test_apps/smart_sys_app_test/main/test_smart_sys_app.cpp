@@ -1,7 +1,10 @@
 // Automated coverage for iotsmartsys::SmartSysApp: configuration validation
 // (SMARTAPP-AC-001, AC-004, AC-004A, AC-005), states, initialization order,
 // repeated setup(), injected failures and rollback (SMARTAPP-AC-006 to
-// AC-013). Every SmartSysApp instance here is built with
+// AC-013), and the deep sleep lifecycle (DEEPSLEEP-AC-001 to AC-003, AC-006 to
+// AC-008), driven through the deep-sleep seam of SetupHooks so that no wakeup
+// source is armed, no LED GPIO is touched and no case ever sleeps for real.
+// Every SmartSysApp instance here is built with
 // SmartSysApp::SetupHooks, replacing the platform/network/device/executor
 // steps with fakes, so nothing in this file ever calls NVS, GPIO drivers or
 // radio APIs. The app targets a physical esp32h2, the target bound to
@@ -11,9 +14,13 @@
 // fake-backed state machine defined by these tests.
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 
 #include "SmartSysApp.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "issp_limits.hpp"
 #include "unity.h"
 
@@ -59,6 +66,12 @@ enum class Step
     StartDevice,
     StartReportExecutor,
     RollbackTransport,
+    PrepareTimerWakeup,
+    StopResetButtonMonitor,
+    BeginDeviceQuiescence,
+    StopReportExecutor,
+    EndTransport,
+    EnterDeepSleep,
 };
 
 // Records every hook invocation and lets each test script the AppResult
@@ -71,7 +84,20 @@ struct FakeScenario
     AppResult startDeviceResult = AppResult::Ok;
     AppResult startReportExecutorResult = AppResult::Ok;
 
-    static constexpr std::size_t kMaxCalls = 16;
+    // Deep-sleep seam: lets each test script the wakeup source, the delivery
+    // oracle and the bounded stop, and observe the terminal sequence without
+    // ever entering a real deep sleep.
+    AppResult prepareTimerWakeupResult = AppResult::Ok;
+    AppResult beginDeviceQuiescenceResult = AppResult::Ok;
+    AppResult stopReportExecutorResult = AppResult::Ok;
+    std::uint32_t stopReportExecutorDelayMs = 0;
+    std::size_t pendingReportCountValue = 0;
+    std::uint64_t preparedSleepUs = 0;
+    std::size_t endTransportCalls = 0;
+    std::size_t stopResetButtonMonitorCalls = 0;
+    std::atomic<bool> deepSleepEntered{false};
+
+    static constexpr std::size_t kMaxCalls = 24;
     std::array<Step, kMaxCalls> callOrder{};
     std::size_t callCount = 0;
     std::size_t registerCapabilityCalls = 0;
@@ -85,7 +111,73 @@ struct FakeScenario
         }
         ++callCount;
     }
+
+    bool recorded(Step step) const
+    {
+        for (std::size_t index = 0; index < callCount && index < kMaxCalls; ++index)
+        {
+            if (callOrder[index] == step)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::size_t indexOf(Step step) const
+    {
+        for (std::size_t index = 0; index < callCount && index < kMaxCalls; ++index)
+        {
+            if (callOrder[index] == step)
+            {
+                return index;
+            }
+        }
+        return kMaxCalls;
+    }
 };
+
+// The lifecycle sequence runs in its own task, so every deep-sleep case waits
+// for the observable outcome instead of assuming a scheduling order.
+bool waitForDeepSleep(const FakeScenario &scenario, std::uint32_t timeoutMs)
+{
+    const std::int64_t deadlineUs =
+        esp_timer_get_time() + static_cast<std::int64_t>(timeoutMs) * 1000;
+    while (!scenario.deepSleepEntered.load())
+    {
+        if (esp_timer_get_time() >= deadlineUs)
+        {
+            return false;
+        }
+        vTaskDelay(1);
+    }
+    // Lets the lifecycle task reach vTaskDelete() before the SmartSysApp that
+    // owns its static stack leaves scope.
+    vTaskDelay(pdMS_TO_TICKS(50));
+    return true;
+}
+
+app::DeepSleepConfig makeDeepSleepConfig(std::uint32_t maxAwakeTimeMs)
+{
+    return {
+        .enabled = true,
+        .maxAwakeTimeMs = maxAwakeTimeMs,
+        .timerWakeup = {
+            .enabled = true,
+            .interval = 15,
+            .unit = app::DeepSleepTimeUnit::Minutes,
+        },
+        // Disabled in every case that reaches setup(): lighting it would touch
+        // a GPIO driver, which this app deliberately never does.
+        .wakeLed = {
+            .enabled = false,
+            .pin = GPIO_NUM_13,
+            .activeHigh = true,
+            .onMode = app::WakeLedOnMode::DurationMs,
+            .onTimeMs = 200,
+        },
+    };
+}
 
 AppResult fakeInitializePlatform(void *context)
 {
@@ -130,16 +222,78 @@ void fakeRollbackTransport(void *context)
     ++scenario->rollbackCalls;
 }
 
+AppResult fakeBeginDeviceQuiescence(void *context)
+{
+    auto *scenario = static_cast<FakeScenario *>(context);
+    scenario->record(Step::BeginDeviceQuiescence);
+    return scenario->beginDeviceQuiescenceResult;
+}
+
+AppResult fakeStopReportExecutor(void *context)
+{
+    auto *scenario = static_cast<FakeScenario *>(context);
+    scenario->record(Step::StopReportExecutor);
+    if (scenario->stopReportExecutorDelayMs != 0)
+    {
+        vTaskDelay(pdMS_TO_TICKS(scenario->stopReportExecutorDelayMs));
+    }
+    return scenario->stopReportExecutorResult;
+}
+
+void fakeEndTransport(void *context)
+{
+    auto *scenario = static_cast<FakeScenario *>(context);
+    scenario->record(Step::EndTransport);
+    ++scenario->endTransportCalls;
+}
+
+std::size_t fakePendingReportCount(void *context)
+{
+    return static_cast<FakeScenario *>(context)->pendingReportCountValue;
+}
+
+void fakeStopResetButtonMonitor(void *context)
+{
+    auto *scenario = static_cast<FakeScenario *>(context);
+    scenario->record(Step::StopResetButtonMonitor);
+    ++scenario->stopResetButtonMonitorCalls;
+}
+
+AppResult fakePrepareTimerWakeup(void *context, std::uint64_t sleepUs)
+{
+    auto *scenario = static_cast<FakeScenario *>(context);
+    scenario->record(Step::PrepareTimerWakeup);
+    scenario->preparedSleepUs = sleepUs;
+    return scenario->prepareTimerWakeupResult;
+}
+
+void fakeEnterDeepSleep(void *context)
+{
+    auto *scenario = static_cast<FakeScenario *>(context);
+    scenario->record(Step::EnterDeepSleep);
+    scenario->deepSleepEntered.store(true);
+}
+
 SmartSysApp::SetupHooks makeHooks(FakeScenario &scenario)
 {
     return SmartSysApp::SetupHooks{
-        &fakeInitializePlatform,
-        &fakeInitializeNetwork,
-        &fakeRegisterCapability,
-        &fakeStartDevice,
-        &fakeStartReportExecutor,
-        &fakeRollbackTransport,
-        &scenario,
+        .initializePlatform = &fakeInitializePlatform,
+        .initializeNetwork = &fakeInitializeNetwork,
+        .registerCapability = &fakeRegisterCapability,
+        .startDevice = &fakeStartDevice,
+        .startReportExecutor = &fakeStartReportExecutor,
+        .rollbackTransport = &fakeRollbackTransport,
+        .context = &scenario,
+        .beginDeviceQuiescence = &fakeBeginDeviceQuiescence,
+        .stopReportExecutor = &fakeStopReportExecutor,
+        .endTransport = &fakeEndTransport,
+        .pendingReportCount = &fakePendingReportCount,
+        .stopResetButtonMonitor = &fakeStopResetButtonMonitor,
+        .prepareTimerWakeup = &fakePrepareTimerWakeup,
+        .enterDeepSleep = &fakeEnterDeepSleep,
+        // A limit small enough to be crossed by a 32-bit interval in hours,
+        // without depending on the value the target derives.
+        .maxTimerWakeupUs = 3600ULL * 1000000ULL * 24ULL,
     };
 }
 
@@ -498,6 +652,265 @@ TEST_CASE("setup() fails StartReportExecutor and rolls back preserving the prima
     TEST_ASSERT_EQUAL(static_cast<int>(SetupStage::StartReportExecutor), static_cast<int>(result.stage));
     TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Failed), static_cast<int>(result.result));
     TEST_ASSERT_EQUAL_size_t(1, scenario.rollbackCalls);
+}
+
+// --- deep sleep (docs/specs/Client-Deep-Sleep.md) ---
+//
+// Every case below drives the lifecycle through the deep-sleep seam of
+// SetupHooks, so no wakeup source is armed, no GPIO is touched and the device
+// never actually sleeps.
+
+TEST_CASE("without opt-in nothing of deep sleep is started",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+
+    const SetupResult result = app.setup();
+
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running), static_cast<int>(result.state));
+    TEST_ASSERT_FALSE(waitForDeepSleep(scenario, 300));
+    TEST_ASSERT_FALSE(scenario.recorded(Step::PrepareTimerWakeup));
+    TEST_ASSERT_FALSE(scenario.recorded(Step::BeginDeviceQuiescence));
+}
+
+TEST_CASE("deep sleep disabled preserves the current runtime",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DeepSleepConfig config = makeDeepSleepConfig(50);
+    config.enabled = false;
+
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(config)));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(app.setup().state));
+    TEST_ASSERT_FALSE(waitForDeepSleep(scenario, 300));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.lastConfigurationResult()));
+}
+
+TEST_CASE("configureDeepSleep rejects a zero maximum awake time",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DeepSleepConfig config = makeDeepSleepConfig(0);
+
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.configureDeepSleep(config)));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.lastConfigurationResult()));
+}
+
+TEST_CASE("configureDeepSleep rejects a duplicate call",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(makeDeepSleepConfig(1000))));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Failed),
+                      static_cast<int>(app.configureDeepSleep(makeDeepSleepConfig(1000))));
+}
+
+TEST_CASE("configureDeepSleep rejects a late call", "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(app.setup().state));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Failed),
+                      static_cast<int>(app.configureDeepSleep(makeDeepSleepConfig(1000))));
+}
+
+TEST_CASE("configureDeepSleep rejects an invalid timer", "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DeepSleepConfig config = makeDeepSleepConfig(1000);
+    config.timerWakeup.interval = 0;
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.configureDeepSleep(config)));
+}
+
+TEST_CASE("configureDeepSleep rejects an interval above the accepted limit",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DeepSleepConfig config = makeDeepSleepConfig(1000);
+    // The seam limit is 24 hours, so 25 hours must be refused while 24 is not.
+    config.timerWakeup.interval = 25;
+    config.timerWakeup.unit = app::DeepSleepTimeUnit::Hours;
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.configureDeepSleep(config)));
+
+    FakeScenario acceptedScenario;
+    SmartSysApp accepted({.deviceId = 1}, makeHooks(acceptedScenario));
+    config.timerWakeup.interval = 24;
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(accepted.configureDeepSleep(config)));
+}
+
+TEST_CASE("configureDeepSleep rejects a wake LED without a duration",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DeepSleepConfig config = makeDeepSleepConfig(1000);
+    config.wakeLed.enabled = true;
+    config.wakeLed.onTimeMs = 0;
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.configureDeepSleep(config)));
+}
+
+TEST_CASE("the wake LED GPIO cannot collide with a capability, in either order",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::SwitchConfig switchConfig = makeSwitchConfig(1, 2);
+    switchConfig.pin = GPIO_NUM_13;
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(switchConfig));
+
+    app::DeepSleepConfig config = makeDeepSleepConfig(1000);
+    config.wakeLed.enabled = true;
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.configureDeepSleep(config)));
+
+    FakeScenario inverseScenario;
+    SmartSysApp inverse({.deviceId = 1}, makeHooks(inverseScenario));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(inverse.configureDeepSleep(config)));
+    TEST_ASSERT_NULL(inverse.addSwitchPlugCapability(switchConfig));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(inverse.lastConfigurationResult()));
+}
+
+TEST_CASE("the deadline drives the forced path in the mandatory order",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    // A pending report that is never delivered: only the deadline may sleep.
+    scenario.pendingReportCountValue = 1;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(makeDeepSleepConfig(200))));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(app.setup().state));
+
+    TEST_ASSERT_TRUE(waitForDeepSleep(scenario, 3000));
+    TEST_ASSERT_TRUE(scenario.indexOf(Step::PrepareTimerWakeup) <
+                     scenario.indexOf(Step::StopResetButtonMonitor));
+    TEST_ASSERT_TRUE(scenario.indexOf(Step::StopResetButtonMonitor) <
+                     scenario.indexOf(Step::BeginDeviceQuiescence));
+    TEST_ASSERT_TRUE(scenario.indexOf(Step::BeginDeviceQuiescence) <
+                     scenario.indexOf(Step::StopReportExecutor));
+    TEST_ASSERT_TRUE(scenario.indexOf(Step::StopReportExecutor) <
+                     scenario.indexOf(Step::EndTransport));
+    TEST_ASSERT_TRUE(scenario.indexOf(Step::EndTransport) <
+                     scenario.indexOf(Step::EnterDeepSleep));
+}
+
+TEST_CASE("minutes and hours convert without semantic loss",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario minutesScenario;
+    SmartSysApp minutesApp({.deviceId = 1}, makeHooks(minutesScenario));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(minutesApp.configureDeepSleep(makeDeepSleepConfig(50))));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(minutesApp.setup().state));
+    TEST_ASSERT_TRUE(waitForDeepSleep(minutesScenario, 3000));
+    TEST_ASSERT_TRUE(minutesScenario.preparedSleepUs == 15ULL * 60ULL * 1000000ULL);
+
+    FakeScenario hoursScenario;
+    SmartSysApp hoursApp({.deviceId = 1}, makeHooks(hoursScenario));
+    app::DeepSleepConfig hours = makeDeepSleepConfig(50);
+    hours.timerWakeup.interval = 2;
+    hours.timerWakeup.unit = app::DeepSleepTimeUnit::Hours;
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(hoursApp.configureDeepSleep(hours)));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(hoursApp.setup().state));
+    TEST_ASSERT_TRUE(waitForDeepSleep(hoursScenario, 3000));
+    TEST_ASSERT_TRUE(hoursScenario.preparedSleepUs == 2ULL * 3600ULL * 1000000ULL);
+}
+
+TEST_CASE("a failed wakeup source blocks the sleep and keeps the runtime reachable",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    scenario.prepareTimerWakeupResult = AppResult::InvalidArgument;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(makeDeepSleepConfig(100))));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(app.setup().state));
+
+    TEST_ASSERT_FALSE(waitForDeepSleep(scenario, 1000));
+    TEST_ASSERT_TRUE(scenario.recorded(Step::PrepareTimerWakeup));
+    TEST_ASSERT_FALSE(scenario.recorded(Step::StopResetButtonMonitor));
+    TEST_ASSERT_FALSE(scenario.recorded(Step::BeginDeviceQuiescence));
+    TEST_ASSERT_FALSE(scenario.recorded(Step::StopReportExecutor));
+}
+
+TEST_CASE("an expired stop budget suppresses the transport shutdown",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    scenario.stopReportExecutorDelayMs = 700;
+    scenario.stopReportExecutorResult = AppResult::Busy;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(makeDeepSleepConfig(100))));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(app.setup().state));
+
+    TEST_ASSERT_TRUE(waitForDeepSleep(scenario, 5000));
+    TEST_ASSERT_EQUAL_size_t(0, scenario.endTransportCalls);
+}
+
+TEST_CASE("early sleep requires an expected initial report",
+          "[smart_sys_app][deep_sleep]")
+{
+    // No capability declares reportOnStart, so there is no positive evidence and
+    // only the deadline may authorize the sleep.
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1, 2)));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(makeDeepSleepConfig(400))));
+
+    const std::int64_t startUs = esp_timer_get_time();
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(app.setup().state));
+    TEST_ASSERT_TRUE(waitForDeepSleep(scenario, 3000));
+    const std::int64_t elapsedMs = (esp_timer_get_time() - startUs) / 1000;
+    TEST_ASSERT_TRUE(elapsedMs >= 400);
+}
+
+TEST_CASE("an admitted initial report with nothing pending sleeps early",
+          "[smart_sys_app][deep_sleep]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::SwitchConfig switchConfig = makeSwitchConfig(1, 2);
+    // DigitalOutputBehavior publishes synchronously in begin(), so reaching
+    // Running is itself the evidence that the initial report was admitted.
+    switchConfig.reportOnStart = true;
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(switchConfig));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(makeDeepSleepConfig(10000))));
+
+    const std::int64_t startUs = esp_timer_get_time();
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(app.setup().state));
+    TEST_ASSERT_TRUE(waitForDeepSleep(scenario, 3000));
+    const std::int64_t elapsedMs = (esp_timer_get_time() - startUs) / 1000;
+    TEST_ASSERT_TRUE(elapsedMs < 10000);
 }
 
 extern "C" void app_main()

@@ -13,11 +13,13 @@ config IOTSMARTLINK154_PRODUCT_SINGLE_SMART_PLUG
     help
         One switchable power output on endpoint 1, with factory reset.
 
-config IOTSMARTLINK154_PRODUCT_DOOR_SENSOR
-    bool "Door sensor"
+config IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2
+    bool "Door sensor battery H2"
     help
         One dry-contact input on endpoint 1, with factory reset. The product
-        publishes event type 1 for open and closed transitions.
+        publishes event type 1 for open and closed transitions. Battery
+        powered: it enables deep sleep and requires a board offering the
+        wake_led resource.
 
 endchoice
 

@@ -4,7 +4,7 @@
 
 **Estado normativo:** Proposed
 
-**Estado da implementação:** Not Implemented
+**Estado da implementação:** In Progress
 
 **Estado do workflow:** Pronta para implementação
 
@@ -603,7 +603,8 @@ Fontes de evidência existentes:
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v07-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v08-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v09-implementability-analysis.md`;
-- `docs/reports/client-deep-sleep/analysis/2026-08-11-v10-implementability-analysis.md`.
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v10-implementability-analysis.md`;
+- `docs/reports/client-deep-sleep/implementation/2026-08-11-v10-implementation.md`.
 
 O documento está `Proposed` e pronto para implementação. A promoção não inicia
 por si só implementação, build, teste, execução em hardware, integração ou

@@ -16,6 +16,7 @@ namespace issp
           pendingReportContext_(nullptr),
           processingCommand_(false),
           reportNotificationDeferred_(false),
+          quiescing_(false),
           hasLastCommand_(false),
           lastCommandSequence_(0),
           lastCommand_{},
@@ -75,10 +76,23 @@ namespace issp
         return transport_.state();
     }
 
+    IsspResult IsspDevice::beginQuiescence()
+    {
+        portENTER_CRITICAL(&reportLock_);
+        quiescing_ = true;
+        portEXIT_CRITICAL(&reportLock_);
+        return IsspResult::Ok;
+    }
+
     IsspResult IsspDevice::publishState(const IsspReport &report)
     {
         bool shouldNotify = false;
         portENTER_CRITICAL(&reportLock_);
+        if (quiescing_)
+        {
+            portEXIT_CRITICAL(&reportLock_);
+            return IsspResult::NotReady;
+        }
         for (std::size_t index = 0; index < pendingReports_.size(); ++index)
         {
             PendingReportSlot &slot = pendingReports_[index];
@@ -141,6 +155,11 @@ namespace issp
     IsspResult IsspDevice::publishReport(const IsspReport &report)
     {
         portENTER_CRITICAL(&reportLock_);
+        if (quiescing_)
+        {
+            portEXIT_CRITICAL(&reportLock_);
+            return IsspResult::NotReady;
+        }
         const std::uint16_t sequence = reportSequence_;
         ++reportSequence_;
         portEXIT_CRITICAL(&reportLock_);
@@ -474,6 +493,16 @@ namespace issp
 
     IsspCommandResult IsspDevice::onCommand(const IsspCommand &command)
     {
+        portENTER_CRITICAL(&reportLock_);
+        const bool quiescing = quiescing_;
+        portEXIT_CRITICAL(&reportLock_);
+        if (quiescing)
+        {
+            // Dispatch is closed for this boot: the command is still acknowledged,
+            // with Failed, instead of reaching a behavior that already quiesced.
+            return IsspCommandResult::Failed;
+        }
+
         for (std::size_t index = 0; index < behaviorCount_; ++index)
         {
             IDeviceBehavior *behavior = behaviors_[index];

@@ -54,12 +54,24 @@ public:
     IsspResult begin(IBehaviorStatePublisher &publisher) override;
     bool accepts(const IsspCommand &command) const override;
     IsspCommandResult handle(const IsspCommand &command) override;
+    /// Stops and deletes the sampling timer without destroying the object and
+    /// without publishing another report. Terminal and idempotent in the boot;
+    /// a no-op returning Ok when begin() never completed successfully.
+    IsspResult quiesce() override;
 
+    /// Production query: true only after a required initial publication has been
+    /// admitted, which is what makes it usable as positive evidence of the
+    /// initial report.
+    bool hasConfirmedState() const;
+    bool state() const;
+
+    // Test-only seams: beginForTest() and beginTimerForTest() install a
+    // publisher without the production GPIO path, and sampleForTest() lets a
+    // test declare every sampled level deterministically. They are never used by
+    // production firmware.
     IsspResult beginForTest(IBehaviorStatePublisher &publisher);
     IsspResult beginTimerForTest(IBehaviorStatePublisher &publisher);
     IsspResult sampleForTest(std::uint32_t level);
-    bool hasConfirmedState() const;
-    bool state() const;
 
 private:
     // Single atomic word so the esp_timer task and any reader task observe a

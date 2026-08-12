@@ -15,8 +15,12 @@ endif()
 # executor de reports e serviços de reset reais, e define o construtor de
 # produto de um argumento. Todo target físico admitido possui rádio
 # IEEE 802.15.4, então essas fontes entram em todo build deste componente.
+# smart_sys_app_deep_sleep.cpp é target-agnóstico como smart_sys_app.cpp:
+# contém a política de deep sleep e alcança os objetos de runtime somente pelos
+# SetupHooks.
 set(srcs
     "src/smart_sys_app.cpp"
+    "src/smart_sys_app_deep_sleep.cpp"
     "src/smart_sys_app_hardware.cpp"
     "src/reset/factory_reset_service.cpp"
     "src/reset/reset_button_monitor.cpp"

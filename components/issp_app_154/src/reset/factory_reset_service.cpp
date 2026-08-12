@@ -17,15 +17,35 @@ FactoryResetService::FactoryResetService(FactoryResetCleanup cleanup,
                                          void *cleanupContext)
     : requested_(false),
       cleanup_(cleanup),
-      cleanupContext_(cleanupContext)
+      cleanupContext_(cleanupContext),
+      arbiter_{}
 {
 }
 
-void FactoryResetService::requestFactoryReset()
+FactoryResetService::FactoryResetService(FactoryResetCleanup cleanup,
+                                         void *cleanupContext,
+                                         const FactoryResetArbiter &arbiter)
+    : requested_(false),
+      cleanup_(cleanup),
+      cleanupContext_(cleanupContext),
+      arbiter_(arbiter)
+{
+}
+
+FactoryResetRequestResult FactoryResetService::requestFactoryReset()
 {
     if (requested_)
     {
-        return;
+        return FactoryResetRequestResult::Accepted;
+    }
+
+    // First accepted transition wins. Losing to deep sleep is diagnosed and
+    // does not consume the hold in course: the monitor may present the request
+    // again if the transition is released by a wakeup-source failure.
+    if (arbiter_.acquire != nullptr && !arbiter_.acquire(arbiter_.context))
+    {
+        ESP_LOGW(kTag, "rejected reason=deep_sleep_transition_held");
+        return FactoryResetRequestResult::Rejected;
     }
 
     requested_ = true;
@@ -35,16 +55,25 @@ void FactoryResetService::requestFactoryReset()
     if (cleanup_ == nullptr) {
         ESP_LOGE(kTag, "failed reason=cleanup_unavailable");
         requested_ = false;
-        return;
+        if (arbiter_.release != nullptr)
+        {
+            arbiter_.release(arbiter_.context);
+        }
+        return FactoryResetRequestResult::Accepted;
     }
     const esp_err_t cleanupResult = cleanup_(cleanupContext_);
     if (cleanupResult != ESP_OK) {
         ESP_LOGE(kTag, "failed reason=persistence_cleanup result=%s",
                  esp_err_to_name(cleanupResult));
         requested_ = false;
-        return;
+        if (arbiter_.release != nullptr)
+        {
+            arbiter_.release(arbiter_.context);
+        }
+        return FactoryResetRequestResult::Accepted;
     }
     ESP_LOGW(kTag, "completed action=restart");
     vTaskDelay(kLogFlushDelay);
     esp_restart();
+    return FactoryResetRequestResult::Accepted;
 }
