@@ -2,14 +2,15 @@
 
 **Tipo:** Normativo
 
-**Estado normativo:** `Draft`
+**Estado normativo:** `Proposed` — Pronta para implementação para a v0.2
 
 **Estado da implementação:** `Not Started`
 
-**Estado do workflow:** autoria; análise independente de implementabilidade
+**Estado do workflow:** Pronta para implementação; autorização de implementação
 pendente
 
-**Análise de implementabilidade:** ausente para a v0.2; a v0.1 foi classificada
+**Análise de implementabilidade:** `Ready` para a revisão `f78c6d2`, conforme
+`2026-08-12-v02-implementability-analysis.md`; a v0.1 foi classificada
 `Not Ready — Specification Defect`
 
 **Autorização de implementação desta versão:** não concedida
@@ -729,16 +730,19 @@ aumento de reservas, API além da DEC-010 ou alteração funcional do deep sleep
 Nesses casos deve recomendar especificação complementar, não acumular a mudança
 nesta fonte.
 
-## 17. Estado de entrada
+## 17. Estado e gates de entrada
 
-Esta v0.2 permanece `Draft`. A análise da v0.1 não satisfaz o gate desta
-revisão. ADR-0004 registra a decisão arquitetural, mas não
-substitui os gates do workflow. Implementação só pode começar quando coexistirem
-na revisão corrente:
+O Arquiteto promoveu esta v0.2 para `Proposed`, Pronta para implementação, com
+base na análise independente `Ready` da revisão `f78c6d2`. A análise da v0.1
+não satisfaz esta versão. ADR-0004 registra a decisão arquitetural, mas não
+substitui os gates do workflow.
 
-1. análise independente `Ready`;
-2. promoção explícita pelo Arquiteto para Pronta;
-3. autorização explícita de implementação desta versão.
+Os gates da revisão corrente são:
 
-Até lá, código, configuração, dependências e artefatos de build permanecem fora
-da atuação de autoria.
+1. análise independente `Ready`: **presente**;
+2. promoção explícita pelo Arquiteto para Pronta: **presente**;
+3. autorização explícita de implementação desta versão: **ausente**.
+
+Esta promoção não autoriza implementação. Enquanto o terceiro gate estiver
+ausente, código, testes, configuração, dependências e artefatos de build
+permanecem fora de atuação.

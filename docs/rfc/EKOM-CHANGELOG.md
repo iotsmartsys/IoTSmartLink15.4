@@ -359,13 +359,12 @@ disparam juntas, e a incorporação de `dry_contact_wakeup` em
 
 ## EKOM-CHG-0003 — Identidade de reports entre boots
 
-**Estado:** v0.2 em autoria [`Draft`]
+**Estado:** v0.2 `Proposed` — Pronta para implementação
 
-**Gates da revisão corrente v0.2:** análise independente executada e
-classificada `Pronta` [`Ready`]; promoção ausente; autorização de implementação
-ausente. A análise da v0.1, classificada `Não pronta — defeito da
-especificação`, não satisfaz a v0.2 e foi substituída pela análise própria
-desta revisão.
+**Gates da revisão corrente v0.2:** análise independente `Ready` presente para
+`f78c6d2`; promoção para Pronta presente; autorização de implementação ausente.
+A análise da v0.1, classificada `Não pronta — defeito da especificação`, não
+satisfaz a v0.2 e foi substituída pela análise própria desta revisão.
 
 **Especificação relacionada:** `docs/specs/ISSP-Report-Identity.md`
 
@@ -448,5 +447,6 @@ achados não bloqueantes acompanham o relatório, com destaque para o
 REPORT-ID-AC-007, que descreve como observável em produção uma contenção de lock
 que a tarefa única do coordenador torna inalcançável.
 
-A revisão continua em `Draft`. Promoção e autorização de implementação
-permanecem ausentes.
+Com base nessa análise, o Arquiteto promoveu a v0.2 para `Proposed`, Pronta para
+implementação. A promoção satisfaz o segundo gate e não concede autorização de
+implementação, que permanece ausente.

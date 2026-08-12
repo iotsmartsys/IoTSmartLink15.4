@@ -79,7 +79,7 @@ normativa futura. Hardware real é evidência material quando solicitado.
 | Variantes | `Firmware-Variants-Menuconfig.md` | Especificado | Produto e board |
 | Targets e testes | `Repository-Test-Execution-Policy.md` | Especificado | Repositório inteiro |
 | Deep sleep do client | `Client-Deep-Sleep.md` | v0.10 e v0.11 implementadas em código; build H2 executado na v0.11; AC-012 pendente de hardware | Client a bateria |
-| Identidade de reports | `ISSP-Report-Identity.md`; ADR-0004 | v0.2 em Draft; análise v0.1 Not Ready e reanálise v0.2 pendente | Client, protocolo, coordenador e ponte UART |
+| Identidade de reports | `ISSP-Report-Identity.md`; ADR-0004 | v0.2 Proposed e Pronta; análise v0.2 Ready; autorização de implementação ausente | Client, protocolo, coordenador e ponte UART |
 
 ## 11. Riscos, legado e preparação futura
 
