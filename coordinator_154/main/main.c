@@ -21,6 +21,7 @@
 #include "device_registry_policy.h"
 #include "iot154_packet.h"
 #include "iot154_radio.h"
+#include "report_data_policy.h"
 
 static const char *TAG = "central_154";
 static const EventBits_t RX_DONE_BIT = BIT0;
@@ -112,27 +113,10 @@ typedef struct
 
 static pending_command_t s_pending_command;
 
-/// @brief Volatile DATA sequence dedup cache, keyed by the device's registry slot index
-/// (COORD-REG-009: last_seq never belongs to the persisted blob). Zero-initialized at boot, so the
-/// first DATA frame observed for each slot in this run is never treated as a duplicate.
-static uint16_t s_last_seq[DEVICE_REGISTRY_MAX_ENTRIES];
-static bool s_last_seq_valid[DEVICE_REGISTRY_MAX_ENTRIES];
-
-static bool is_known_data_duplicate(size_t registry_index, uint16_t seq)
-{
-    if (!s_last_seq_valid[registry_index])
-    {
-        s_last_seq_valid[registry_index] = true;
-        s_last_seq[registry_index] = seq;
-        return false;
-    }
-    if (s_last_seq[registry_index] == seq)
-    {
-        return true;
-    }
-    s_last_seq[registry_index] = seq;
-    return false;
-}
+/// Deduplication is keyed by the client-generated report_id, held in the
+/// volatile per-slot windows of report_data_policy.c. The former last_seq cache
+/// is gone: a sequence restarted by a client reboot no longer suppresses a
+/// legitimate report.
 
 static const char *type_from_event(uint8_t event_type);
 
@@ -779,6 +763,60 @@ static void host_send_line(const char *line)
     }
 }
 
+/// @brief Try to hand a complete line, delimiter included, to the host UART
+/// ring buffer without ever waiting for capacity.
+///
+/// Section 8.2 order: require the lock and take it with zero wait, query the
+/// free space still under the lock, and only submit when the conservative bound
+/// covers the whole line. The query of ESP-IDF 6.0.1 already discounts the
+/// descriptor, and under the lock no producer reduces the space while the ISR
+/// drain only increases it, so the single write copies the whole line without
+/// waiting for the physical drain. Every producer of HOST_UART_NUM is
+/// serialized by this same lock; a write that bypassed it would invalidate the
+/// guarantee between query and submission.
+///
+/// @return true only when the whole line was accepted locally.
+static bool host_try_send_line_nowait(const char *line, size_t len)
+{
+    if (s_host_uart_lock == NULL)
+    {
+        ESP_LOGW(TAG, "host line dropped reason=uart_lock_absent len=%u", (unsigned)len);
+        return false;
+    }
+    if (xSemaphoreTake(s_host_uart_lock, 0) != pdTRUE)
+    {
+        ESP_LOGW(TAG, "host line dropped reason=uart_lock_busy len=%u", (unsigned)len);
+        return false;
+    }
+
+    size_t free_size = 0;
+    const esp_err_t query = uart_get_tx_buffer_free_size(HOST_UART_NUM, &free_size);
+    if (query != ESP_OK)
+    {
+        xSemaphoreGive(s_host_uart_lock);
+        ESP_LOGW(TAG, "host line dropped reason=uart_free_size_failed result=%s",
+                 esp_err_to_name(query));
+        return false;
+    }
+    if (free_size < len)
+    {
+        xSemaphoreGive(s_host_uart_lock);
+        ESP_LOGW(TAG, "host line dropped reason=uart_insufficient_space free=%u needed=%u",
+                 (unsigned)free_size, (unsigned)len);
+        return false;
+    }
+
+    const int written = uart_write_bytes(HOST_UART_NUM, line, len);
+    const bool accepted = written == (int)len;
+    xSemaphoreGive(s_host_uart_lock);
+    if (!accepted)
+    {
+        ESP_LOGW(TAG, "host line dropped reason=uart_unexpected_return written=%d expected=%u",
+                 written, (unsigned)len);
+    }
+    return accepted;
+}
+
 static void host_send_gateway(const char *direction)
 {
     char line[192] = {0};
@@ -819,34 +857,66 @@ static void host_send_error(const char *device_id, const char *capability_name, 
     host_send_line(s_host_result_line);
 }
 
-static void host_send_event(const uint8_t *src_ext_addr, uint8_t endpoint_id, uint8_t event_type, uint8_t value)
+/// @brief Build the event line and try its complete local acceptance.
+///
+/// The JSON and its delimiter go into a single fixed buffer and are submitted
+/// in one call, so no intermediate, irreversible point exists between them. The
+/// additive `event_id` is the canonical `<device_id>:<report_id>` pair; the
+/// existing fields and their values are preserved.
+///
+/// @return true only when the whole line was accepted locally.
+static bool host_send_event(const uint8_t *src_ext_addr,
+                            uint64_t report_id,
+                            uint8_t endpoint_id,
+                            uint8_t event_type,
+                            uint8_t value)
 {
     char device_text[ISSP154_HOST_DEVICE_ID_BUFFER_SIZE] = {0};
     char capability_text[ISSP154_CAPABILITY_NAME_BUFFER_SIZE] = {0};
     char value_text[12] = {0};
+    char event_id_text[ISSP154_HOST_DEVICE_ID_LEN + 1 + IOT154_EVENT_ID_HEX_LEN + 1] = {0};
     char line[ISSP154_HOST_EVENT_JSON_BUFFER_SIZE] = {0};
     const char *event_value = value_from_event(event_type, value, value_text, sizeof(value_text));
     format_device_id(src_ext_addr, device_text, sizeof(device_text));
     format_capability_name(device_text, endpoint_id, event_type, capability_text, sizeof(capability_text));
+    if (!iot154_format_event_id(device_text, report_id, event_id_text, sizeof(event_id_text)))
+    {
+        ESP_LOGW(TAG, "event dropped reason=event_id_buffer_exceeded");
+        return false;
+    }
 
-    snprintf(line,
-             sizeof(line),
-             "{\"device_id\":\"%s\",\"capability_name\":\"%s\",\"value\":\"%s\",\"type\":\"%s\",\"direction\":\"evt\"}",
-             device_text,
-             capability_text,
-             event_value,
-             type_from_event(event_type));
-    host_send_line(line);
+    const int written = snprintf(
+        line,
+        sizeof(line),
+        "{\"device_id\":\"%s\",\"capability_name\":\"%s\",\"value\":\"%s\",\"type\":\"%s\",\"direction\":\"evt\",\"event_id\":\"%s\"}\n",
+        device_text,
+        capability_text,
+        event_value,
+        type_from_event(event_type),
+        event_id_text);
+    if (written <= 0 || (size_t)written >= sizeof(line))
+    {
+        ESP_LOGW(TAG, "event dropped reason=json_buffer_exceeded needed=%d capacity=%u",
+                 written, (unsigned)sizeof(line));
+        return false;
+    }
+
+    return host_try_send_line_nowait(line, (size_t)written);
 }
 
-/// @brief Send a protocol ACK packet carrying the received sequence number.
-static void send_radio_ack(uint32_t device_id, uint16_t seq, uint8_t endpoint_id, const uint8_t *dst_ext_addr)
+/// @brief Send a protocol ACK packet echoing the received sequence and identity.
+static void send_radio_ack(uint32_t device_id,
+                           uint16_t seq,
+                           uint64_t report_id,
+                           uint8_t endpoint_id,
+                           const uint8_t *dst_ext_addr)
 {
     iot154_packet_t ack = {
         .version = IOT154_VERSION,
         .msg_type = IOT154_MSG_ACK,
         .device_id = device_id,
         .seq = seq,
+        .report_id = report_id,
         .endpoint_id = endpoint_id,
         .event_type = 0,
         .value = IOT154_ACK_STATUS_OK,
@@ -895,6 +965,96 @@ static void send_radio_ack(uint32_t device_id, uint16_t seq, uint8_t endpoint_id
     else
     {
         s_radio_tx_busy = true;
+    }
+}
+
+/// Production binding of the DATA decision to the real effects. The decision
+/// itself lives in report_data_policy.c and governs production and tests alike;
+/// main.c keeps only the radio and the host line.
+typedef struct
+{
+    const uint8_t *source_address;
+} report_data_context_t;
+
+static bool coordinator_emit_event(void *ctx, const report_data_input_t *input)
+{
+    const report_data_context_t *context = (const report_data_context_t *)ctx;
+    return host_send_event(context->source_address,
+                           input->report_id,
+                           input->endpoint_id,
+                           input->event_type,
+                           input->value);
+}
+
+static void coordinator_emit_ack(void *ctx, const report_data_input_t *input)
+{
+    const report_data_context_t *context = (const report_data_context_t *)ctx;
+    send_radio_ack(input->device_id,
+                   input->seq,
+                   input->report_id,
+                   input->endpoint_id,
+                   context->source_address);
+}
+
+/// @brief Structured, distinguishable diagnostics for each DATA outcome.
+/// The report_id is not a secret, so it may appear in hexadecimal.
+static void log_report_data_outcome(report_data_outcome_t outcome,
+                                    const iot154_frame_info_t *mac,
+                                    const report_data_input_t *input)
+{
+    char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
+
+    switch (outcome)
+    {
+    case REPORT_DATA_OUTCOME_REGISTRY_UNAVAILABLE:
+        ESP_LOGW("DEVICE_REGISTRY",
+                 "frame ignored reason=registry_unavailable dev=0x%08" PRIx32,
+                 input->device_id);
+        break;
+    case REPORT_DATA_OUTCOME_UNKNOWN_IGNORED:
+        format_ext_addr(mac->src_ext, sensor_mac_text, sizeof(sensor_mac_text));
+        ESP_LOGI("DEVICE_REGISTRY",
+                 "frame ignored reason=unknown_device dev=0x%08" PRIx32 " sensor=%s",
+                 input->device_id, sensor_mac_text);
+        break;
+    case REPORT_DATA_OUTCOME_UNKNOWN_FORWARDED:
+        ESP_LOGI(TAG,
+                 "DATA forwarded reason=unknown_origin_join_window dev=0x%08" PRIx32
+                 " seq=%u report_id=%016" PRIX64 " endpoint=%u event=%u value=%u",
+                 input->device_id, input->seq, input->report_id,
+                 input->endpoint_id, input->event_type, input->value);
+        break;
+    case REPORT_DATA_OUTCOME_UNKNOWN_LOCAL_UNAVAILABLE:
+        ESP_LOGW(TAG,
+                 "DATA not acknowledged reason=local_acceptance_unavailable origin=unknown"
+                 " dev=0x%08" PRIx32 " seq=%u report_id=%016" PRIX64,
+                 input->device_id, input->seq, input->report_id);
+        break;
+    case REPORT_DATA_OUTCOME_NEW_ACCEPTED:
+        ESP_LOGI(TAG,
+                 "DATA new dev=0x%08" PRIx32 " seq=%u report_id=%016" PRIX64
+                 " endpoint=%u event=%u value=%u",
+                 input->device_id, input->seq, input->report_id,
+                 input->endpoint_id, input->event_type, input->value);
+        break;
+    case REPORT_DATA_OUTCOME_NEW_LOCAL_UNAVAILABLE:
+        ESP_LOGW(TAG,
+                 "DATA not acknowledged reason=local_acceptance_unavailable dev=0x%08" PRIx32
+                 " seq=%u report_id=%016" PRIX64,
+                 input->device_id, input->seq, input->report_id);
+        break;
+    case REPORT_DATA_OUTCOME_RETRY_DEDUPLICATED:
+        ESP_LOGI(TAG,
+                 "DATA retry deduplicated dev=0x%08" PRIx32 " seq=%u report_id=%016" PRIX64,
+                 input->device_id, input->seq, input->report_id);
+        break;
+    case REPORT_DATA_OUTCOME_CONFLICT:
+        ESP_LOGW(TAG,
+                 "DATA identity conflict dev=0x%08" PRIx32 " seq=%u report_id=%016" PRIX64
+                 " endpoint=%u event=%u value=%u",
+                 input->device_id, input->seq, input->report_id,
+                 input->endpoint_id, input->event_type, input->value);
+        break;
     }
 }
 
@@ -1421,6 +1581,21 @@ void app_main(void)
                 {
                     const device_registry_pair_result_t pair_result =
                         device_registry_pair(mac.src_ext, packet.device_id);
+                    if (pair_result == DEVICE_REGISTRY_PAIR_UPDATED)
+                    {
+                        // The slot now represents another device_id, so the
+                        // identities it accumulated no longer describe it.
+                        // Idempotent pairing of the same association preserves
+                        // the window.
+                        size_t paired_index = 0;
+                        if (device_registry_find(mac.src_ext, NULL, &paired_index))
+                        {
+                            report_dedup_window_reset(paired_index);
+                            ESP_LOGI("DEVICE_REGISTRY",
+                                     "dedup window cleared reason=identity_changed slot=%u",
+                                     (unsigned)paired_index);
+                        }
+                    }
                     if (device_registry_policy_discovery_response(pair_result))
                     {
                         ESP_LOGI("COMMISSIONING",
@@ -1445,42 +1620,28 @@ void app_main(void)
                 const device_registry_state_t registry_state = device_registry_state();
                 const bool origin_known = registry_state == DEVICE_REGISTRY_STATE_READY &&
                                           device_registry_find(mac.src_ext, NULL, &registry_index);
-                const bool duplicate = origin_known &&
-                                       is_known_data_duplicate(registry_index, packet.seq);
-                const device_registry_data_effects_t data_effects = device_registry_policy_data(
-                    registry_state, s_join_window_open, origin_known, duplicate);
-                if (data_effects.log_registry_unavailable)
-                {
-                    ESP_LOGW("DEVICE_REGISTRY",
-                             "frame ignored reason=registry_unavailable dev=0x%08" PRIx32,
-                             packet.device_id);
-                }
-                else if (data_effects.log_unknown_device)
-                {
-                    char sensor_mac_text[3 * IOT154_EXT_ADDR_LEN] = {0};
-                    format_ext_addr(mac.src_ext, sensor_mac_text, sizeof(sensor_mac_text));
-                    ESP_LOGI("DEVICE_REGISTRY",
-                             "frame ignored reason=unknown_device dev=0x%08" PRIx32 " sensor=%s",
-                             packet.device_id, sensor_mac_text);
-                }
-                else
-                {
-                    if (duplicate)
-                    {
-                        ESP_LOGI(TAG, "DATA duplicate dev=0x%08" PRIx32 " seq=%u", packet.device_id, packet.seq);
-                    }
-                    else if (data_effects.emit_host_event)
-                    {
-                        ESP_LOGI(TAG,
-                                 "DATA new dev=0x%08" PRIx32 " seq=%u endpoint=%u event=%u value=%u",
-                                 packet.device_id, packet.seq, packet.endpoint_id, packet.event_type, packet.value);
-                        host_send_event(mac.src_ext, packet.endpoint_id, packet.event_type, packet.value);
-                    }
-                    if (data_effects.emit_ack)
-                    {
-                        send_radio_ack(packet.device_id, packet.seq, packet.endpoint_id, mac.src_ext);
-                    }
-                }
+                const report_data_input_t data_input = {
+                    .device_id = packet.device_id,
+                    .report_id = packet.report_id,
+                    .seq = packet.seq,
+                    .endpoint_id = packet.endpoint_id,
+                    .event_type = packet.event_type,
+                    .value = packet.value,
+                };
+                report_data_context_t data_context = {.source_address = mac.src_ext};
+                const report_data_effects_t data_effects = {
+                    .emit_event = &coordinator_emit_event,
+                    .emit_ack = &coordinator_emit_ack,
+                    .ctx = &data_context,
+                };
+                const report_data_outcome_t data_outcome = report_data_policy_process(
+                    registry_state,
+                    s_join_window_open,
+                    origin_known,
+                    registry_index,
+                    &data_input,
+                    &data_effects);
+                log_report_data_outcome(data_outcome, &mac, &data_input);
             }
             else if (packet.msg_type == IOT154_MSG_ACK &&
                      mac.dst_mode == IOT154_ADDR_MODE_EXT &&
@@ -1491,7 +1652,11 @@ void app_main(void)
                 const bool registry_ready = device_registry_state() == DEVICE_REGISTRY_STATE_READY;
                 const bool origin_known = registry_ready &&
                                           device_registry_find(mac.src_ext, &known_device_id, NULL);
+                // The wire ACK type is single: a command ACK is the one that
+                // carries report_id == 0. A report ACK never completes a
+                // pending command.
                 const bool pending_correlations_match = s_pending_command.active &&
+                                                        packet.report_id == 0 &&
                                                         packet.device_id == s_pending_command.device_id &&
                                                         packet.seq == s_pending_command.sequence &&
                                                         packet.endpoint_id == s_pending_command.endpoint_id &&

@@ -86,74 +86,133 @@ namespace issp
 
     IsspResult IsspDevice::publishState(const IsspReport &report)
     {
-        bool shouldNotify = false;
-        portENTER_CRITICAL(&reportLock_);
-        if (quiescing_)
+        // A configuration without a generator cannot admit a report: there is
+        // no identity to give it, and zero is never a valid one.
+        if (config_.reportIdGenerator == nullptr)
         {
+            return IsspResult::InvalidArgument;
+        }
+
+        for (std::size_t attempt = 0; attempt < kReportIdGenerationAttempts;
+             ++attempt)
+        {
+            // The source runs outside the critical section: it may be slow, and
+            // holding the portMUX across it would block every other publisher.
+            const std::uint64_t reportId =
+                config_.reportIdGenerator(config_.reportIdGeneratorContext);
+            if (reportId == 0)
+            {
+                continue;
+            }
+
+            bool shouldNotify = false;
+            bool collided = false;
+            IsspResult result = IsspResult::Failed;
+
+            // Slot choice, collision revalidation and the whole mutation happen
+            // in a single entry, so two concurrent publishers cannot accept the
+            // same identity and no slot is left partially updated.
+            portENTER_CRITICAL(&reportLock_);
+            if (quiescing_)
+            {
+                portEXIT_CRITICAL(&reportLock_);
+                return IsspResult::NotReady;
+            }
+            if (reportIdInUseLocked(reportId))
+            {
+                collided = true;
+            }
+            else
+            {
+                PendingReportSlot *target = nullptr;
+                bool insertion = false;
+                for (PendingReportSlot &slot : pendingReports_)
+                {
+                    if (slot.occupied &&
+                        slot.report.endpointId == report.endpointId &&
+                        slot.report.eventType == report.eventType)
+                    {
+                        target = &slot;
+                        break;
+                    }
+                }
+                if (target == nullptr)
+                {
+                    for (PendingReportSlot &slot : pendingReports_)
+                    {
+                        if (!slot.occupied)
+                        {
+                            target = &slot;
+                            insertion = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (target != nullptr)
+                {
+                    // Every admission is a new one, so it takes a new identity
+                    // even when the value did not change.
+                    target->report = report;
+                    target->reportId = reportId;
+                    advanceGeneration(target->generation);
+                    if (insertion)
+                    {
+                        target->inFlightGeneration = 0;
+                        target->insertionOrder = nextPendingReportOrder();
+                        target->occupied = true;
+                        target->inFlight = false;
+                        ++pendingReportCount_;
+                    }
+                    if (processingCommand_)
+                    {
+                        reportNotificationDeferred_ = true;
+                    }
+                    else
+                    {
+                        shouldNotify = true;
+                    }
+                    result = IsspResult::Ok;
+                }
+            }
             portEXIT_CRITICAL(&reportLock_);
-            return IsspResult::NotReady;
-        }
-        for (std::size_t index = 0; index < pendingReports_.size(); ++index)
-        {
-            PendingReportSlot &slot = pendingReports_[index];
-            if (slot.occupied &&
-                slot.report.endpointId == report.endpointId &&
-                slot.report.eventType == report.eventType)
+
+            if (collided)
             {
-                slot.report = report;
-                advanceGeneration(slot.generation);
-                if (processingCommand_)
-                {
-                    reportNotificationDeferred_ = true;
-                }
-                else
-                {
-                    shouldNotify = true;
-                }
-                portEXIT_CRITICAL(&reportLock_);
-                if (shouldNotify)
-                {
-                    notifyPendingReport();
-                }
-                return IsspResult::Ok;
+                continue;
             }
+            if (shouldNotify)
+            {
+                notifyPendingReport();
+            }
+            return result;
         }
 
-        for (std::size_t index = 0; index < pendingReports_.size(); ++index)
-        {
-            PendingReportSlot &slot = pendingReports_[index];
-            if (!slot.occupied)
-            {
-                slot.report = report;
-                advanceGeneration(slot.generation);
-                slot.inFlightGeneration = 0;
-                slot.insertionOrder = nextPendingReportOrder();
-                slot.occupied = true;
-                slot.inFlight = false;
-                ++pendingReportCount_;
-                if (processingCommand_)
-                {
-                    reportNotificationDeferred_ = true;
-                }
-                else
-                {
-                    shouldNotify = true;
-                }
-                portEXIT_CRITICAL(&reportLock_);
-                if (shouldNotify)
-                {
-                    notifyPendingReport();
-                }
-                return IsspResult::Ok;
-            }
-        }
-
-        portEXIT_CRITICAL(&reportLock_);
         return IsspResult::Failed;
     }
 
     IsspResult IsspDevice::publishReport(const IsspReport &report)
     {
+        if (config_.reportIdGenerator == nullptr)
+        {
+            return IsspResult::InvalidArgument;
+        }
+
+        // Each invocation is a new logical report and takes a new identity. The
+        // direct path holds no slot, so the bounded search only rejects zero.
+        std::uint64_t reportId = 0;
+        for (std::size_t attempt = 0;
+             attempt < kReportIdGenerationAttempts && reportId == 0;
+             ++attempt)
+        {
+            reportId =
+                config_.reportIdGenerator(config_.reportIdGeneratorContext);
+        }
+        if (reportId == 0)
+        {
+            return IsspResult::Failed;
+        }
+
         portENTER_CRITICAL(&reportLock_);
         if (quiescing_)
         {
@@ -169,6 +228,7 @@ namespace issp
         const IsspResult encodeResult = encodeReport(
             config_.deviceId,
             sequence,
+            reportId,
             report,
             payload,
             sizeof(payload),
@@ -214,8 +274,21 @@ namespace issp
         return true;
     }
 
+    bool IsspDevice::reportIdInUseLocked(std::uint64_t reportId) const
+    {
+        for (const PendingReportSlot &slot : pendingReports_)
+        {
+            if (slot.occupied && slot.reportId == reportId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool IsspDevice::acquirePendingReportLocked(IsspReport &report,
-                                                IsspPendingReportToken &token)
+                                                IsspPendingReportToken &token,
+                                                std::uint64_t &reportId)
     {
         std::size_t oldestIndex = kMaxPendingReports;
         for (std::size_t index = 0; index < pendingReports_.size(); ++index)
@@ -233,6 +306,7 @@ namespace issp
         {
             report = {};
             token = {};
+            reportId = 0;
             return false;
         }
 
@@ -240,6 +314,7 @@ namespace issp
         slot.inFlight = true;
         slot.inFlightGeneration = slot.generation;
         report = slot.report;
+        reportId = slot.reportId;
         token.slotIndex = static_cast<std::uint8_t>(oldestIndex);
         token.generation = slot.inFlightGeneration;
         return true;
@@ -248,8 +323,10 @@ namespace issp
     bool IsspDevice::acquirePendingReport(IsspReport &report,
                                           IsspPendingReportToken &token)
     {
+        std::uint64_t reportId = 0;
         portENTER_CRITICAL(&reportLock_);
-        const bool acquired = acquirePendingReportLocked(report, token);
+        const bool acquired =
+            acquirePendingReportLocked(report, token, reportId);
         portEXIT_CRITICAL(&reportLock_);
         return acquired;
     }
@@ -277,6 +354,7 @@ namespace issp
         if (delivered && slot.generation == token.generation)
         {
             slot.report = {};
+            slot.reportId = 0;
             slot.insertionOrder = 0;
             slot.occupied = false;
             --pendingReportCount_;
@@ -292,12 +370,15 @@ namespace issp
 
         IsspReport report{};
         IsspPendingReportToken token{};
+        std::uint64_t reportId = 0;
         portENTER_CRITICAL(&reportLock_);
-        if (!acquirePendingReportLocked(report, token))
+        if (!acquirePendingReportLocked(report, token, reportId))
         {
             portEXIT_CRITICAL(&reportLock_);
             return IsspResult::NotReady;
         }
+        // An external attempt takes a fresh sequence but reuses the identity,
+        // which is what makes a retry recognizable as the same logical report.
         const std::uint16_t sequence = reportSequence_;
         ++reportSequence_;
         portEXIT_CRITICAL(&reportLock_);
@@ -307,6 +388,7 @@ namespace issp
         const IsspResult encodeResult = encodeReport(
             config_.deviceId,
             sequence,
+            reportId,
             report,
             payload.data(),
             payload.size(),
@@ -320,6 +402,7 @@ namespace issp
         preparedReport.token = token;
         preparedReport.deviceId = config_.deviceId;
         preparedReport.sequence = sequence;
+        preparedReport.reportId = reportId;
         preparedReport.report = report;
         preparedReport.payload = payload;
         preparedReport.payloadLength = payloadLength;

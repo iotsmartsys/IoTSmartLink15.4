@@ -109,6 +109,7 @@ IsspResult Issp154ReportExecutor::processOne()
     const Issp154AckExpectation expectation{
         .deviceId = prepared.deviceId,
         .sequence = prepared.sequence,
+        .reportId = prepared.reportId,
         .endpointId = prepared.report.endpointId,
     };
     Issp154ConfirmedSendSummary summary{};

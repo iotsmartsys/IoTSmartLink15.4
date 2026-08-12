@@ -45,9 +45,9 @@ técnicos. `examples/issp_minimal_client` é o segundo consumidor local.
 ## 6. Dados e persistência
 
 Client e coordenador usam NVS para rede e registry. O wire ISSP possui
-implementações nos dois alvos. `ISSP-Report-Identity.md` especifica em Draft o
-envelope v2 necessário à identidade de DATA/ACK; o protocolo integral ainda não
-está consolidado em uma única fonte dedicada.
+implementações nos dois alvos, já no envelope v2 de 20 bytes definido por
+`ISSP-Report-Identity.md` para a identidade de DATA/ACK; o protocolo integral
+ainda não está consolidado em uma única fonte dedicada.
 
 ## 7. Integrações e protocolos
 
@@ -59,8 +59,9 @@ está consolidado em uma única fonte dedicada.
 
 Commissioning e factory reset tratam recuperação do client. Persistência do
 registry trata reinicialização do coordenador. A identidade de report entre
-boots e sua deduplicação estão preparadas em `ISSP-Report-Identity.md`;
-implementação e validação ainda permanecem em `EKM-GAP-0006`.
+boots e sua deduplicação seguem `ISSP-Report-Identity.md` e estão
+implementadas nos dois alvos; a validação em hardware permanece em
+`EKM-GAP-0006`.
 
 ## 9. Build, testes e operação
 
@@ -79,7 +80,7 @@ normativa futura. Hardware real é evidência material quando solicitado.
 | Variantes | `Firmware-Variants-Menuconfig.md` | Especificado | Produto e board |
 | Targets e testes | `Repository-Test-Execution-Policy.md` | Especificado | Repositório inteiro |
 | Deep sleep do client | `Client-Deep-Sleep.md` | v0.10 e v0.11 implementadas em código; build H2 executado na v0.11; AC-012 pendente de hardware | Client a bateria |
-| Identidade de reports | `ISSP-Report-Identity.md`; ADR-0004 | v0.2 Proposed e Pronta; análise v0.2 Ready; autorização de implementação ausente | Client, protocolo, coordenador e ponte UART |
+| Identidade de reports | `ISSP-Report-Identity.md`; ADR-0004 | v0.2 Proposed e Pronta; análise v0.2 Ready; implementação autorizada e `In Progress` | Client, protocolo, coordenador e ponte UART |
 
 ## 11. Riscos, legado e preparação futura
 
@@ -92,9 +93,9 @@ históricos.
 
 | ID | Questão | Impacto | Destino |
 |---|---|---|---|
-| `EKM-GAP-0002` | Contrato wire integral ainda não consolidado; recorte v2 de report está em Draft | Compatibilidade entre alvos | `ISSP-Report-Identity.md` e recorte futuro integral |
+| `EKM-GAP-0002` | Contrato wire integral ainda não consolidado; recorte v2 de report implementado | Compatibilidade entre alvos | `ISSP-Report-Identity.md` e recorte futuro integral |
 | `EKM-GAP-0003` | Matriz requisito–evidência incompleta | Navegação de validação | Recorte futuro |
-| `EKM-GAP-0006` | Identidade e ACK v2 ainda não implementados nem validados | Confiabilidade operacional | `ISSP-Report-Identity.md` |
+| `EKM-GAP-0006` | Identidade e ACK v2 implementados; ainda não validados em hardware | Confiabilidade operacional | `ISSP-Report-Identity.md` |
 
 ## Regra de manutenção
 

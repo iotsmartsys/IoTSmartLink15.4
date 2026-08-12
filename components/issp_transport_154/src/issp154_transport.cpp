@@ -546,9 +546,10 @@ IsspResult Issp154Transport::sendConfirmedOnce(
         return operationResult;
     }
     ESP_LOGI("ISSP_PROTOCOL_TRACE",
-             "event=ack_expectation_armed role=report device=0x%08lx issp_seq=%u endpoint=%u timeout_ms=%lu",
+             "event=ack_expectation_armed role=report device=0x%08lx issp_seq=%u report_id=%016llX endpoint=%u timeout_ms=%lu",
              static_cast<unsigned long>(expectation.deviceId),
              static_cast<unsigned>(expectation.sequence),
+             static_cast<unsigned long long>(expectation.reportId),
              static_cast<unsigned>(expectation.endpointId),
              static_cast<unsigned long>(ackTimeoutMs));
 
@@ -662,7 +663,7 @@ IsspResult Issp154Transport::transmitPayloadOnce(const std::uint8_t *data,
              messageTypeName(messageType),
              static_cast<unsigned long>(diagnosticDeviceId(data, length)),
              static_cast<unsigned>(diagnosticSequence(data, length)),
-             static_cast<unsigned>(length > 8U ? data[8] : 0U),
+             static_cast<unsigned>(length > 16U ? data[16] : 0U),
              static_cast<unsigned>(length),
              static_cast<unsigned>(macSequence_));
 
@@ -709,7 +710,7 @@ IsspResult Issp154Transport::sendReply(const std::uint8_t *data,
                  messageTypeName(length > 1U ? data[1] : 0U),
                  static_cast<unsigned long>(diagnosticDeviceId(data, length)),
                  static_cast<unsigned>(diagnosticSequence(data, length)),
-                 static_cast<unsigned>(length > 8U ? data[8] : 0U));
+                 static_cast<unsigned>(length > 16U ? data[16] : 0U));
         return IsspResult::Busy;
     }
 
@@ -739,7 +740,7 @@ IsspResult Issp154Transport::sendReply(const std::uint8_t *data,
              "event=tx_prepare role=command_ack device=0x%08lx issp_seq=%u endpoint=%u payload_len=%u mac_seq=%u",
              static_cast<unsigned long>(diagnosticDeviceId(data, length)),
              static_cast<unsigned>(diagnosticSequence(data, length)),
-             static_cast<unsigned>(length > 8U ? data[8] : 0U),
+             static_cast<unsigned>(length > 16U ? data[16] : 0U),
              static_cast<unsigned>(length),
              static_cast<unsigned>(sequence));
     const IsspResult result = mapTransmitError(issp154_transport_transmit_and_wait(
@@ -748,7 +749,7 @@ IsspResult Issp154Transport::sendReply(const std::uint8_t *data,
              "event=tx_result role=command_ack device=0x%08lx issp_seq=%u endpoint=%u result=%u",
              static_cast<unsigned long>(diagnosticDeviceId(data, length)),
              static_cast<unsigned>(diagnosticSequence(data, length)),
-             static_cast<unsigned>(length > 8U ? data[8] : 0U),
+             static_cast<unsigned>(length > 16U ? data[16] : 0U),
              static_cast<unsigned>(result));
     return result;
 }
@@ -841,6 +842,18 @@ void IRAM_ATTR Issp154Transport::notifyReceive(
         return;
     }
 
+    if (payloadLength != IsspPayloadSize) {
+        // The codecs reject by length before decoding, so a v1 frame reaching a
+        // v2 endpoint is only distinguishable by inspecting byte 0 directly.
+        // Nothing beyond it is decoded.
+        ESP_LOGW("ISSP_PROTOCOL_TRACE",
+                 "event=rx_rejected reason=payload_length wire_version=%u payload_len=%u expected_len=%u",
+                 static_cast<unsigned>(payload[0]),
+                 static_cast<unsigned>(payloadLength),
+                 static_cast<unsigned>(IsspPayloadSize));
+        return;
+    }
+
     const std::uint8_t receivedMessageType = payloadLength > 1U ? payload[1] : 0U;
     {
         std::uint32_t discoveryDeviceId = 0;
@@ -925,15 +938,21 @@ void IRAM_ATTR Issp154Transport::notifyReceive(
                     replyContext.source_pan_id == expectedPanId &&
                     std::equal(expectedSource.begin(), expectedSource.end(),
                                replyContext.source_address);
+                // A report ACK only concludes the attempt when the identity
+                // also matches: a late ACK of another sequence or identity, and
+                // a command ACK (report_id == 0), never conclude a report.
                 const bool matches = sourceMatches &&
                     decodedAck.deviceId == expected.deviceId &&
                     decodedAck.sequence == expected.sequence &&
+                    decodedAck.reportId != 0U &&
+                    decodedAck.reportId == expected.reportId &&
                     decodedAck.endpointId == expected.endpointId;
                 if (!outcomeAvailable) {
                     portENTER_CRITICAL(&ackLock_);
                     if (ackExpectationActive_ &&
                         ackExpectation_.deviceId == expected.deviceId &&
                         ackExpectation_.sequence == expected.sequence &&
+                        ackExpectation_.reportId == expected.reportId &&
                         ackExpectation_.endpointId == expected.endpointId &&
                         !ackOutcomeAvailable_) {
                         if (matches) {
@@ -958,19 +977,22 @@ void IRAM_ATTR Issp154Transport::notifyReceive(
                 }
                 if (!matches) {
                     ESP_LOGW("ISSP_TRANSPORT",
-                             "incompatible report ACK expected_device=0x%08lx received_device=0x%08lx expected_seq=%u received_seq=%u expected_endpoint=%u received_endpoint=%u source_match=%s",
+                             "incompatible report ACK expected_device=0x%08lx received_device=0x%08lx expected_seq=%u received_seq=%u expected_report_id=%016llX received_report_id=%016llX expected_endpoint=%u received_endpoint=%u source_match=%s",
                              static_cast<unsigned long>(expected.deviceId),
                              static_cast<unsigned long>(decodedAck.deviceId),
                              static_cast<unsigned>(expected.sequence),
                              static_cast<unsigned>(decodedAck.sequence),
+                             static_cast<unsigned long long>(expected.reportId),
+                             static_cast<unsigned long long>(decodedAck.reportId),
                              static_cast<unsigned>(expected.endpointId),
                              static_cast<unsigned>(decodedAck.endpointId),
                              sourceMatches ? "yes" : "no");
                 } else {
                     ESP_LOGI("ISSP_PROTOCOL_TRACE",
-                             "event=ack_matched role=report device=0x%08lx issp_seq=%u endpoint=%u status=%u rssi=%d lqi=%u sfd_us=%llu",
+                             "event=ack_matched role=report device=0x%08lx issp_seq=%u report_id=%016llX endpoint=%u status=%u rssi=%d lqi=%u sfd_us=%llu",
                              static_cast<unsigned long>(decodedAck.deviceId),
                              static_cast<unsigned>(decodedAck.sequence),
+                             static_cast<unsigned long long>(decodedAck.reportId),
                              static_cast<unsigned>(decodedAck.endpointId),
                              static_cast<unsigned>(decodedAck.status),
                              frameInfo != nullptr ? static_cast<int>(frameInfo->rssi) : 0,
@@ -987,6 +1009,7 @@ void IRAM_ATTR Issp154Transport::notifyReceive(
                 if (ackExpectationActive_ &&
                     ackExpectation_.deviceId == expected.deviceId &&
                     ackExpectation_.sequence == expected.sequence &&
+                    ackExpectation_.reportId == expected.reportId &&
                     ackExpectation_.endpointId == expected.endpointId &&
                     !ackOutcomeAvailable_) {
                     ackOutcome_ = {

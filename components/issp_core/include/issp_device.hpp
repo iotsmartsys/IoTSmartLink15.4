@@ -20,6 +20,8 @@ struct IsspPreparedReport
     IsspPendingReportToken token;
     std::uint32_t deviceId;
     std::uint16_t sequence;
+    /// Logical identity of the report, stable across every attempt.
+    std::uint64_t reportId;
     IsspReport report;
     std::array<std::uint8_t, IsspPayloadSize> payload;
     std::size_t payloadLength;
@@ -72,6 +74,10 @@ private:
     struct PendingReportSlot
     {
         IsspReport report;
+        // Identity of the admission currently held by the slot. A concurrent
+        // update overwrites it, while the attempt already in flight keeps the
+        // previous identity in its prepared copy and ACK expectation.
+        std::uint64_t reportId;
         std::uint32_t generation;
         std::uint32_t inFlightGeneration;
         std::uint32_t insertionOrder;
@@ -79,9 +85,15 @@ private:
         bool inFlight;
     };
 
+    // Bounded local search: a generator that only yields zero or collisions
+    // fails explicitly instead of looping or mutating a slot partially.
+    static constexpr std::size_t kReportIdGenerationAttempts = 8;
+
     static void advanceGeneration(std::uint32_t &generation);
+    bool reportIdInUseLocked(std::uint64_t reportId) const;
     bool acquirePendingReportLocked(IsspReport &report,
-                                    IsspPendingReportToken &token);
+                                    IsspPendingReportToken &token,
+                                    std::uint64_t &reportId);
     void notifyPendingReport();
     void finishCommandProcessing();
     std::uint32_t nextPendingReportOrder();

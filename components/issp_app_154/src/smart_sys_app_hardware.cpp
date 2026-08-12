@@ -15,6 +15,7 @@
 
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_random.h"
 #include "issp154_network_manager.hpp"
 #include "issp154_report_executor.hpp"
 #include "issp154_transport.hpp"
@@ -88,6 +89,19 @@ HardwareState &hardwareOf(SmartSysApp::Impl *impl)
     return *std::launder(reinterpret_cast<HardwareState *>(impl->hardwareStorage_));
 }
 
+/// Production source of report identities. It lives in the facade, not in
+/// issp_core: the core stays free of ESP-IDF headers for this purpose, and the
+/// randomness is not claimed to be cryptographic. It is only ever called
+/// outside the device critical section, so the busy wait esp_random() may
+/// perform on the H2 cannot block another publisher inside the portMUX.
+std::uint64_t generateReportId(void *context)
+{
+    (void)context;
+    std::uint64_t reportId = 0;
+    esp_fill_random(&reportId, sizeof(reportId));
+    return reportId;
+}
+
 esp_err_t clearNetworkConfiguration(void *context)
 {
     if (context == nullptr)
@@ -131,7 +145,13 @@ AppResult SmartSysApp::Impl::realInitializePlatform(void *context)
     };
     hardware.transport.emplace(transportConfig);
     hardware.networkManager.emplace(*hardware.transport, self->config_.deviceId);
-    hardware.device.emplace(issp::IsspDeviceConfig{self->config_.deviceId}, *hardware.transport);
+    hardware.device.emplace(
+        issp::IsspDeviceConfig{
+            .deviceId = self->config_.deviceId,
+            .reportIdGenerator = &generateReportId,
+            .reportIdGeneratorContext = nullptr,
+        },
+        *hardware.transport);
     hardware.reportExecutor.emplace(*hardware.device, *hardware.transport);
 
     if (self->factoryResetConfigured_)

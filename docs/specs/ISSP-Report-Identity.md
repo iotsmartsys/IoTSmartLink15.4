@@ -4,16 +4,17 @@
 
 **Estado normativo:** `Proposed` — Pronta para implementação para a v0.2
 
-**Estado da implementação:** `Not Started`
+**Estado da implementação:** `In Progress`
 
-**Estado do workflow:** Pronta para implementação; autorização de implementação
-pendente
+**Estado do workflow:** implementação autorizada e em andamento
 
 **Análise de implementabilidade:** `Ready` para a revisão `f78c6d2`, conforme
 `2026-08-12-v02-implementability-analysis.md`; a v0.1 foi classificada
-`Not Ready — Specification Defect`
+`Not Ready — Specification Defect`. Entre `f78c6d2` e a revisão implementada,
+esta fonte mudou somente em campos de estado, sem alteração normativa.
 
-**Autorização de implementação desta versão:** não concedida
+**Autorização de implementação desta versão:** concedida pelo Arquiteto por
+ordem explícita de implementar a v0.2
 
 **Versão:** 0.2
 
@@ -741,8 +742,9 @@ Os gates da revisão corrente são:
 
 1. análise independente `Ready`: **presente**;
 2. promoção explícita pelo Arquiteto para Pronta: **presente**;
-3. autorização explícita de implementação desta versão: **ausente**.
+3. autorização explícita de implementação desta versão: **presente**, por ordem
+   explícita do Arquiteto para implementar a v0.2.
 
-Esta promoção não autoriza implementação. Enquanto o terceiro gate estiver
-ausente, código, testes, configuração, dependências e artefatos de build
-permanecem fora de atuação.
+Com os três gates satisfeitos, a implementação está autorizada e inclui o build
+canônico dos entregáveis construíveis afetados. Coleta ou execução de testes,
+flash, monitor e hardware continuam exigindo autorização própria.

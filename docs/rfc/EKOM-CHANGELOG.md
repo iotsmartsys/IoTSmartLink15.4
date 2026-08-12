@@ -450,3 +450,29 @@ que a tarefa única do coordenador torna inalcançável.
 Com base nessa análise, o Arquiteto promoveu a v0.2 para `Proposed`, Pronta para
 implementação. A promoção satisfaz o segundo gate e não concede autorização de
 implementação, que permanece ausente.
+
+Em 12/08/2026 o Arquiteto ordenou a implementação da v0.2, satisfazendo o
+terceiro gate. A implementação está registrada em
+`docs/reports/report-identity/implementation/2026-08-12-v02-implementation.md`.
+
+O corte v2 foi aplicado nos dois codecs separados: payload fixo de 20 bytes com
+`report_id` little-endian no offset 8, recusa de `DATA` com identidade zero e de
+tipo que não é report com identidade não nula. `IsspDevice` recebeu a fonte
+injetável de IDs, com a geração fora do `portMUX` e a escolha de slot,
+revalidação de colisão e mutação inteira em uma única entrada na seção crítica.
+A correlação de ACK do transporte passou a exigir a identidade, de modo que um
+ACK de comando não conclui um report. No coordenador, `s_last_seq` deu lugar ao
+módulo privado `report_data_policy.c`, com janela FIFO volátil de oito
+fingerprints por slot do registry e a ordem consulta, evento, cache e ACK; o
+evento ao host ganhou o campo aditivo `event_id`.
+
+Builds canônicos H2 e C6, exemplo mínimo e as quatro test apps de firmware
+compilam. Três suítes host-native novas foram criadas e construídas — vetores
+dourados por target, formatação do `event_id` e janela de deduplicação — e
+permanecem `Not Executed`, como as demais. AC-005, AC-013 e a regressão de
+transporte do AC-016 dependem de hardware e continuam sem evidência.
+
+Uma divergência normativa foi devolvida ao Arquiteto: a seção 8.4 manda usar
+para o `event_id` a mesma forma textual do campo `device_id` existente, mas seu
+exemplo JSON mostra uma forma sem prefixo e em minúsculas. A implementação
+seguiu a regra em prosa; o exemplo permanece inconsistente na fonte.
