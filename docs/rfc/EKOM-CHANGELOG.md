@@ -244,7 +244,7 @@ restando físico apenas o elo elétrico.
 O Arquiteto incorporou os achados na v0.11 ainda em `Draft`: a elegibilidade é
 derivada da capacidade vigente do target, sem exceção local para GPIO 7; o board
 declara o recurso físico e o GPIO precisa corresponder à capability de contato
-seco que configura direção e pull; a leitura e a armação de EXT1 ocorrem no
+seco que fornece direção e pull; a leitura e a armação de EXT1 ocorrem no
 início da sequência terminal, antes de qualquer operação terminal; e
 `ContactWakeupConfig` deixa de expor polaridade lógica sem efeito. A precisão de
 retenção por HOLD e liberação no boot foi incorporada, sem substituir o
@@ -264,3 +264,13 @@ falha de rede. O relatório oferece três saídas e recomenda que a fachada apli
 direção e pull da capability correspondente quando ela não tiver iniciado, o que
 não amplia API reutilizável. Nenhum gate da v0.11 foi satisfeito por estas
 atuações.
+
+O Arquiteto incorporou também esse último achado mantendo a v0.11 em `Draft`.
+No preparo do contato, a fachada reaplica sempre e de forma idempotente o modo
+de entrada e o pull da capability correspondente antes de ler o nível e armar
+EXT1. A regra vale quando o behavior já iniciou e quando `StartDevice` não foi
+alcançado; falha de configuração do GPIO é falha de preparo da fonte e aborta
+antes da quiescência. DEEPSLEEP-AC-012 passa a exigir evidência também no boot
+que alcança a sequência terminal sem `StartDevice`, incluindo `NotReady` em
+`InitializeNetwork`. A revisão aguarda nova análise de implementabilidade e
+continua sem promoção ou autorização de implementação.

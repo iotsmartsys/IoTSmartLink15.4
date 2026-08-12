@@ -9,8 +9,8 @@ para a v0.10
 
 **Estado do workflow:** Rascunho e análise para a v0.11
 
-**Análise de implementabilidade:** nova análise pendente para a v0.11; a revisão
-anterior foi classificada em 12/08/2026 como
+**Análise de implementabilidade:** nova análise pendente para a v0.11; as
+revisões anteriores foram classificadas em 12/08/2026 como
 `Not Ready — Specification Defect`; `Ready` somente para a v0.10
 
 **Autorização de implementação desta versão:** não concedida para a v0.11
@@ -227,16 +227,20 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
   restrição elétrica ou de roteamento de um pino suportado pelo target pertence
   ao board, não à lista de validação da fachada;
 - o GPIO do wakeup deve ser o mesmo de uma capability de contato seco registrada
-  na composição. Essa capability configura direção e pull do pad; fonte de
-  contato independente, sem capability correspondente, fica fora desta versão;
+  na composição. A configuração registrada dessa capability fornece direção e
+  pull para o preparo do pad; fonte de contato independente, sem capability
+  correspondente, fica fora desta versão;
 - a correspondência é validada até `ValidateConfiguration`, sem impor ordem
   entre o registro da capability e `configureDeepSleep()` durante
   `AppState::Configuring`;
 - **rearme alternado.** No início da sequência terminal, depois de preparado o
-  timer e antes de qualquer operação terminal, a fachada lê o nível elétrico do
-  GPIO do contato e arma EXT1 para o **nível oposto** ao lido por
-  `esp_sleep_enable_ext1_wakeup_io()`. Isso vale em todo boot, qualquer que
-  tenha sido a causa do wakeup e qualquer que seja o estado do contato;
+  timer e antes de qualquer operação terminal, a fachada reaplica ao pad o modo
+  de entrada e o pull da configuração da capability correspondente, lê o nível
+  elétrico do GPIO do contato e arma EXT1 para o **nível oposto** ao lido por
+  `esp_sleep_enable_ext1_wakeup_io()`. O preparo é idempotente e ocorre mesmo se
+  `StartDevice` não tiver sido alcançado ou se o behavior já tiver iniciado.
+  Isso vale em todo boot, qualquer que tenha sido a causa do wakeup e qualquer
+  que seja o estado do contato;
 - a base do rearme é exclusivamente essa leitura elétrica; a fachada não usa o
   estado lógico confirmado pelo debounce e não consulta a capability para
   decidir o nível de EXT1. A polaridade lógica do contato não integra
@@ -252,14 +256,16 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
 - o report de cada boot não exige mecanismo novo: com `reportOnStart=true` a
   capability de entrada já estabiliza e publica o estado inicial em `begin()`,
   em todo boot. Esta especificação não cria segundo caminho de publicação;
-- o preparo confronta o retorno da API de wakeup externo. Erro bloqueia a
-  sequência antes de qualquer operação terminal, como a seção 6.1 já determina
-  para fonte solicitada;
+- o preparo confronta tanto o retorno da configuração do GPIO quanto o da API
+  de wakeup externo. Erro em qualquer passo bloqueia a sequência antes de
+  qualquer operação terminal, como a seção 6.1 já determina para fonte
+  solicitada;
 - contato desabilitado não configura essa fonte e não altera o GPIO.
 
 No ESP32-H2, o ESP-IDF 6.0.1 mantém por HOLD durante o deep sleep a configuração
-digital do pad, inclusive o pull estabelecido pela capability, e libera esse
-HOLD automaticamente no boot seguinte antes de `app_main()`. Essa cadeia é
+digital do pad, inclusive o pull reaplicado pela fachada a partir da
+configuração da capability, e libera esse HOLD automaticamente no boot seguinte
+antes de `app_main()`. Essa cadeia é
 confirmada por leitura da implementação do target e não depende de opção de
 Kconfig neste caminho. Permanece física a suficiência elétrica do pull diante
 da fuga, da impedância e do ruído do contato e da fiação; pino instável produz
@@ -512,7 +518,8 @@ adquirir ou confirmar a transição de deep sleep
   abortar somente se detida pelo factory reset
 → preparar as fontes de wakeup solicitadas, quando houver
   timer, quando habilitado
-  contato: ler o nível atual e armar EXT1 para o nível oposto, quando habilitado
+  contato, quando habilitado: reaplicar modo de entrada e pull da capability
+  correspondente, ler o nível atual e armar EXT1 para o nível oposto
 → encerrar ResetButtonMonitor, quando configurado
 → beginQuiescence no device
 → quiesce em todos os behaviors registrados
@@ -528,6 +535,10 @@ adquirir ou confirmar a transição de deep sleep
 
 Falha ao preparar **qualquer** fonte solicitada aborta a sequência antes de
 qualquer operação terminal, libera a arbitragem e preserva o runtime acessível.
+Para o contato, falha ao configurar direção ou pull ou ao armar EXT1 é falha de
+preparo da fonte. A regra vale inclusive quando `StartDevice` não foi alcançado;
+nesse caminho, a fachada não depende de `DigitalInputBehavior::begin()` para
+deixar o pad em estado definido.
 Com duas fontes habilitadas, o sucesso de uma não compensa a falha da outra: um
 dispositivo que dormisse sem o contato armado deixaria de reportar a transição
 até o próximo período do timer, e um que dormisse sem o timer perderia o sinal
@@ -643,22 +654,25 @@ quando timer e contato estiverem ambos desabilitados.
   diagnóstico. `ESP_SLEEP_WAKEUP_EXT1` identifica o contato, e ausência de
   fonte significa timer e contato simultaneamente desabilitados.
 - **DEEPSLEEP-AC-011 — Contato (v0.11):** com o contato habilitado, todo boot
-  operacional que alcance a sequência terminal lê o nível do GPIO do contato e
-  arma o wakeup externo para o nível oposto, qualquer que seja a causa do boot e
-  o estado do contato. GPIO fora da faixa elegível do target é rejeitado em
-  `configureDeepSleep()` com `InvalidArgument`. Ausência de capability de
-  contato seco correspondente é rejeitada em `ValidateConfiguration`, sem
-  tornar significativa a ordem das chamadas em `AppState::Configuring`. Com as
-  duas fontes habilitadas, ambas são armadas antes de qualquer operação terminal
-  e a falha de uma bloqueia o sleep. A capability de entrada com
-  `reportOnStart=true` continua sendo o único caminho de publicação do estado a
-  cada boot. A primeira composição usa timer de 15 minutos e não aplica rate
-  limit aos wakeups por contato.
+  que alcance a sequência terminal reaplica ao GPIO o modo de entrada e o pull
+  da capability correspondente, lê seu nível e arma o wakeup externo para o
+  nível oposto, qualquer que seja a causa do boot, o estado do contato ou o fato
+  de `StartDevice` ter sido alcançado. GPIO fora da faixa elegível do target é
+  rejeitado em `configureDeepSleep()` com `InvalidArgument`. Ausência de
+  capability de contato seco correspondente é rejeitada em
+  `ValidateConfiguration`, sem tornar significativa a ordem das chamadas em
+  `AppState::Configuring`. Com as duas fontes habilitadas, ambas são armadas
+  antes de qualquer operação terminal e a falha de uma bloqueia o sleep. A
+  capability de entrada com `reportOnStart=true` continua sendo o único caminho
+  de publicação do estado a cada boot. A primeira composição usa timer de 15
+  minutos e não aplica rate limit aos wakeups por contato.
 - **DEEPSLEEP-AC-012 — Retenção do nível durante o sleep (v0.11):** o contato
   não pode flutuar enquanto o dispositivo dorme. O critério só é satisfeito por
   evidência em hardware que demonstre, no par produto/board da seção 5, ausência
   de wakeup espúrio com o contato estável e wakeup efetivo na transição, em
-  ambos os sentidos. A evidência também registra wakeups e consumo diante de
+  ambos os sentidos, tanto no caminho normal quanto em boot que alcance a
+  sequência terminal sem executar `StartDevice`, incluindo `NotReady` em
+  `InitializeNetwork`. A evidência também registra wakeups e consumo diante de
   repique ou acionamentos sucessivos, sem impor limite de taxa nesta versão.
   Leitura de código e build não satisfazem este critério.
 - **DEEPSLEEP-AC-010 — Evidência futura:** `SetupHooks` pode ser estendido como
@@ -728,7 +742,10 @@ executar builds ou testes.
 - **DEEPSLEEP-DEC-017 (v0.11):** a fachada deriva elegibilidade de wakeup da
   capacidade vigente do target, sem lista própria de GPIOs. O board declara o
   recurso físico, e o GPIO deve corresponder a uma capability de contato seco
-  registrada que configure direção e pull do pad.
+  registrada. No preparo da fonte, a fachada reaplica sempre, de forma
+  idempotente, o modo de entrada e o pull dessa configuração antes de ler o
+  nível e armar EXT1; assim o pad fica definido mesmo quando `StartDevice` não
+  foi alcançado, sem ampliar API reutilizável.
 - **DEEPSLEEP-DEC-010:** `InitializePlatform` não é preemptível. O deadline é
   contado durante o estágio, mas a task de lifecycle nasce somente após sucesso
   e inicia o caminho forçado imediatamente se o prazo já tiver expirado.
@@ -740,9 +757,11 @@ DEEPSLEEP-DEC-014 a DEEPSLEEP-DEC-016. Depois da análise de 12/08/2026, o
 Arquiteto confirmou a derivação da elegibilidade pelo target, o vínculo com a
 capability registrada, a armação no início da sequência terminal e a remoção da
 polaridade sem efeito, consolidadas em DEEPSLEEP-DEC-011, DEC-013, DEC-014 e
-DEC-017. Não permanece decisão normativa aberta para o acréscimo da v0.11. Os
-valores vigentes de `maxAwakeTimeMs` e duração do LED não pertencem ao acréscimo
-e não foram ratificados por essas decisões.
+DEC-017. Depois da nova análise, confirmou também a reaplicação idempotente da
+configuração do pad pela fachada em todo caminho terminal, inclusive sem
+`StartDevice`. Não permanece decisão normativa aberta para o acréscimo da
+v0.11. Os valores vigentes de `maxAwakeTimeMs` e duração do LED não pertencem ao
+acréscimo e não foram ratificados por essas decisões.
 
 ### Origem da v0.11 e evidência observada
 
@@ -787,11 +806,12 @@ Fontes de evidência existentes:
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v09-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v10-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis.md`;
+- `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r3.md`;
 - `docs/reports/client-deep-sleep/implementation/2026-08-11-v10-implementation.md`.
 
-A v0.10 permanece `Proposed` e implementada. A análise de implementabilidade de
-12/08/2026 classificou a revisão anterior da v0.11 como `Not Ready —
-Specification Defect`. A v0.11 continua em `Draft`, agora com os dois defeitos
+A v0.10 permanece `Proposed` e implementada. As análises de implementabilidade
+de 12/08/2026 classificaram as revisões anteriores da v0.11 como `Not Ready —
+Specification Defect`. A v0.11 continua em `Draft`, agora com os defeitos
 incorporados e sem decisão normativa aberta. Recomendo nova análise de
 implementabilidade antes de qualquer promoção, preservando DEEPSLEEP-AC-012
 como evidência obrigatória de hardware que não pode ser satisfeita por leitura
