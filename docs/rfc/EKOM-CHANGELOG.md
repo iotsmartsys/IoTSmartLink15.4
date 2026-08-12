@@ -51,11 +51,11 @@ da `main`.
 
 ## EKOM-CHG-0002 — Deep sleep configurável do client
 
-**Estado:** v0.10 em implementação [`In Progress`]; v0.11 pronta para
-implementação [`Proposed`]
+**Estado:** v0.10 e v0.11 em implementação [`In Progress`]
 
 **Gates da revisão corrente da v0.11:** análise `Ready` presente para
-`ea95c77`; promoção para Pronta presente; autorização de implementação ausente.
+`ea95c77`; promoção para Pronta presente; autorização de implementação presente,
+concedida em 12/08/2026.
 
 **Especificação relacionada:** `docs/specs/Client-Deep-Sleep.md`
 
@@ -222,7 +222,13 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r3.md`;
 - terceira análise da v0.11, sobre o texto com o preparo do pad definido, em
   `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r4.md`;
-- builds, testes e hardware permanecem `Not Executed`.
+- confronto final da v0.11 sobre a revisão `ea95c77` em
+  `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r5.md`;
+- implementação da v0.11 em
+  `docs/reports/client-deep-sleep/implementation/2026-08-12-v11-implementation.md`;
+- build canônico H2 executado na implementação da v0.11, com código de saída 0
+  nas duas composições do client e no test app `smart_sys_app_test`; testes,
+  flash, monitor e hardware permanecem `Not Executed`.
 
 ### Resultado
 
@@ -336,3 +342,17 @@ Arquiteto concedeu em 12/08/2026 autorização explícita para implementar a v0.
 de `Client-Deep-Sleep.md`. Os três gates da implementação normativa estão
 satisfeitos. O build canônico proporcional integra a implementação conforme o
 EKOM 3.6; testes, flash, monitor e hardware não foram autorizados.
+
+O acréscimo da v0.11 foi implementado: `ContactWakeupConfig` no contrato
+público, elegibilidade derivada da capacidade do target, correspondência com a
+capability de contato seco validada em `ValidateConfiguration`, reaplicação
+idempotente do pad e armação de EXT1 para o nível oposto ao lido no início da
+sequência terminal, bloqueio do sleep por falha de qualquer fonte solicitada e o
+recurso de composição `dry_contact_wakeup`. O build canônico H2 foi executado com
+sucesso nas duas composições do client e no test app afetado. A implementação
+permanece `In Progress`: DEEPSLEEP-AC-012 exige evidência em hardware, que não
+foi autorizada, e as 45 suítes do `SmartSysApp` continuam não executadas. Dois
+pontos foram devolvidos ao Arquiteto: a leitura da causa do boot passou a usar
+`esp_sleep_get_wakeup_causes()` para não perder o contato quando as duas fontes
+disparam juntas, e a incorporação de `dry_contact_wakeup` em
+`Firmware-Variants-Menuconfig.md` permanece pendente da autoridade normativa.

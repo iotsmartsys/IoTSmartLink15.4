@@ -2,8 +2,9 @@
 // (SMARTAPP-AC-001, AC-004, AC-004A, AC-005), states, initialization order,
 // repeated setup(), injected failures and rollback (SMARTAPP-AC-006 to
 // AC-013), and the deep sleep lifecycle (DEEPSLEEP-AC-001 to AC-003, AC-006 to
-// AC-008), driven through the deep-sleep seam of SetupHooks so that no wakeup
-// source is armed, no LED GPIO is touched and no case ever sleeps for real.
+// AC-008, and the part of AC-011 that doubles can observe), driven through the
+// deep-sleep seam of SetupHooks so that no wakeup source is armed, no LED GPIO
+// is touched and no case ever sleeps for real.
 // Every SmartSysApp instance here is built with
 // SmartSysApp::SetupHooks, replacing the platform/network/device/executor
 // steps with fakes, so nothing in this file ever calls NVS, GPIO drivers or
@@ -67,6 +68,7 @@ enum class Step
     StartReportExecutor,
     RollbackTransport,
     PrepareTimerWakeup,
+    PrepareContactWakeup,
     StopResetButtonMonitor,
     BeginDeviceQuiescence,
     StopReportExecutor,
@@ -88,6 +90,9 @@ struct FakeScenario
     // oracle and the bounded stop, and observe the terminal sequence without
     // ever entering a real deep sleep.
     AppResult prepareTimerWakeupResult = AppResult::Ok;
+    AppResult prepareContactWakeupResult = AppResult::Ok;
+    gpio_num_t preparedContactPin = GPIO_NUM_NC;
+    app::DigitalInputPull preparedContactPull = app::DigitalInputPull::Floating;
     AppResult beginDeviceQuiescenceResult = AppResult::Ok;
     AppResult stopReportExecutorResult = AppResult::Ok;
     std::uint32_t stopReportExecutorDelayMs = 0;
@@ -175,6 +180,13 @@ app::DeepSleepConfig makeDeepSleepConfig(std::uint32_t maxAwakeTimeMs)
             .activeHigh = true,
             .onMode = app::WakeLedOnMode::DurationMs,
             .onTimeMs = 200,
+        },
+        // Disabled by default: the cases that exercise the contact enable it
+        // explicitly, and the real pad/EXT1 preparation is replaced by the seam
+        // so that no GPIO is touched and no wakeup source is armed.
+        .contactWakeup = {
+            .enabled = false,
+            .pin = GPIO_NUM_14,
         },
     };
 }
@@ -267,6 +279,16 @@ AppResult fakePrepareTimerWakeup(void *context, std::uint64_t sleepUs)
     return scenario->prepareTimerWakeupResult;
 }
 
+AppResult fakePrepareContactWakeup(void *context, gpio_num_t pin,
+                                   app::DigitalInputPull pull)
+{
+    auto *scenario = static_cast<FakeScenario *>(context);
+    scenario->record(Step::PrepareContactWakeup);
+    scenario->preparedContactPin = pin;
+    scenario->preparedContactPull = pull;
+    return scenario->prepareContactWakeupResult;
+}
+
 void fakeEnterDeepSleep(void *context)
 {
     auto *scenario = static_cast<FakeScenario *>(context);
@@ -290,6 +312,7 @@ SmartSysApp::SetupHooks makeHooks(FakeScenario &scenario)
         .pendingReportCount = &fakePendingReportCount,
         .stopResetButtonMonitor = &fakeStopResetButtonMonitor,
         .prepareTimerWakeup = &fakePrepareTimerWakeup,
+        .prepareContactWakeup = &fakePrepareContactWakeup,
         .enterDeepSleep = &fakeEnterDeepSleep,
         // A limit small enough to be crossed by a 32-bit interval in hours,
         // without depending on the value the target derives.
@@ -911,6 +934,136 @@ TEST_CASE("an admitted initial report with nothing pending sleeps early",
     TEST_ASSERT_TRUE(waitForDeepSleep(scenario, 3000));
     const std::int64_t elapsedMs = (esp_timer_get_time() - startUs) / 1000;
     TEST_ASSERT_TRUE(elapsedMs < 10000);
+}
+
+// --- dry contact wakeup (DEEPSLEEP-AC-011) ---
+//
+// The electrical rearming itself -- reapplying the pad, reading its level and
+// arming EXT1 for the opposite one -- is only satisfied by hardware evidence
+// (DEEPSLEEP-AC-012). These cases cover what doubles can observe: the
+// eligibility of the GPIO, the correspondence with a registered capability, the
+// position of the preparation in the terminal sequence and the block on failure.
+
+TEST_CASE("configureDeepSleep rejects a contact GPIO the target cannot wake on",
+          "[smart_sys_app][deep_sleep][contact]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DeepSleepConfig config = makeDeepSleepConfig(1000);
+    config.contactWakeup.enabled = true;
+    // A valid GPIO outside the range the ESP32-H2 accepts as an external wakeup
+    // source; the facade derives eligibility from the target, not from a list
+    // of its own.
+    config.contactWakeup.pin = GPIO_NUM_2;
+
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.configureDeepSleep(config)));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.lastConfigurationResult()));
+}
+
+TEST_CASE("a contact wakeup without a matching capability fails ValidateConfiguration",
+          "[smart_sys_app][deep_sleep][contact]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DeepSleepConfig config = makeDeepSleepConfig(1000);
+    config.contactWakeup.enabled = true;
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(config)));
+
+    const SetupResult result = app.setup();
+
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Failed), static_cast<int>(result.state));
+    TEST_ASSERT_EQUAL(static_cast<int>(SetupStage::ValidateConfiguration),
+                      static_cast<int>(result.stage));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(result.result));
+    TEST_ASSERT_EQUAL_size_t(0, scenario.callCount);
+}
+
+TEST_CASE("capabilities sharing the contact GPIO with divergent pulls are rejected",
+          "[smart_sys_app][deep_sleep][contact]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
+    app::DoorSensorConfig divergent = makeDoorSensorConfig(2, 1);
+    divergent.pull = app::DigitalInputPull::PullDown;
+    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(divergent));
+
+    app::DeepSleepConfig config = makeDeepSleepConfig(1000);
+    config.contactWakeup.enabled = true;
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(config)));
+
+    const SetupResult result = app.setup();
+
+    TEST_ASSERT_EQUAL(static_cast<int>(SetupStage::ValidateConfiguration),
+                      static_cast<int>(result.stage));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(result.result));
+    TEST_ASSERT_EQUAL_size_t(0, scenario.callCount);
+
+    // The same GPIO with equal pulls is electrically equivalent and accepted.
+    FakeScenario equalScenario;
+    SmartSysApp equal({.deviceId = 1}, makeHooks(equalScenario));
+    TEST_ASSERT_NOT_NULL(equal.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
+    TEST_ASSERT_NOT_NULL(equal.addDoorSensorCapability(makeDoorSensorConfig(2, 1)));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(equal.configureDeepSleep(config)));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(equal.setup().state));
+    TEST_ASSERT_TRUE(waitForDeepSleep(equalScenario, 3000));
+}
+
+TEST_CASE("both sources are armed before any terminal operation, in either order",
+          "[smart_sys_app][deep_sleep][contact]")
+{
+    FakeScenario scenario;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DeepSleepConfig config = makeDeepSleepConfig(200);
+    config.contactWakeup.enabled = true;
+    // configureDeepSleep() before the capability: the correspondence is only
+    // checked at ValidateConfiguration, so this order is as valid as the other.
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(config)));
+    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(app.setup().state));
+
+    TEST_ASSERT_TRUE(waitForDeepSleep(scenario, 3000));
+    TEST_ASSERT_TRUE(scenario.indexOf(Step::PrepareTimerWakeup) <
+                     scenario.indexOf(Step::PrepareContactWakeup));
+    TEST_ASSERT_TRUE(scenario.indexOf(Step::PrepareContactWakeup) <
+                     scenario.indexOf(Step::StopResetButtonMonitor));
+    // The pad is reapplied from the configuration of the matching capability.
+    TEST_ASSERT_EQUAL(static_cast<int>(GPIO_NUM_14),
+                      static_cast<int>(scenario.preparedContactPin));
+    TEST_ASSERT_EQUAL(static_cast<int>(app::DigitalInputPull::PullUp),
+                      static_cast<int>(scenario.preparedContactPull));
+}
+
+TEST_CASE("a failed contact preparation blocks the sleep even with the timer armed",
+          "[smart_sys_app][deep_sleep][contact]")
+{
+    FakeScenario scenario;
+    scenario.prepareContactWakeupResult = AppResult::Failed;
+    SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
+    app::DeepSleepConfig config = makeDeepSleepConfig(100);
+    config.contactWakeup.enabled = true;
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
+                      static_cast<int>(app.configureDeepSleep(config)));
+    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
+    TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
+                      static_cast<int>(app.setup().state));
+
+    TEST_ASSERT_FALSE(waitForDeepSleep(scenario, 1000));
+    TEST_ASSERT_TRUE(scenario.recorded(Step::PrepareTimerWakeup));
+    TEST_ASSERT_TRUE(scenario.recorded(Step::PrepareContactWakeup));
+    TEST_ASSERT_FALSE(scenario.recorded(Step::StopResetButtonMonitor));
+    TEST_ASSERT_FALSE(scenario.recorded(Step::BeginDeviceQuiescence));
+    TEST_ASSERT_FALSE(scenario.recorded(Step::StopReportExecutor));
 }
 
 extern "C" void app_main()

@@ -88,6 +88,14 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
             .onMode = app::WakeLedOnMode::DurationMs,
             .onTimeMs = kWakeLedOnTimeMs,
         },
+        // The timer is the periodic sign of life; the contact is the event, so
+        // a transition is reported when it happens and not only at the next
+        // period. The GPIO is the one the board offers as the dry-contact
+        // input, which is also the capability registered above.
+        .contactWakeup = {
+            .enabled = true,
+            .pin = input.pin,
+        },
     });
 
     return smartSysApp.setup();

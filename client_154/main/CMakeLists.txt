@@ -15,7 +15,8 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     elseif(CONFIG_IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2)
         list(APPEND srcs "firmwares/door_sensor_battery_h2.cpp")
         set(selected_product "Door sensor battery H2")
-        set(required_resources dry_contact_input user_button wake_led)
+        set(required_resources dry_contact_input user_button wake_led
+                               dry_contact_wakeup)
     else()
         message(FATAL_ERROR
             "No product firmware selected in the IoTSmartLink15.4 menu. "
@@ -29,7 +30,10 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     elseif(CONFIG_IOTSMARTLINK154_BOARD_DOOR_SENSOR_BATTERY_H2)
         list(APPEND srcs "boards/door_sensor_battery_h2.cpp")
         set(selected_board "Door Sensor Battery H2")
-        set(offered_resources dry_contact_input user_button wake_led)
+        # dry_contact_wakeup is offered only because this board wires its dry
+        # contact to a GPIO the target accepts as an external wakeup source.
+        set(offered_resources dry_contact_input user_button wake_led
+                              dry_contact_wakeup)
     else()
         message(FATAL_ERROR
             "No board model selected in the IoTSmartLink15.4 menu for "

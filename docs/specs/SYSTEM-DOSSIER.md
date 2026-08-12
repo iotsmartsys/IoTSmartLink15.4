@@ -75,7 +75,7 @@ normativa futura. Hardware real é evidência material quando solicitado.
 | Registry | `ISSP-Coordinator-Paired-Device-Registry.md` | Especificado | Coordenador |
 | Variantes | `Firmware-Variants-Menuconfig.md` | Especificado | Produto e board |
 | Targets e testes | `Repository-Test-Execution-Policy.md` | Especificado | Repositório inteiro |
-| Deep sleep do client | `Client-Deep-Sleep.md` | v0.10 implementada sem verificação; v0.11 pronta para implementação, sem autorização | Client a bateria |
+| Deep sleep do client | `Client-Deep-Sleep.md` | v0.10 e v0.11 implementadas em código; build H2 executado na v0.11; AC-012 pendente de hardware | Client a bateria |
 
 ## 11. Riscos, legado e preparação futura
 

@@ -36,7 +36,7 @@ não criam autoridade paralela.
 | Componentes reutilizáveis | `docs/specs/ISSP-Reusable-Components.md`; ADR-0001 | Concluída | `components/issp_*` | Dois consumidores locais | Revisado |
 | Bootstrap `SmartSysApp` | `docs/specs/ISSP-Configurable-Bootstrap.md`; ADR-0001 | Concluída para v1.5 | `components/issp_app_154` | Build H2 e hardware históricos; suítes não executadas | Revisado |
 | Variantes de firmware | `docs/specs/Firmware-Variants-Menuconfig.md`; ADR-0002 | Concluída | `client_154/main/` | Builds e hardware aprovados; suítes não executadas | Revisado |
-| Deep sleep do client | `docs/specs/Client-Deep-Sleep.md`; `docs/specs/ISSP-Configurable-Bootstrap.md`; `docs/specs/ISSP-Reusable-Components.md`; `docs/specs/Firmware-Variants-Menuconfig.md`; ADR-0002 | v0.10 em implementação; v0.11 pronta para implementação, sem autorização | `components/issp_app_154`; `issp_core`; `issp_behaviors`; `issp_transport_154`; `client_154/main/` | Análises das v0.3 a v0.11 e relatório de implementação da v0.10; build e hardware relatados pelo Arquiteto; suítes não executadas | v0.10 implementada sem verificação; v0.11 especificada e pronta |
+| Deep sleep do client | `docs/specs/Client-Deep-Sleep.md`; `docs/specs/ISSP-Configurable-Bootstrap.md`; `docs/specs/ISSP-Reusable-Components.md`; `docs/specs/Firmware-Variants-Menuconfig.md`; ADR-0002 | v0.10 e v0.11 em implementação [`In Progress`] | `components/issp_app_154`; `issp_core`; `issp_behaviors`; `issp_transport_154`; `client_154/main/` | Análises das v0.3 a v0.11 e relatórios de implementação da v0.10 e da v0.11; build canônico H2 da v0.11 executado; suítes não executadas | v0.11 implementada em código; DEEPSLEEP-AC-012 pendente de hardware |
 | Registry do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Implementação; validação pendente | `coordinator_154/main/device_registry*` | Build C6; 24 casos não executados | Especificado |
 | Targets e testes | `docs/specs/Repository-Test-Execution-Policy.md`; ADR-0003 | Concluída | guards CMake e test apps | 63 casos preservados e não executados; builds H2/C6 | Revisado |
 | Consolidação ISSP | `docs/specs/ISSP-Consolidation.md` | Concluída | Client e coordenador | Auditoria e hardware históricos | Revisado |
@@ -52,12 +52,12 @@ IoTSmartLink15.4
 │   ├── client_154 — ESP32-H2
 │   │   ├── Product firmware
 │   │   │   ├── Single smart plug
-│   │   │   └── Door sensor battery H2 — door_sensor_battery_h2, com wake_led
+│   │   │   └── Door sensor battery H2 — door_sensor_battery_h2, com wake_led e dry_contact_wakeup
 │   │   ├── Board model
 │   │   │   ├── Current client ESP32-H2 wiring
 │   │   │   └── Door Sensor Battery H2
 │   │   └── SmartSysApp + componentes ISSP compartilhados
-│   │       └── Deep sleep opt-in — v0.10 implementada; v0.11 propõe wakeup por contato
+│   │       └── Deep sleep opt-in — timer e wakeup por contato (EXT1) implementados
 │   └── coordinator_154 — ESP32-C6
 │       ├── commissioning e rádio
 │       ├── registry persistente

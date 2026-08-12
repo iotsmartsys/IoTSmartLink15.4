@@ -330,6 +330,14 @@ SetupResult SmartSysApp::Impl::setup()
         // no LED, no lifecycle task and no deep sleep.
         return fail(SetupStage::ValidateConfiguration, lastConfigurationResult_);
     }
+    // Checked only here, so the order between registering the dry-contact
+    // capability and configureDeepSleep() stays insignificant while Configuring.
+    const AppResult contactResult = validateContactWakeup();
+    if (contactResult != AppResult::Ok)
+    {
+        recordConfigurationFailure(contactResult);
+        return fail(SetupStage::ValidateConfiguration, contactResult);
+    }
 
     state_ = AppState::Starting;
 

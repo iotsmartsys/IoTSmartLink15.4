@@ -80,12 +80,26 @@ struct WakeLedConfig
     std::uint32_t onTimeMs;
 };
 
+// The product hands over the GPIO it received from the board model; the facade
+// never discovers pinout on its own. It carries no logical polarity: the
+// rearming is electrical -- the level read at the start of the terminal
+// sequence decides the opposite level armed on EXT1 -- so a polarity field
+// would have no effect.
+struct ContactWakeupConfig
+{
+    bool enabled;
+    gpio_num_t pin;
+};
+
 struct DeepSleepConfig
 {
     bool enabled;
     std::uint32_t maxAwakeTimeMs;
     TimerWakeupConfig timerWakeup;
     WakeLedConfig wakeLed;
+    // Appended last, so a composition that does not declare it stays valid and
+    // the field remains inert.
+    ContactWakeupConfig contactWakeup;
 };
 
 } // namespace iotsmartsys::app
@@ -202,6 +216,12 @@ public:
         std::size_t (*pendingReportCount)(void *context);
         void (*stopResetButtonMonitor)(void *context);
         AppResult (*prepareTimerWakeup)(void *context, std::uint64_t sleepUs);
+        // Prepares the dry-contact source: reapplies to the pad the input mode
+        // and the pull of the matching capability, reads the electrical level
+        // and arms the external wakeup for the opposite one. Null falls back to
+        // the real ESP-IDF calls.
+        AppResult (*prepareContactWakeup)(void *context, gpio_num_t pin,
+                                          app::DigitalInputPull pull);
         void (*enterDeepSleep)(void *context);
         // Zero derives the limit from the target capabilities and from the slow
         // clock source fixed by the project; a non-zero value is only honoured

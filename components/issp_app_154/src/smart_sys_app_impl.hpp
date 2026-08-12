@@ -93,6 +93,20 @@ struct SmartSysApp::Impl
     bool wakeLedEnabled() const;
     bool collidesWithWakeLed(gpio_num_t pin) const;
 
+    bool contactWakeupEnabled() const;
+    /// First dry-contact capability registered on the wakeup GPIO, or nullptr
+    /// when none matches. Its registered configuration is what supplies the
+    /// direction and the pull reapplied to the pad before arming.
+    const app::DoorSensorConfig *matchingContactConfig() const;
+    /// SetupStage::ValidateConfiguration check of the contact source: the GPIO
+    /// must match a registered dry-contact capability, and capabilities sharing
+    /// that GPIO must declare the same pull.
+    AppResult validateContactWakeup() const;
+    /// Reapplies the pad configuration, reads its electrical level and arms the
+    /// external wakeup for the opposite one. Idempotent, and reached even when
+    /// SetupStage::StartDevice was never completed.
+    AppResult prepareContactWakeup();
+
     /// First platform operation of SetupStage::InitializePlatform: records the
     /// boot cause and configures and lights the LED, before NVS, commissioning,
     /// radio or reports.

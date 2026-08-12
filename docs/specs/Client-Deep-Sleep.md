@@ -5,8 +5,9 @@
 **Estado normativo:** `Proposed` — Pronta e autorizada para implementação para
 a v0.11; a v0.10 permanece `Proposed`
 
-**Estado da implementação:** não iniciada para a v0.11; `In Progress` somente
-para a v0.10
+**Estado da implementação:** `In Progress` para a v0.11, com build canônico H2
+executado e DEEPSLEEP-AC-012 pendente de hardware; `In Progress` também para a
+v0.10
 
 **Estado do workflow:** Autorizada para implementação para a v0.11
 
