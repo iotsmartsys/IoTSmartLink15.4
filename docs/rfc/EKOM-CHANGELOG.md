@@ -330,3 +330,9 @@ implementação autorizada e não é permissão ou requisito repetido pela
 especificação funcional. A v0.11 removeu a antiga proibição e a menção de build
 em DEEPSLEEP-AC-010; execução de testes, flash, monitor e hardware permanece sob
 autorização própria e sob `Repository-Test-Execution-Policy.md`.
+
+Depois de confirmados a análise `Ready` e o estado Pronta para implementação, o
+Arquiteto concedeu em 12/08/2026 autorização explícita para implementar a v0.11
+de `Client-Deep-Sleep.md`. Os três gates da implementação normativa estão
+satisfeitos. O build canônico proporcional integra a implementação conforme o
+EKOM 3.6; testes, flash, monitor e hardware não foram autorizados.

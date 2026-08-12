@@ -2,18 +2,19 @@
 
 **Tipo:** Normativo
 
-**Estado normativo:** `Proposed` — Pronta para implementação para a v0.11; a
-v0.10 permanece `Proposed`
+**Estado normativo:** `Proposed` — Pronta e autorizada para implementação para
+a v0.11; a v0.10 permanece `Proposed`
 
 **Estado da implementação:** não iniciada para a v0.11; `In Progress` somente
 para a v0.10
 
-**Estado do workflow:** Pronta para implementação para a v0.11
+**Estado do workflow:** Autorizada para implementação para a v0.11
 
 **Análise de implementabilidade:** `Ready` para a revisão `ea95c77`, conforme o
 confronto final r5; `Ready` também permanece vigente para a v0.10
 
-**Autorização de implementação desta versão:** não concedida para a v0.11
+**Autorização de implementação desta versão:** concedida pelo Arquiteto em
+12/08/2026 para a v0.11
 
 **Versão:** 0.11
 
@@ -833,9 +834,12 @@ interna. Com base nessa evidência, o Arquiteto promoveu a v0.11 para `Proposed`
 Pronta para implementação, preservando DEEPSLEEP-AC-012 como evidência
 obrigatória de hardware que não pode ser satisfeita por leitura ou build.
 
-Os gates da revisão corrente da v0.11 são: análise `Ready` presente para
-`ea95c77`, promoção para Pronta presente e autorização de implementação
-ausente. A promoção não inicia implementação.
+Os gates da revisão corrente da v0.11 estão satisfeitos: análise `Ready`
+presente para `ea95c77`, promoção para Pronta registrada e autorização de
+implementação concedida pelo Arquiteto em 12/08/2026. A implementação normativa
+da v0.11 pode começar.
 
-Nem a v0.11 nem sua promoção autorizam implementação. Coleta ou execução de
-testes, flash, monitor e hardware permanecem dependentes de autorização própria.
+Conforme o EKOM 3.6, a autorização de implementação inclui e exige o build
+canônico proporcional dos entregáveis construíveis afetados. Coleta ou execução
+de testes, flash, monitor e hardware permanecem dependentes de autorização
+própria.
