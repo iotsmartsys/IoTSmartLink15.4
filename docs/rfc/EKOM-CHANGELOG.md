@@ -361,9 +361,11 @@ disparam juntas, e a incorporação de `dry_contact_wakeup` em
 
 **Estado:** v0.2 em autoria [`Draft`]
 
-**Gates da revisão corrente v0.2:** análise independente ausente; promoção
-ausente; autorização de implementação ausente. A análise da v0.1 foi
-classificada `Não pronta — defeito da especificação` e não satisfaz a v0.2.
+**Gates da revisão corrente v0.2:** análise independente executada e
+classificada `Pronta` [`Ready`]; promoção ausente; autorização de implementação
+ausente. A análise da v0.1, classificada `Não pronta — defeito da
+especificação`, não satisfaz a v0.2 e foi substituída pela análise própria
+desta revisão.
 
 **Especificação relacionada:** `docs/specs/ISSP-Report-Identity.md`
 
@@ -432,5 +434,19 @@ A v0.2 incorpora ainda as precisões não bloqueantes materiais da análise:
 versão da consolidação, seis caminhos de frame, diagnóstico dos offsets v2,
 dependência FreeRTOS preexistente, separação entre testes host-native e H2,
 costura privada do coordenador, consequência do envio direto, espera ocupada da
-fonte aleatória e suficiência de um ID por slot. A revisão continua em `Draft`,
-sem análise própria, promoção ou autorização de implementação.
+fonte aleatória e suficiência de um ID por slot.
+
+A análise independente da v0.2 está em
+`docs/reports/report-identity/analysis/2026-08-12-v02-implementability-analysis.md`
+e classifica a revisão como `Pronta`. Ela reconfrontou os dois bloqueadores
+contra a plataforma, não apenas contra o texto: `uart_get_tx_buffer_free_size()`
+existe no ESP-IDF 6.0.1 com o limite conservador que a seção 8.2 lhe atribui e
+dimensiona exatamente o pior caso de `uart_tx_all()`, que é descritor mais até
+dois chunks; e a premissa de que todos os produtores da UART do host passam pelo
+mesmo lock foi verificada verdadeira, com o console em USB Serial JTAG. Sete
+achados não bloqueantes acompanham o relatório, com destaque para o
+REPORT-ID-AC-007, que descreve como observável em produção uma contenção de lock
+que a tarefa única do coordenador torna inalcançável.
+
+A revisão continua em `Draft`. Promoção e autorização de implementação
+permanecem ausentes.
