@@ -359,11 +359,11 @@ disparam juntas, e a incorporação de `dry_contact_wakeup` em
 
 ## EKOM-CHG-0003 — Identidade de reports entre boots
 
-**Estado:** autoria [`Draft`]
+**Estado:** v0.2 em autoria [`Draft`]
 
-**Gates da revisão corrente:** análise independente executada, classificada
-`Não pronta — defeito da especificação`; promoção ausente; autorização de
-implementação ausente.
+**Gates da revisão corrente v0.2:** análise independente ausente; promoção
+ausente; autorização de implementação ausente. A análise da v0.1 foi
+classificada `Não pronta — defeito da especificação` e não satisfaz a v0.2.
 
 **Especificação relacionada:** `docs/specs/ISSP-Report-Identity.md`
 
@@ -414,3 +414,23 @@ toda admissão de report ocorre com o rádio já habilitado.
 Decisão do Arquiteto sobre os dois bloqueadores e sobre a incorporação dos
 achados não bloqueantes. Nova revisão da especificação exige nova análise da
 revisão exata. Os gates de promoção e autorização permanecem ausentes.
+
+O Arquiteto resolveu os dois bloqueadores em 12/08/2026. A v0.2 autoriza a
+ampliação pública mínima de `issp_transport_154` para carregar `report_id` em
+`Issp154AckExpectation` e nos tipos estritamente necessários à correlação, sem
+alterar `IIsspTransport`, lifecycle ou retry. ADR-0004 foi reconciliada com esse
+alcance.
+
+A aceitação local deixou de depender de um retorno parcial que
+`uart_write_bytes()` não oferece. O caminho de report tenta o lock sem espera,
+consulta o limite conservador de `uart_get_tx_buffer_free_size()` e só então
+submete JSON mais delimitador em uma única escrita. Lock ocupado, consulta
+falha, espaço insuficiente ou retorno inesperado não inserem cache nem produzem
+ACK; o laço de RX não espera capacidade ou dreno físico.
+
+A v0.2 incorpora ainda as precisões não bloqueantes materiais da análise:
+versão da consolidação, seis caminhos de frame, diagnóstico dos offsets v2,
+dependência FreeRTOS preexistente, separação entre testes host-native e H2,
+costura privada do coordenador, consequência do envio direto, espera ocupada da
+fonte aleatória e suficiência de um ID por slot. A revisão continua em `Draft`,
+sem análise própria, promoção ou autorização de implementação.

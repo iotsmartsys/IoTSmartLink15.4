@@ -55,7 +55,10 @@ não uma garantia matemática ou criptográfica.
   sequência reinicia;
 - retries internos e externos do mesmo report reutilizam a identidade;
 - a API pública de configuração de `IsspDevice` recebe uma fonte injetável de
-  IDs, mantendo `issp_core` independente do ESP-IDF;
+  IDs, sem adicionar ao core dependência de ESP-IDF para essa fonte;
+- a API pública de `issp_transport_154` inclui o ID em
+  `Issp154AckExpectation` e somente nos tipos estritamente necessários à
+  correlação; `IIsspTransport`, lifecycle e retry não mudam;
 - client e coordenador precisam ser atualizados juntos; v1 e v2 não convivem;
 - o host recebe `event_id` aditivo e pode deduplicar além da janela local;
 - a entrega é pelo menos uma vez dentro dos limites declarados: reboot do

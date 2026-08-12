@@ -9,11 +9,12 @@
 **Estado do workflow:** autoria; análise independente de implementabilidade
 pendente
 
-**Análise de implementabilidade:** ausente para a revisão corrente
+**Análise de implementabilidade:** ausente para a v0.2; a v0.1 foi classificada
+`Not Ready — Specification Defect`
 
 **Autorização de implementação desta versão:** não concedida
 
-**Versão:** 0.1
+**Versão:** 0.2
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -84,9 +85,12 @@ no deep sleep fica condicionada a esta base, mas o deep sleep não é reaberto.
   de report e sequência de tentativa; preserva as responsabilidades de device,
   executor, transporte e aplicação.
 - **Altera (`Amends`) `ISSP-Reusable-Components.md` v1.1:** amplia de forma
-  material e limitada a API pública de `issp_core` com uma fonte injetável de
-  `report_id` e os campos necessários nos tipos de report. ADR-0004 registra a
-  autorização arquitetural. Não autoriza dependência de ESP-IDF no core nem
+  material e limitada as APIs públicas de `issp_core`, com uma fonte injetável
+  de `report_id` e os campos necessários nos tipos de report, e de
+  `issp_transport_154`, com o ID em `Issp154AckExpectation` e somente nos tipos
+  necessários à sua correlação. ADR-0004 registra a autorização arquitetural.
+  Não altera `IIsspTransport`, lifecycle, retry ou API pública de behaviors;
+  não autoriza nova dependência de ESP-IDF para a fonte no core nem
   generalização de geradores.
 - **Altera (`Amends`) `ISSP-Coordinator-Paired-Device-Registry.md` v0.4:**
   substitui `last_seq` volátil por uma janela volátil de IDs recentes para
@@ -98,9 +102,9 @@ no deep sleep fica condicionada a esta base, mas o deep sleep não é reaberto.
 - **Altera de forma limitada (`Amends`) `ISSP-Configurable-Bootstrap.md` v1.5:**
   a construção interna fornece a fonte de IDs à `IsspDevice`; API pública,
   máquina de estados e política da fachada não mudam.
-- **Altera de forma limitada (`Amends`) `ISSP-Consolidation.md`:** o corte v2 é
-  uma evolução posterior aprovada sobre a baseline consolidada. Não reabre a
-  migração histórica nem transfere código entre os targets.
+- **Altera de forma limitada (`Amends`) `ISSP-Consolidation.md` v1.0:** o corte
+  v2 é uma evolução posterior aprovada sobre a baseline consolidada. Não
+  reabre a migração histórica nem transfere código entre os targets.
 - **Preserva `Client-Deep-Sleep.md` v0.11:** timer, EXT1, LED, GPIO, deadline,
   arbitragem, quiescência e descarte de pendências no deadline permanecem
   inalterados. A nova identidade apenas impede que o report inicial de um novo
@@ -167,8 +171,8 @@ deve gerar especificação complementar, não um acréscimo oportunista.
   falha retryable; pode receber nova sequência, mas reutiliza o ID.
 - **Fingerprint:** `(report_id, endpoint_id, event_type, value)` para um
   dispositivo conhecido. A sequência não participa dele.
-- **Aceitação local:** JSON completo aceito para transmissão pela UART do
-  coordenador, incluindo o delimitador de linha.
+- **Aceitação local:** JSON completo e delimitador copiados, sem espera por
+  capacidade, para o ring buffer TX da UART do coordenador.
 - **ID recente:** fingerprint presente na janela volátil do slot do registry.
 
 Invariantes:
@@ -215,8 +219,8 @@ não é necessário recomissionar apenas pela versão.
 | 19 | 1 | `checksum` | soma aditiva de 8 bits dos bytes 0–18 |
 
 O aumento de 8 bytes mantém o maior frame vigente abaixo do limite IEEE
-802.15.4 de 127 bytes; a análise deve reconfirmar esse cálculo em todos os três
-construtores de frame existentes.
+802.15.4 de 127 bytes; a análise deve reconfirmar esse cálculo nos três
+construtores/parsers do client e nos três do coordenador.
 
 ### 6.3 Uso por tipo
 
@@ -260,17 +264,21 @@ Nomes exatos podem seguir o estilo do componente, mas contrato e
 responsabilidade não podem mudar. Configuração sem gerador é inválida para
 construção operacional v2 e deve falhar antes de admitir report.
 
-O core não inclui header, tipo ou chamada do ESP-IDF. A fachada fornece um
-adaptador baseado em `esp_fill_random()` no ESP32-H2. O consumidor
+Esta mudança não adiciona header, tipo ou chamada do ESP-IDF ao core para obter
+IDs; as dependências FreeRTOS já usadas por `IsspDevice` permanecem. A fachada
+fornece um adaptador baseado em `esp_fill_random()` no ESP32-H2. O consumidor
 `examples/issp_minimal_client` e os testes fornecem gerador próprio, podendo ser
 determinístico. Behaviors, product firmware e board model não conhecem o
 gerador.
 
 A aleatoriedade não é declarada criptográfica. O caminho operacional atual
-publica depois da inicialização de rádio; a análise deve confirmar que a fonte
-do ESP-IDF é admissível no ESP32-H2 também nos caminhos de falha que ainda
-alcançam admissão. Se isso não puder ser demonstrado, a especificação volta ao
-Arquiteto; não se acrescenta persistência ou sessão.
+publica depois da inicialização de rádio. A análise da v0.1 confirmou que
+`esp_ieee802154_enable()` habilita o PHY antes de `IsspDevice::start()` e que
+nenhum caminho de falha admite report antes de `Ready`. `esp_random()` pode
+realizar espera ocupada de dezenas de microssegundos por ID no H2, reforçando a
+proibição de chamá-lo dentro do `portMUX`. Se revisão futura invalidar essas
+premissas, a especificação volta ao Arquiteto; não se acrescenta persistência
+ou sessão.
 
 ### 7.2 Geração e falha
 
@@ -292,6 +300,8 @@ estatístico aceito.
 
 `PendingReportSlot` conserva `report_id` ao lado do report e da geração. O ID é
 copiado para `IsspPreparedReport`, para o payload e para a expectativa de ACK.
+Um único campo no slot é suficiente: durante atualização concorrente, o ID da
+geração in-flight permanece na cópia preparada e na expectativa do transporte.
 
 - inserção em slot vazio: novo report e novo ID;
 - atualização do mesmo endpoint/evento: nova admissão, nova geração e novo ID,
@@ -313,6 +323,11 @@ Cada invocação de `publishReport()` representa novo report lógico e recebe no
 ID. A função continua sem fila ou retry externo. Uma nova invocação feita pelo
 caller, mesmo com conteúdo igual, é nova identidade e pode gerar novo evento.
 Não se cria API pública para o caller fornecer ou reutilizar ID.
+
+O coordenador pode inserir esse ID em sua janela, mas o envio direto continua
+sem aguardar ACK e o client não aprende se houve aceitação local. Essa
+assimetria preserva o contrato preexistente de `publishReport()`; torná-lo
+confirmado pertence a outro recorte.
 
 ### 7.5 Correlação do ACK
 
@@ -375,13 +390,32 @@ ACKa. O client pode então repetir o mesmo report.
 Se o ACK falhar depois da inserção, o retry seguinte é reconhecido e ACKado sem
 novo evento. Inserção no array fixo não pode depender de alocação ou I/O.
 
-`host_send_line()` deve devolver resultado observável. Para eventos de report,
-JSON e delimitador são reunidos em um único buffer fixo e submetidos por uma
-única operação `uart_write_bytes()` sob o lock vigente; somente retorno igual
-ao tamanho total significa aceitação. Isso evita que uma linha parcial seja
-lembrada ou ACKada e impede uma segunda chamada para o delimitador de criar um
-ponto intermediário impossível de reverter. O contrato não exige aguardar o
-esvaziamento físico da UART nem confirmação do host.
+Para eventos de report, JSON e delimitador são reunidos em um único buffer
+fixo. A aceitação local segue obrigatoriamente esta ordem:
+
+1. exigir `s_host_uart_lock` válido e tentar adquiri-lo com espera zero; lock
+   ausente ou ocupado é falha retryable desta recepção;
+2. consultar `uart_get_tx_buffer_free_size()` ainda sob o lock;
+3. se a consulta falhar ou o limite conservador retornado for menor que a linha
+   completa, liberar o lock e falhar sem chamar `uart_write_bytes()`;
+4. havendo espaço, submeter o buffer inteiro em uma única chamada
+   `uart_write_bytes()`;
+5. considerar aceito somente retorno igual ao tamanho total e então liberar o
+   lock.
+
+Todos os produtores de `HOST_UART_NUM` continuam serializados pelo mesmo lock;
+uma escrita que o contorne invalida a garantia entre consulta e submissão. A
+consulta do ESP-IDF 6.0.1 já desconta o descritor e fornece um limite
+conservador para a próxima transação. Sob o lock, nenhum produtor reduz o
+espaço; o dreno da ISR somente o aumenta. Portanto, satisfeita a consulta, a
+escrita copia toda a linha para o ring buffer sem aguardar capacidade ou dreno
+físico.
+
+Lock ausente ou ocupado, consulta falha, espaço insuficiente ou retorno
+inesperado da escrita são falhas observáveis: não inserem o ID e não produzem
+ACK. O contrato não aguarda confirmação física, host ou MQTT. Outros tipos de
+linha conservam seu comportamento vigente; o caminho de report não pode
+bloquear atrás deles.
 
 ### 8.3 Origem desconhecida e registry indisponível
 
@@ -422,6 +456,17 @@ participa da aceitação local.
 
 Eventos de gateway, ACK/erro de comando e tráfego ESP-NOW não recebem
 `event_id` neste recorte.
+
+### 8.5 Costura interna do coordenador
+
+É autorizada uma extração privada e local ao `coordinator_154`, seguindo o
+precedente de `device_registry_policy.c`, para concentrar a decisão de `DATA`
+novo, retry, conflito e indisponibilidade da aceitação local. O mesmo código de
+decisão deve governar produção e testes; `main.c` conserva rádio e efeitos.
+
+A costura pode substituir, em teste, consulta de espaço, submissão UART, ACK e
+evento, mas não se torna componente compartilhado, header público ou segunda
+política. A política vigente de registry continua sendo entrada da decisão.
 
 ## 9. Relação com deep sleep
 
@@ -466,6 +511,8 @@ correlacionado. Isso fortalece o oráculo; não amplia seu tempo máximo.
   o mesmo ID sem bloquear o gerador dentro do `portMUX`.
 - Encoding, transporte, UART, log e callbacks continuam fora das seções
   críticas.
+- A espera zero do lock e a consulta de espaço UART pertencem ao caminho de
+  evento no coordenador e não usam o `portMUX` do client.
 
 A análise deve confrontar especificamente a atomicidade entre geração e
 admissão. Chamar uma fonte potencialmente lenta dentro do `portMUX` ou separar
@@ -489,6 +536,11 @@ Devem ser distinguíveis em log estruturado, sem registrar segredo:
 
 O `report_id` pode aparecer em hexadecimal nos logs porque não é segredo. Logs
 não constituem persistência nem confirmação fim a fim.
+
+Os helpers de diagnóstico do transporte devem usar os offsets v2; o byte 8 não
+é mais endpoint. Como o parser rejeita v1 por comprimento antes do codec, o
+diagnóstico específico de versão deve inspecionar com segurança o byte 0 no
+caminho de tamanho incompatível, sem tentar decodificar o restante.
 
 ## 12. Migração e compatibilidade operacional
 
@@ -529,9 +581,12 @@ não conclui report.
 de dispositivo conhecido geram um evento local e duas tentativas de ACK; a
 segunda usa a sequência recebida nela.
 
-**REPORT-ID-AC-007 — falha antes do ACK.** Falha, truncamento ou estouro na
-linha UART não insere ID e não envia ACK. Retry após recuperação volta a tentar
-o evento.
+**REPORT-ID-AC-007 — fila local sem bloqueio.** Lock UART ausente ou ocupado,
+falha da consulta ou espaço insuficiente são observáveis em produção, não
+chamam a escrita, não inserem ID e não enviam ACK. Com espaço suficiente, uma
+única escrita recebe JSON mais delimitador e não espera dreno. Retorno
+inesperado não insere ID nem ACKa. Retry após recuperação volta a tentar o
+evento.
 
 **REPORT-ID-AC-008 — falha depois da aceitação.** Falha de ACK após evento e
 cache faz o retry seguinte receber ACK sem segundo evento.
@@ -561,8 +616,9 @@ wakeups, LED ou ordem terminal.
 `coordinator_154` e `examples/issp_minimal_client` compilam; os `static_asserts`
 de armazenamento permanecem satisfeitos sem aumentar as reservas.
 
-**REPORT-ID-AC-015 — limite MAC.** Os três formatos de frame existentes com
-payload v2 permanecem abaixo de 127 bytes e seus parsers recusam truncamento.
+**REPORT-ID-AC-015 — limite MAC.** Os seis formatos de frame existentes — três
+por target — com payload v2 permanecem abaixo de 127 bytes e seus parsers
+recusam truncamento.
 
 **REPORT-ID-AC-016 — ausência de regressão.** Discovery, commands, ACK de
 command, commissioning, quiescência e report direto mantêm seus resultados,
@@ -570,20 +626,28 @@ com `report_id == 0` fora do fluxo de DATA.
 
 ## 14. Evidência e execução futura
 
-### 14.1 Automatizável sem rádio real
+### 14.1 Evidência host-native sem execução física
 
-- testes do core para AC-001, AC-002, AC-003 e AC-005;
 - vetores dourados em ambos os codecs para AC-004 e AC-015;
-- policy/core do coordenador com UART substituível para AC-006 a AC-010 e
-  AC-012;
 - teste de formatação para AC-011;
-- regressões existentes para AC-016.
+- policy/core privado extraído do coordenador, com efeitos substituíveis, para
+  AC-006 a AC-010 e AC-012.
+
+Esses binários podem ser construídos com toolchain host puro. Sua execução
+continua dependente da autorização aplicável.
+
+### 14.2 Evidência automatizada em ESP32-H2
+
+AC-001, AC-002, AC-003 e AC-005 exercitam `IsspDevice`, que depende do
+FreeRTOS/`portMUX`, e pertencem a test app ESP-IDF no H2 físico. Regressões do
+device e transporte relacionadas a AC-016 pertencem ao mesmo meio. Não devem
+ser classificadas como host-native nem executadas sem autorização de hardware.
 
 As costuras devem envolver a fonte de ID, aceite UART e efeitos de rádio sem
 duplicar a política de produção. Criar um segundo fluxo só para testes é
 inválido.
 
-### 14.2 Builds intrínsecos à implementação
+### 14.3 Builds intrínsecos à implementação
 
 Quando a implementação estiver autorizada, são obrigatórios:
 
@@ -595,7 +659,11 @@ Quando a implementação estiver autorizada, são obrigatórios:
 
 Build não prova comportamento de rádio, UART ou hardware.
 
-### 14.3 Execução dependente de autorização
+O ESP-IDF 6.0.1 necessário está disponível no ambiente canônico em
+`~/.espressif/v6.0.1/esp-idf`; caminho local é fato de ambiente, não requisito
+portável do código.
+
+### 14.4 Execução dependente de autorização
 
 Testes, flash, monitor e hardware ficam `Not Executed` até autorização própria.
 Quando autorizados, AC-013 deve observar dois boots com deep sleep e o
@@ -617,14 +685,16 @@ coordenador e host; não infere MQTT a partir do ACK de rádio.
   fixo de 20 bytes, sem compatibilidade silenciosa com v1.
 - **REPORT-ID-DEC-006:** deduplicação conhecida usa janela FIFO volátil de oito
   fingerprints por slot do registry.
-- **REPORT-ID-DEC-007:** evento deve ser aceito integralmente na fila UART antes
-  de cache e ACK.
+- **REPORT-ID-DEC-007:** evento deve ser aceito integralmente e sem espera por
+  capacidade no ring buffer UART antes de cache e ACK, conforme a sequência da
+  seção 8.2.
 - **REPORT-ID-DEC-008:** ACK local não significa entrega ao host/MQTT; entrega
   durável é outro recorte.
 - **REPORT-ID-DEC-009:** `event_id` é aditivo e canônico; host existente não é
   alterado.
-- **REPORT-ID-DEC-010:** API reutilizável cresce somente para injeção e
-  propagação do ID, conforme ADR-0004.
+- **REPORT-ID-DEC-010:** API reutilizável cresce somente em `issp_core` para
+  injeção/propagação do ID e em `issp_transport_154` para sua correlação em
+  `Issp154AckExpectation` e tipos estritamente necessários, conforme ADR-0004.
 - **REPORT-ID-DEC-011:** deep sleep permanece funcionalmente inalterado.
 - **REPORT-ID-DEC-012:** insuficiência das reservas estáticas bloqueia; esta
   versão não autoriza aumentá-las.
@@ -637,7 +707,8 @@ Uma análise independente deve confrontar, na revisão exata desta fonte:
    de report no core e no executor;
 2. as correlações reais do transporte para ACK interno e externo;
 3. todos os produtores e consumidores do payload nos dois targets;
-4. os três construtores/parsers de frame e o limite IEEE 802.15.4;
+4. os três construtores/parsers de frame de cada target e o limite IEEE
+   802.15.4;
 5. a precedência do registry para conhecido, desconhecido e indisponível;
 6. retorno, atomicidade e buffers da UART do coordenador;
 7. tolerância do parser e preservação da linha no `SmartHome-Hub` vigente;
@@ -645,8 +716,11 @@ Uma análise independente deve confrontar, na revisão exata desta fonte:
 9. tamanhos reais de `IsspDevice`, `HardwareState`, buffers e reservas;
 10. consumers diretos da API pública, inclusive exemplo e fixtures;
 11. as relações com cada especificação da seção 2;
-12. os critérios e meios de teste sem executar testes ou hardware sem
-    autorização.
+12. os critérios e meios host-native versus H2 físico sem executar testes ou
+    hardware sem autorização;
+13. a extração privada da política de DATA e a ausência de segundo fluxo de
+    produção;
+14. a sequência sem espera de lock, consulta de espaço, escrita, cache e ACK.
 
 A análise classifica **não pronta — defeito da especificação** se faltar
 contrato necessário; **não implementável no recorte — pré-requisito
@@ -657,7 +731,8 @@ nesta fonte.
 
 ## 17. Estado de entrada
 
-Esta v0.1 permanece `Draft`. ADR-0004 registra a decisão arquitetural, mas não
+Esta v0.2 permanece `Draft`. A análise da v0.1 não satisfaz o gate desta
+revisão. ADR-0004 registra a decisão arquitetural, mas não
 substitui os gates do workflow. Implementação só pode começar quando coexistirem
 na revisão corrente:
 
