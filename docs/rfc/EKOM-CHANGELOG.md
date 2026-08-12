@@ -216,6 +216,9 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/implementation/2026-08-11-v10-implementation.md`;
 - análise de implementabilidade da v0.11 em
   `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis.md`;
+- revisão 2 da mesma análise, refeita por ordem do Arquiteto e que a substitui,
+  em
+  `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r2.md`;
 - builds, testes e hardware permanecem `Not Executed`.
 
 ### Resultado
@@ -229,17 +232,19 @@ produzida por ele sustenta conclusão. A v0.11, que acrescenta o wakeup por
 contato, permanece em `Draft`.
 
 A análise de implementabilidade da v0.11 foi executada e classificou a versão
-como **Não pronta — defeito da especificação**: a baseline comporta o acréscimo,
-que é local e não amplia API reutilizável, mas duas afirmações normativas
-precisam de decisão do Arquiteto — a faixa elegível de GPIO para EXT1 no
-ESP32-H2, cuja exceção do GPIO 7 é contrariada pelo ESP-IDF 6.0.1 e conflita com
-a derivação por capacidade do target exigida na mesma seção; e o momento da
-leitura do contato, dado como "imediatamente antes de dormir" na seção 4.2A e
-como item 1 da ordem obrigatória na seção 6.1. A mesma análise registrou que a
-cadeia de retenção do nível por HOLD é verificável por leitura em quase toda a
-sua extensão no ESP-IDF 6.0.1, restando físico apenas o elo elétrico;
-DEEPSLEEP-AC-012 permanece exigindo hardware. Nenhum gate da v0.11 foi
-satisfeito por esta atuação.
+como **Não pronta — defeito da especificação**. Refeita por ordem do Arquiteto,
+sem insumo novo, a revisão 2 manteve a classificação e reduziu o defeito a
+**um**: a exceção do GPIO 7 na faixa elegível para EXT1, contrariada pelo
+`rtc_io_num_map` do ESP32-H2 no ESP-IDF 6.0.1 e incompatível com a derivação por
+capacidade do target exigida na mesma seção. A revisão **corrigiu** o segundo
+bloqueador do relatório original: DEEPSLEEP-AC-011 já determina que ambas as
+fontes sejam armadas antes de qualquer operação terminal, de modo que o momento
+da leitura do contato não é decisão ausente, e sim imprecisão de redação em
+4.2A e DEEPSLEEP-DEC-014. Ambos os relatórios registram que a cadeia de retenção
+do nível por HOLD é verificável por leitura em quase toda a sua extensão,
+inclusive a liberação automática do hold no boot seguinte, restando físico
+apenas o elo elétrico; DEEPSLEEP-AC-012 permanece exigindo hardware. Nenhum gate
+da v0.11 foi satisfeito por estas atuações.
 
 O Arquiteto incorporou os achados na v0.11 ainda em `Draft`: a elegibilidade é
 derivada da capacidade vigente do target, sem exceção local para GPIO 7; o board
