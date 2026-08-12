@@ -9,9 +9,9 @@ para a v0.10
 
 **Estado do workflow:** Rascunho e análise para a v0.11
 
-**Análise de implementabilidade:** nova análise pendente para a v0.11; as
-revisões anteriores foram classificadas em 12/08/2026 como
-`Not Ready — Specification Defect`; `Ready` somente para a v0.10
+**Análise de implementabilidade:** confronto final pendente para a revisão
+corrente da v0.11; a análise r4 classificou como `Ready` a revisão anterior no
+commit `5b2cc09`; `Ready` também permanece vigente para a v0.10
 
 **Autorização de implementação desta versão:** não concedida para a v0.11
 
@@ -233,6 +233,11 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
 - a correspondência é validada até `ValidateConfiguration`, sem impor ordem
   entre o registro da capability e `configureDeepSleep()` durante
   `AppState::Configuring`;
+- se houver mais de uma capability de contato seco no GPIO solicitado, todas
+  devem declarar o mesmo pull. Pulls divergentes tornam indeterminado o preparo
+  elétrico e são rejeitados em `ValidateConfiguration` com
+  `AppResult::InvalidArgument`; com pulls iguais, qualquer correspondência
+  fornece a mesma configuração de entrada a reaplicar;
 - **rearme alternado.** No início da sequência terminal, depois de preparado o
   timer e antes de qualquer operação terminal, a fachada reaplica ao pad o modo
   de entrada e o pull da configuração da capability correspondente, lê o nível
@@ -661,11 +666,14 @@ quando timer e contato estiverem ambos desabilitados.
   rejeitado em `configureDeepSleep()` com `InvalidArgument`. Ausência de
   capability de contato seco correspondente é rejeitada em
   `ValidateConfiguration`, sem tornar significativa a ordem das chamadas em
-  `AppState::Configuring`. Com as duas fontes habilitadas, ambas são armadas
-  antes de qualquer operação terminal e a falha de uma bloqueia o sleep. A
-  capability de entrada com `reportOnStart=true` continua sendo o único caminho
-  de publicação do estado a cada boot. A primeira composição usa timer de 15
-  minutos e não aplica rate limit aos wakeups por contato.
+  `AppState::Configuring`. Múltiplas capabilities correspondentes com pulls
+  divergentes também são rejeitadas nesse estágio; pulls iguais são
+  eletricamente equivalentes para o preparo. Com as duas fontes habilitadas,
+  ambas são armadas antes de qualquer operação terminal e a falha de uma
+  bloqueia o sleep. A capability de entrada com `reportOnStart=true` continua
+  sendo o único caminho de publicação do estado a cada boot. A primeira
+  composição usa timer de 15 minutos e não aplica rate limit aos wakeups por
+  contato.
 - **DEEPSLEEP-AC-012 — Retenção do nível durante o sleep (v0.11):** o contato
   não pode flutuar enquanto o dispositivo dorme. O critério só é satisfeito por
   evidência em hardware que demonstre, no par produto/board da seção 5, ausência
@@ -745,7 +753,9 @@ executar builds ou testes.
   registrada. No preparo da fonte, a fachada reaplica sempre, de forma
   idempotente, o modo de entrada e o pull dessa configuração antes de ler o
   nível e armar EXT1; assim o pad fica definido mesmo quando `StartDevice` não
-  foi alcançado, sem ampliar API reutilizável.
+  foi alcançado, sem ampliar API reutilizável. Se mais de uma capability usar o
+  GPIO, pulls divergentes são configuração inválida; pulls iguais são
+  equivalentes para esse preparo.
 - **DEEPSLEEP-DEC-010:** `InitializePlatform` não é preemptível. O deadline é
   contado durante o estágio, mas a task de lifecycle nasce somente após sucesso
   e inicia o caminho forçado imediatamente se o prazo já tiver expirado.
@@ -759,9 +769,10 @@ capability registrada, a armação no início da sequência terminal e a remoç�
 polaridade sem efeito, consolidadas em DEEPSLEEP-DEC-011, DEC-013, DEC-014 e
 DEC-017. Depois da nova análise, confirmou também a reaplicação idempotente da
 configuração do pad pela fachada em todo caminho terminal, inclusive sem
-`StartDevice`. Não permanece decisão normativa aberta para o acréscimo da
-v0.11. Os valores vigentes de `maxAwakeTimeMs` e duração do LED não pertencem ao
-acréscimo e não foram ratificados por essas decisões.
+`StartDevice`. Por fim, confirmou a rejeição de múltiplas capabilities no GPIO
+do wakeup quando seus pulls divergirem. Não permanece decisão normativa aberta
+para o acréscimo da v0.11. Os valores vigentes de `maxAwakeTimeMs` e duração do
+LED não pertencem ao acréscimo e não foram ratificados por essas decisões.
 
 ### Origem da v0.11 e evidência observada
 
@@ -807,20 +818,23 @@ Fontes de evidência existentes:
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v10-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r3.md`;
+- `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r4.md`;
 - `docs/reports/client-deep-sleep/implementation/2026-08-11-v10-implementation.md`.
 
-A v0.10 permanece `Proposed` e implementada. As análises de implementabilidade
-de 12/08/2026 classificaram as revisões anteriores da v0.11 como `Not Ready —
-Specification Defect`. A v0.11 continua em `Draft`, agora com os defeitos
-incorporados e sem decisão normativa aberta. Recomendo nova análise de
-implementabilidade antes de qualquer promoção, preservando DEEPSLEEP-AC-012
+A v0.10 permanece `Proposed` e implementada. As primeiras análises da v0.11
+foram `Not Ready — Specification Defect`; a r4 classificou como `Ready` a
+revisão do commit `5b2cc09` e devolveu somente a precisão não bloqueante sobre
+pulls divergentes no mesmo GPIO. A v0.11 continua em `Draft`, agora com essa
+precisão incorporada e sem decisão normativa aberta. Recomendo confronto final
+da revisão corrente antes de qualquer promoção, preservando DEEPSLEEP-AC-012
 como evidência obrigatória de hardware que não pode ser satisfeita por leitura
 ou build.
 
-Para evitar inferência entre versões, os gates da v0.11 são: análise `Ready`
-ausente, promoção para Pronta ausente e autorização de implementação ausente.
-O estado `Proposed`, a análise e a implementação existentes da v0.10 não
-satisfazem nenhum gate da v0.11.
+Para evitar inferência entre revisões, os gates da revisão corrente da v0.11
+são: confronto final `Ready` pendente, promoção para Pronta ausente e
+autorização de implementação ausente. O `Ready` da r4 pertence ao commit
+`5b2cc09`; o estado `Proposed`, a análise e a implementação da v0.10 também não
+satisfazem gates da revisão corrente da v0.11.
 
 Nem a v0.11 nem sua eventual promoção iniciam por si sós implementação, build,
 teste, execução em hardware, integração ou push; essas operações dependem de

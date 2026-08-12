@@ -53,8 +53,9 @@ da `main`.
 
 **Estado:** v0.10 em implementação [`In Progress`]; v0.11 em rascunho [`Draft`]
 
-**Gates da v0.11:** nova análise `Ready` ausente; promoção para Pronta ausente;
-autorização de implementação ausente.
+**Gates da revisão corrente da v0.11:** confronto final `Ready` pendente após a
+última precisão; promoção para Pronta ausente; autorização de implementação
+ausente. A análise r4 recomendou `Ready` para o commit `5b2cc09`.
 
 **Especificação relacionada:** `docs/specs/Client-Deep-Sleep.md`
 
@@ -289,5 +290,12 @@ interna. Permanece uma precisão declarada **não bloqueante**: duas capabilitie
 de contato seco no mesmo GPIO com `pull` divergente tornam indeterminada a
 configuração a reaplicar, ambiguidade que precede a v0.11 na camada de behaviors
 e não é alcançável na composição da seção 5. As pendências restantes são os
-experimentos de hardware já normativos. Nenhum gate da v0.11 foi satisfeito por
-esta atuação: a promoção e a autorização permanecem com o Arquiteto.
+experimentos de hardware já normativos. A análise r4 satisfez o gate de análise
+para a revisão `5b2cc09`; promoção e autorização permaneceram ausentes.
+
+O Arquiteto incorporou a precisão final ainda em `Draft`: quando mais de uma
+capability de contato seco corresponder ao GPIO do wakeup, pulls divergentes são
+rejeitados em `ValidateConfiguration` com `InvalidArgument`; pulls iguais são
+equivalentes para o preparo idempotente. Como a fonte normativa mudou depois da
+r4, a revisão corrente aguarda confronto final antes de promoção e continua sem
+autorização de implementação.
