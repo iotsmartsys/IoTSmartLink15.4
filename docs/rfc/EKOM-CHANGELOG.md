@@ -356,3 +356,47 @@ pontos foram devolvidos ao Arquiteto: a leitura da causa do boot passou a usar
 `esp_sleep_get_wakeup_causes()` para não perder o contato quando as duas fontes
 disparam juntas, e a incorporação de `dry_contact_wakeup` em
 `Firmware-Variants-Menuconfig.md` permanece pendente da autoridade normativa.
+
+## EKOM-CHG-0003 — Identidade de reports entre boots
+
+**Estado:** autoria [`Draft`]
+
+**Gates da revisão corrente:** análise independente ausente; promoção ausente;
+autorização de implementação ausente.
+
+**Especificação relacionada:** `docs/specs/ISSP-Report-Identity.md`
+
+**Objetivo:** substituir a deduplicação por última sequência por uma identidade
+de report que sobreviva semanticamente ao reboot do client, sem sessão,
+handshake ou persistência.
+
+### Decisões relacionadas
+
+- ADR-0004 adota `report_id` aleatório não nulo de 64 bits gerado pelo client;
+- protocolo ISSP v2 transporta e ecoa o ID em DATA/ACK;
+- retries reutilizam o ID e novas admissões recebem outro;
+- o coordenador usa janela FIFO volátil de oito fingerprints por dispositivo
+  conhecido;
+- evento integralmente aceito na fila UART precede cache e ACK;
+- entrega durável, confirmação do host e exactly-once permanecem fora do
+  recorte.
+
+### Relações e limites
+
+A fonte altera de forma delimitada arquitetura, componentes reutilizáveis,
+registry, commissioning, bootstrap e baseline wire consolidada. Preserva deep
+sleep, variantes, NVS, retries e separação de código entre targets. A mudança
+do protocolo exige corte coordenado v1 → v2, sem recomissionamento causado
+apenas pela versão.
+
+### Relatórios e evidências materiais
+
+- diagnóstico do defeito em
+  `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-hardware-forwarding-diagnosis.md`;
+- análise independente de implementabilidade da v0.1 ainda não executada.
+
+### Próxima etapa
+
+Submeter a revisão exata da v0.1 a análise independente conforme a seção 16 da
+especificação. Autoria não altera código nem satisfaz os gates de promoção e
+implementação.

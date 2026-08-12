@@ -20,7 +20,7 @@ organiza; o diagrama, como os alvos separados se conectam.
 | Mapa | `docs/rfc/KNOWLEDGE-MAP.md` | Normativo | Active |
 | Histórico EKOM | `docs/rfc/EKOM-CHANGELOG.md` | Operacional | Active |
 | Dossiê do sistema | `docs/specs/SYSTEM-DOSSIER.md` | Informativo | Active |
-| Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0003 Accepted |
+| Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0004 Accepted |
 | Relatórios | `docs/reports/` | Evidência histórica | Roteamento EKOM 3.2 vigente |
 | Registros EKM 1.x | `docs/history/ekom-1x/` | Histórico | Superseded para novas atuações |
 
@@ -37,11 +37,12 @@ não criam autoridade paralela.
 | Bootstrap `SmartSysApp` | `docs/specs/ISSP-Configurable-Bootstrap.md`; ADR-0001 | Concluída para v1.5 | `components/issp_app_154` | Build H2 e hardware históricos; suítes não executadas | Revisado |
 | Variantes de firmware | `docs/specs/Firmware-Variants-Menuconfig.md`; ADR-0002 | Concluída | `client_154/main/` | Builds e hardware aprovados; suítes não executadas | Revisado |
 | Deep sleep do client | `docs/specs/Client-Deep-Sleep.md`; `docs/specs/ISSP-Configurable-Bootstrap.md`; `docs/specs/ISSP-Reusable-Components.md`; `docs/specs/Firmware-Variants-Menuconfig.md`; ADR-0002 | v0.10 e v0.11 em implementação [`In Progress`] | `components/issp_app_154`; `issp_core`; `issp_behaviors`; `issp_transport_154`; `client_154/main/` | Análises das v0.3 a v0.11 e relatórios de implementação da v0.10 e da v0.11; build canônico H2 da v0.11 executado; suítes não executadas | v0.11 implementada em código; DEEPSLEEP-AC-012 pendente de hardware |
+| Identidade de reports | `docs/specs/ISSP-Report-Identity.md`; ADR-0004 | v0.1 em autoria [`Draft`] | `components/issp_core`; `issp_transport_154`; `components/issp_app_154`; `coordinator_154/main/` | Diagnóstico de forwarding em hardware; análise independente pendente | Especificado; não implementado |
 | Registry do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Implementação; validação pendente | `coordinator_154/main/device_registry*` | Build C6; 24 casos não executados | Especificado |
 | Targets e testes | `docs/specs/Repository-Test-Execution-Policy.md`; ADR-0003 | Concluída | guards CMake e test apps | 63 casos preservados e não executados; builds H2/C6 | Revisado |
 | Consolidação ISSP | `docs/specs/ISSP-Consolidation.md` | Concluída | Client e coordenador | Auditoria e hardware históricos | Revisado |
-| Protocolo wire ISSP | `EKM-GAP-0002` | Rascunho e análise | `issp_protocol.cpp`; `iot154_packet.h` | Implementações separadas | Inventariado |
-| Enlace ACK/retry | `EKM-GAP-0006` | Rascunho e análise | Transporte, executor e coordenador | Limitação observada em hardware | Inventariado |
+| Protocolo wire ISSP | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0002` | v2 de reports em autoria; protocolo integral ainda aberto | `issp_protocol.cpp`; `iot154_packet.h` | Implementações separadas e confronto de baseline | Cobertura parcial |
+| Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 em autoria [`Draft`] | Transporte, executor e coordenador | Limitação observada em hardware | Especificado; não implementado |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
 
 ## 3. Árvore de conhecimento
@@ -57,11 +58,13 @@ IoTSmartLink15.4
 │   │   │   ├── Current client ESP32-H2 wiring
 │   │   │   └── Door Sensor Battery H2
 │   │   └── SmartSysApp + componentes ISSP compartilhados
-│   │       └── Deep sleep opt-in — timer e wakeup por contato (EXT1) implementados
+│   │       ├── Deep sleep opt-in — timer e wakeup por contato (EXT1) implementados
+│   │       └── Identidade de report gerada no client — especificada em Draft
 │   └── coordinator_154 — ESP32-C6
 │       ├── commissioning e rádio
 │       ├── registry persistente
 │       ├── commands, reports e ACKs
+│       ├── janela volátil de deduplicação por report_id — especificada em Draft
 │       └── ponte JSON-lines/UART para o host
 ├── Conexão lógica
 │   └── ISSP sobre IEEE 802.15.4
@@ -86,8 +89,8 @@ plataforma; client e coordenador não compartilham código de aplicação.
 flowchart LR
     Host["Host"] -->|"commands · JSON-lines/UART"| Coordinator["coordinator_154<br/>ESP32-C6"]
     Coordinator -->|"events and results · JSON-lines/UART"| Host
-    Coordinator -->|"discovery responses · commands · ACKs"| Client["client_154<br/>ESP32-H2"]
-    Client -->|"discovery · reports · ACKs"| Coordinator
+    Coordinator -->|"discovery responses · commands · ACKs v2"| Client["client_154<br/>ESP32-H2"]
+    Client -->|"discovery · reports com report_id · ACKs v2"| Coordinator
     Product["Product firmware"] --> Client
     Board["Board model"] --> Product
     Shared["SmartSysApp + ISSP components"] --> Client
@@ -101,11 +104,11 @@ dependência de código entre seus diretórios.
 | ID | Estado | Lacuna | Critério de encerramento | Dependência |
 |---|---|---|---|---|
 | `EKM-GAP-0001` | Closed | Arquitetura removida durante consolidação | Conteúdo restaurado e validado | ISSP Architecture v1.1 |
-| `EKM-GAP-0002` | Open | Especificação wire ISSP dedicada ausente | Layout, tipos, checksum, endianness e compatibilidade validados | Recorte próprio |
+| `EKM-GAP-0002` | Partial | Layout wire v2 de reports especificado; contrato wire integral ainda não consolidado em fonte dedicada | Layout, tipos, checksum, endianness e compatibilidade de todo o protocolo validados e consolidados | `ISSP-Report-Identity.md` cobre somente o corte v2 necessário |
 | `EKM-GAP-0003` | Open | Matriz estável requisito–evidência incompleta | Matriz vigente e verificável | Recorte próprio |
 | `EKM-GAP-0004` | Closed | Contratos e prova de reutilização | Dois consumidores e compatibilidade comprovados | Componentes reutilizáveis |
 | `EKM-GAP-0005` | Closed | Destino dos relatórios de validação indefinido | `docs/reports/` e roteamento EKOM 3.2 adotados | Reconciliação EKOM 3.2 concluída |
-| `EKM-GAP-0006` | Open | Enlace confirmado sujeito a timeout/retry espúrio | Identidade e ACK confiáveis repetidos em hardware | Especificação própria |
+| `EKM-GAP-0006` | In Progress | Enlace confirmado confunde sequência reiniciada com retry; identidade v2 está em Draft | Identidade e ACK v2 implementados e repetidos em hardware, com fronteira UART observada | `ISSP-Report-Identity.md`; ADR-0004 |
 | `EKM-GAP-0007` | Open | Projeto ESP-IDF da raiz não classificado | Propósito, target e autoridade definidos ou projeto retirado | Decisão arquitetural futura |
 
 Uma lacuna registrada não autoriza preenchimento por suposição.

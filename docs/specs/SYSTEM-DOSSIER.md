@@ -4,7 +4,7 @@
 
 **Estado da fonte:** Vigente [`Active`]
 
-**Última auditoria:** 2026-08-11
+**Última auditoria:** 2026-08-12
 
 ## 1. Resumo executivo
 
@@ -45,7 +45,9 @@ técnicos. `examples/issp_minimal_client` é o segundo consumidor local.
 ## 6. Dados e persistência
 
 Client e coordenador usam NVS para rede e registry. O wire ISSP possui
-implementações nos dois alvos, mas ainda não tem especificação dedicada.
+implementações nos dois alvos. `ISSP-Report-Identity.md` especifica em Draft o
+envelope v2 necessário à identidade de DATA/ACK; o protocolo integral ainda não
+está consolidado em uma única fonte dedicada.
 
 ## 7. Integrações e protocolos
 
@@ -56,8 +58,9 @@ implementações nos dois alvos, mas ainda não tem especificação dedicada.
 ## 8. Falhas, segurança e recuperação
 
 Commissioning e factory reset tratam recuperação do client. Persistência do
-registry trata reinicialização do coordenador. A confiabilidade residual de
-ACK/retry permanece em `EKM-GAP-0006`.
+registry trata reinicialização do coordenador. A identidade de report entre
+boots e sua deduplicação estão preparadas em `ISSP-Report-Identity.md`;
+implementação e validação ainda permanecem em `EKM-GAP-0006`.
 
 ## 9. Build, testes e operação
 
@@ -76,20 +79,22 @@ normativa futura. Hardware real é evidência material quando solicitado.
 | Variantes | `Firmware-Variants-Menuconfig.md` | Especificado | Produto e board |
 | Targets e testes | `Repository-Test-Execution-Policy.md` | Especificado | Repositório inteiro |
 | Deep sleep do client | `Client-Deep-Sleep.md` | v0.10 e v0.11 implementadas em código; build H2 executado na v0.11; AC-012 pendente de hardware | Client a bateria |
+| Identidade de reports | `ISSP-Report-Identity.md`; ADR-0004 | v0.1 em Draft; análise independente pendente | Client, protocolo, coordenador e ponte UART |
 
 ## 11. Riscos, legado e preparação futura
 
 O projeto ESP-IDF na raiz ainda é um protótipo não classificado. O protocolo
-wire e a confiabilidade do enlace confirmado continuam incompletamente
-especificados. Registros da EKM 1.x são históricos.
+wire integral continua incompletamente especificado; o recorte v2 para
+identidade de report possui fonte própria em Draft. Registros da EKM 1.x são
+históricos.
 
 ## 12. Questões abertas
 
 | ID | Questão | Impacto | Destino |
 |---|---|---|---|
-| `EKM-GAP-0002` | Contrato wire dedicado ausente | Compatibilidade entre alvos | Especificação futura |
+| `EKM-GAP-0002` | Contrato wire integral ainda não consolidado; recorte v2 de report está em Draft | Compatibilidade entre alvos | `ISSP-Report-Identity.md` e recorte futuro integral |
 | `EKM-GAP-0003` | Matriz requisito–evidência incompleta | Navegação de validação | Recorte futuro |
-| `EKM-GAP-0006` | ACK/retry residual | Confiabilidade operacional | Especificação futura |
+| `EKM-GAP-0006` | Identidade e ACK v2 ainda não implementados nem validados | Confiabilidade operacional | `ISSP-Report-Identity.md` |
 
 ## Regra de manutenção
 
