@@ -136,7 +136,16 @@ polaridade e tempo ligado.
   validação antecipada e defensiva do timer e polling limitado a 10 ms;
 - preempção de `persistNetwork()`, corridas e consumo no caminho sem `end()`
   permanecem riscos dependentes dos experimentos futuros já declarados, não
-  decisões normativas pendentes deste recorte.
+  decisões normativas pendentes deste recorte;
+- a análise da v0.9 confirmou as cinco confirmações pedidas pela seção 8 e não
+  encontrou bloqueador estrutural nem decisão normativa ausente; a janela não
+  preemptível também retirou a lacuna da janela de `nvs_flash_erase()`;
+- a mesma análise devolveu três precisões — orçamento de tempo acordado, que
+  passa a incluir `InitializePlatform` e a sequência terminal; margem
+  conservadora do limite do timer, porque o slow clock do projeto é RC interno
+  calibrado; e separação entre o predicado de prontidão dos reports iniciais e o
+  oráculo de entrega no polling — mais a obrigação de que `quiesce()` e `stop()`
+  sejam seguros quando o objeto nunca foi iniciado no boot.
 
 ### Relatórios e evidências materiais
 
@@ -154,6 +163,8 @@ polaridade e tempo ligado.
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v07-implementability-analysis.md`;
 - análise de implementabilidade da v0.8 em
   `docs/reports/client-deep-sleep/analysis/2026-08-11-v08-implementability-analysis.md`;
+- análise de implementabilidade da v0.9 em
+  `docs/reports/client-deep-sleep/analysis/2026-08-11-v09-implementability-analysis.md`;
 - testes e hardware permanecem `Not Executed`.
 
 ### Resultado
