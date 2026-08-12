@@ -8,7 +8,7 @@
 
 **Estado do workflow:** Rascunho; preparada para análise de implementabilidade
 
-**Versão:** 0.9
+**Versão:** 0.10
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -160,6 +160,12 @@ introduzem novos valores em `AppResult`, `SetupStage` ou `AppState`.
   e da fonte de slow clock fixada no projeto. Retorna
   `AppResult::InvalidArgument` quando estiver fora da faixa. A costura admite
   limite injetado nos doubles sem criar API normativa;
+- como o projeto usa o RC interno calibrado em runtime como slow clock, o
+  limite usado em configuração deve ser conservador: todo intervalo aceito por
+  `configureDeepSleep()` deve permanecer dentro da faixa aceita no preparo
+  para qualquer variação suportada da calibração. O limite não pode ser um
+  número de produto sem vínculo com as capacidades do target e a fonte de
+  clock selecionada;
 - o preparo repete a validação e confronta o retorno da API como defesa em
   profundidade. `ESP_ERR_INVALID_ARG` ou outro erro bloqueia a sequência antes
   de qualquer operação terminal;
@@ -256,6 +262,20 @@ tiver expirado, ela entra imediatamente no caminho forçado. Falha em
 `ValidateConfiguration` ou `InitializePlatform` não cria a task e não tenta
 deep sleep nesse boot.
 
+`maxAwakeTimeMs` é um deadline absoluto contado desde `setup()` e não é
+reiniciado depois de `InitializePlatform`. Se esse estágio retornar, o tempo
+total acordado até a entrada em deep sleep é delimitado por:
+
+```text
+max(duração de InitializePlatform, maxAwakeTimeMs)
++ duração da sequência terminal
+```
+
+Logo, `maxAwakeTimeMs` não é sozinho um teto para o tempo físico acordado:
+`InitializePlatform` não possui limite contratual neste recorte e a sequência
+terminal ocorre depois do deadline. Esses termos devem ser considerados no
+dimensionamento de bateria e medidos separadamente na evidência futura.
+
 Depois de criada, a task observa o prazo durante commissioning, `NotReady`,
 `Running` e mesmo enquanto a pilha chamadora não recuperou o controle.
 
@@ -266,13 +286,24 @@ foi admitida. Para `DigitalInputBehavior`, `initial_stabilization_pending` não 
 essa confirmação e mantém o device acordado. Se nenhum report inicial for
 esperado ou a estabilização não concluir, somente o deadline permite dormir.
 
-Enquanto o deadline não chega, a task de lifecycle reavalia a prontidão dos
-reports iniciais. Assim, confirmação do `DigitalInputBehavior` posterior a
-`Running` ainda pode habilitar sleep antecipado; a avaliação não ocorre somente
-uma vez na transição para `Running`. Como o device oferece um único handler de
-report, já pertencente ao executor, a reavaliação usa polling de
-`pendingReportCount()` com período máximo de 10 ms e cada espera é limitada pelo
-tempo restante até o deadline.
+Enquanto o deadline não chega, a task de lifecycle usa polling com período
+máximo de 10 ms para reavaliar dois predicados distintos, cada espera limitada
+pelo tempo restante até o deadline:
+
+- **prontidão para iniciar a quiescência antecipada:** deve existir ao menos um
+  behavior com `reportOnStart=true`, o início de cada behavior esperado deve
+  ter sido bem-sucedido e todos devem apresentar evidência positiva de que a
+  publicação inicial foi admitida;
+- **entrega depois de fechada a admissão e quiescidos os producers:**
+  `pendingReportCount() == 0`.
+
+Assim, confirmação do `DigitalInputBehavior` posterior a `Running` ainda pode
+habilitar sleep antecipado; a avaliação não ocorre somente uma vez na
+transição para `Running`. Contagem pendente igual a zero não satisfaz o
+predicado de prontidão e ausência de report nunca equivale a admissão. Como o
+device oferece um único handler de report, já pertencente ao executor, o
+polling não instala um segundo canal de notificação nem amplia a API
+reutilizável.
 
 A fachada determina essa evidência com dados que já possui: configuração
 `reportOnStart`, sucesso síncrono de `DigitalOutputBehavior::begin()` e
@@ -298,7 +329,8 @@ seguintes ampliações materiais dos contratos reutilizáveis:
   idempotente e terminal no boot. A implementação padrão só é válida para
   behavior que não produz trabalho autonomamente; `DigitalInputBehavior` a
   sobrescreve para parar e excluir seu timer sem destruir o objeto nem publicar
-  novo report;
+  novo report. Se `begin()` nunca tiver sido concluído com sucesso, a operação
+  é no-op e retorna `IsspResult::Ok`;
 - `IsspResult IsspDevice::beginQuiescence()`: operação pública e idempotente
   que fecha atomicamente o despacho de novos comandos e a admissão de novos
   reports, responde `IsspCommandResult::Failed` a comandos ainda recebidos,
@@ -310,7 +342,9 @@ seguintes ampliações materiais dos contratos reutilizáveis:
   encerra sua task sem destruir o executor. O retry de 1000 ms usa espera por
   notificação com timeout, preservando a duração vigente e permitindo a
   interrupção sem `xTaskAbortDelay`, opção de Kconfig ou dependência externa. A
-  notificação de parada é distinguida por flag atômica;
+  notificação de parada é distinguida por flag atômica. Se `start()` nunca
+  tiver sido concluído com sucesso, a operação é no-op e retorna
+  `IsspResult::Ok`;
 - `Issp154Transport::end()` permanece o contrato vigente e não recebe nova
   semântica.
 
@@ -451,7 +485,10 @@ e bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
 - **DEEPSLEEP-AC-003 — Timer:** minutos e horas válidos são convertidos sem
   perda semântica; zero, unidade inválida e intervalo acima do limite do
   ESP-IDF/H2 retornam `InvalidArgument` em `configureDeepSleep()`. O preparo
-  repete a validação e trata o retorno da API antes de operação terminal.
+  repete a validação e trata o retorno da API antes de operação terminal. Com o
+  RC interno calibrado em runtime, o limite antecipado é conservador: todo
+  intervalo aceito em configuração permanece na faixa do preparo em toda
+  variação suportada da calibração, salvo falha da API ou do runtime.
 - **DEEPSLEEP-AC-004 — LED:** polaridades HIGH e LOW, `DurationMs` e
   `UntilSleep` produzem nível e tempo configurados; em todo boot com
   configuração válida que alcance `InitializePlatform`, o LED acende como
@@ -467,16 +504,20 @@ e bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
   prova entrega sem reserva ou transmissão. Ausência de report e
   `initial_stabilization_pending` são reavaliados até o deadline; slot ocupado
   por falha não retryable também aguarda. A espera de entrega usa apenas o tempo
-  restante até o deadline.
-- **DEEPSLEEP-AC-007 — Deadline e quiescência:** o deadline é observado em
-  contado desde `setup()`, mas `InitializePlatform` não é preemptível. Ao final
+  restante até o deadline. Prontidão e entrega são predicados separados,
+  reavaliados por polling em no máximo 10 ms; contagem zero não comprova
+  prontidão.
+- **DEEPSLEEP-AC-007 — Deadline e quiescência:** o deadline é contado desde
+  `setup()`, mas `InitializePlatform` não é preemptível. Ao final
   bem-sucedido do estágio, uma única task privada possui e executa a sequência,
   entra imediatamente no caminho forçado se o prazo expirou, converte o caminho
   antecipado em forçado no deadline e reconhece a transição já detida pelo
   próprio deep sleep. O polling é no máximo 10 ms. A quiescência usa somente as
   operações públicas autorizadas, não destrói objetos e não cria
   `SmartSysApp::stop()` ou retry público. `stop()` possui limite de 600 ms; no
-  estouro, `end()` não é chamado.
+  estouro, `end()` não é chamado. `quiesce()` e `stop()` são no-op com sucesso
+  quando o objeto correspondente nunca foi iniciado neste boot, além de serem
+  idempotentes depois de iniciado.
 - **DEEPSLEEP-AC-008 — Sleep forçado:** no deadline, reports, rede e falhas
   pendentes são registrados sem persistência; falha de quiescência não reabre
   trabalho e o sleep começa. Falha da fonte de wakeup solicitada bloqueia o
@@ -497,9 +538,13 @@ e bloqueio do sleep devem ser distinguíveis sem conteúdo sensível.
 - **DEEPSLEEP-AC-010 — Evidência futura:** `SetupHooks` pode ser estendido como
   costura interna para verificar com doubles lifecycle, validação e falhas, sem
   integrar o contrato normativo do produto. Build H2 cobre composições
-  habilitada e desabilitada; hardware H2 confronta timer, LED, deadline e
-  corrente tanto com `end()` quanto no timeout que o suprime, somente quando
-  especificação futura autorizar execução.
+  habilitada e desabilitada. A evidência mede separadamente a duração de
+  `InitializePlatform`, o deadline absoluto e a sequência terminal, e confronta
+  o total observado com `max(duração de InitializePlatform,
+  maxAwakeTimeMs) + duração da sequência terminal`. Hardware H2 confronta
+  timer, LED, deadline e corrente tanto com `end()` quanto no timeout que o
+  suprime, registrando também as opções vigentes de power-down e mitigação de
+  leakage da flash, somente quando especificação futura autorizar execução.
 
 Build não comprova comportamento físico. Esta especificação não autoriza
 executar builds ou testes.
@@ -536,11 +581,13 @@ executar builds ou testes.
   contado durante o estágio, mas a task de lifecycle nasce somente após sucesso
   e inicia o caminho forçado imediatamente se o prazo já tiver expirado.
 
-A v0.9 incorpora os achados da análise de implementabilidade da v0.8. Uma nova
-análise deve confirmar a janela não preemptível, a criação tardia da task, a
-distinção entre dona da sequência e detentor do token, a validação antecipada
-do timer e o polling limitado. Os comportamentos de NVS e as corridas continuam
-exigindo experimento explícito; não são presumidos por inspeção ou build.
+A v0.10 incorpora as precisões da análise de implementabilidade da v0.9, sem
+introduzir nova decisão normativa: orçamento total acordado, margem
+conservadora do timer com RC interno, separação dos predicados de prontidão e
+entrega e segurança de `quiesce()` e `stop()` quando nunca iniciados. Uma nova
+análise deve confirmar esses quatro pontos e a correção de DEEPSLEEP-AC-007. Os
+comportamentos de NVS e as corridas continuam exigindo experimento explícito;
+não são presumidos por inspeção ou build.
 
 Fontes de evidência existentes:
 
@@ -550,7 +597,8 @@ Fontes de evidência existentes:
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v05-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v06-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-11-v07-implementability-analysis.md`;
-- `docs/reports/client-deep-sleep/analysis/2026-08-11-v08-implementability-analysis.md`.
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v08-implementability-analysis.md`;
+- `docs/reports/client-deep-sleep/analysis/2026-08-11-v09-implementability-analysis.md`.
 
 O documento permanece `Draft`. Estar preparado para análise não autoriza
 implementação, promoção, execução de testes ou integração.

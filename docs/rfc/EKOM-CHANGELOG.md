@@ -78,6 +78,9 @@ polaridade e tempo ligado.
   entrega pelo deadline e distingue o detentor da transição.
 - na v0.9, o Arquiteto tornou `InitializePlatform` não preemptível; o deadline
   continua contado e dispara encerramento forçado após o estágio, se expirado.
+- a v0.10 precisa o contrato sem nova decisão arquitetural: orçamento físico
+  acordado, limite conservador do timer, polling com predicados separados e
+  encerramento seguro para objetos nunca iniciados.
 
 ### Lacunas
 
@@ -146,6 +149,10 @@ polaridade e tempo ligado.
   calibrado; e separação entre o predicado de prontidão dos reports iniciais e o
   oráculo de entrega no polling — mais a obrigação de que `quiesce()` e `stop()`
   sejam seguros quando o objeto nunca foi iniciado no boot.
+- a v0.10 incorpora essas precisões. Como o deadline permanece absoluto desde
+  `setup()`, o orçamento é expresso por `max(duração de InitializePlatform,
+  maxAwakeTimeMs) + duração da sequência terminal`, e não pela soma simples do
+  estágio com `maxAwakeTimeMs`.
 
 ### Relatórios e evidências materiais
 
@@ -169,8 +176,9 @@ polaridade e tempo ligado.
 
 ### Resultado
 
-Contrato v0.9 registrado em rascunho. A janela não preemptível de plataforma e
-as precisões devolvidas pela análise da v0.8 foram incorporadas, sem tornar
-passos obrigatórios aplicáveis a objetos inexistentes. O documento está
-preparado para nova análise de implementabilidade; implementação ainda depende
-de análise, promoção e autorização explícitas do Arquiteto.
+Contrato v0.10 registrado em rascunho. As precisões devolvidas pela análise da
+v0.9 foram incorporadas sem nova decisão normativa: orçamento acordado,
+conservadorismo do limite do timer, distinção dos predicados do polling e
+segurança de encerramento quando nunca iniciado. O documento está preparado
+para nova análise de implementabilidade; implementação ainda depende de
+análise, promoção e autorização explícitas do Arquiteto.
