@@ -53,7 +53,7 @@ da `main`.
 
 **Estado:** v0.10 em implementação [`In Progress`]; v0.11 em rascunho [`Draft`]
 
-**Gates da v0.11:** análise `Ready` ausente; promoção para Pronta ausente;
+**Gates da v0.11:** nova análise `Ready` ausente; promoção para Pronta ausente;
 autorização de implementação ausente.
 
 **Especificação relacionada:** `docs/specs/Client-Deep-Sleep.md`
@@ -240,3 +240,13 @@ cadeia de retenção do nível por HOLD é verificável por leitura em quase tod
 sua extensão no ESP-IDF 6.0.1, restando físico apenas o elo elétrico;
 DEEPSLEEP-AC-012 permanece exigindo hardware. Nenhum gate da v0.11 foi
 satisfeito por esta atuação.
+
+O Arquiteto incorporou os achados na v0.11 ainda em `Draft`: a elegibilidade é
+derivada da capacidade vigente do target, sem exceção local para GPIO 7; o board
+declara o recurso físico e o GPIO precisa corresponder à capability de contato
+seco que configura direção e pull; a leitura e a armação de EXT1 ocorrem no
+início da sequência terminal, antes de qualquer operação terminal; e
+`ContactWakeupConfig` deixa de expor polaridade lógica sem efeito. A precisão de
+retenção por HOLD e liberação no boot foi incorporada, sem substituir o
+experimento elétrico de DEEPSLEEP-AC-012. A revisão aguarda nova análise de
+implementabilidade e permanece sem promoção ou autorização de implementação.
