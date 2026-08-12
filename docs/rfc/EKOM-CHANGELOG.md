@@ -219,6 +219,8 @@ polaridade e tempo ligado.
 - nova análise de implementabilidade da v0.11, sobre o texto corrigido pelo
   Arquiteto, em
   `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r3.md`;
+- terceira análise da v0.11, sobre o texto com o preparo do pad definido, em
+  `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r4.md`;
 - builds, testes e hardware permanecem `Not Executed`.
 
 ### Resultado
@@ -274,3 +276,18 @@ antes da quiescência. DEEPSLEEP-AC-012 passa a exigir evidência também no boo
 que alcança a sequência terminal sem `StartDevice`, incluindo `NotReady` em
 `InitializeNetwork`. A revisão aguarda nova análise de implementabilidade e
 continua sem promoção ou autorização de implementação.
+
+A terceira análise da v0.11 foi executada sobre esse texto e recomenda
+**prontidão** [`Ready`]. A reaplicação é implementável com dados que a fachada já
+copia em `AppState::Configuring` — `pin` e `pull` de `DoorSensorConfig` —,
+disponíveis em todos os caminhos terminais, com o mesmo mapeamento que
+`DigitalInputBehavior::configureGpio()` usa, sem ampliar API reutilizável e sem
+mover responsabilidade entre camadas; `gpio_config()` é idempotente, o que
+sustenta a cláusula de reaplicação com o behavior já iniciado. Não foram
+encontrados bloqueador estrutural, decisão normativa ausente nem contradição
+interna. Permanece uma precisão declarada **não bloqueante**: duas capabilities
+de contato seco no mesmo GPIO com `pull` divergente tornam indeterminada a
+configuração a reaplicar, ambiguidade que precede a v0.11 na camada de behaviors
+e não é alcançável na composição da seção 5. As pendências restantes são os
+experimentos de hardware já normativos. Nenhum gate da v0.11 foi satisfeito por
+esta atuação: a promoção e a autorização permanecem com o Arquiteto.
