@@ -51,11 +51,11 @@ da `main`.
 
 ## EKOM-CHG-0002 — Deep sleep configurável do client
 
-**Estado:** v0.10 em implementação [`In Progress`]; v0.11 em rascunho [`Draft`]
+**Estado:** v0.10 em implementação [`In Progress`]; v0.11 pronta para
+implementação [`Proposed`]
 
-**Gates da revisão corrente da v0.11:** confronto final `Ready` pendente após a
-última precisão; promoção para Pronta ausente; autorização de implementação
-ausente. A análise r4 recomendou `Ready` para o commit `5b2cc09`.
+**Gates da revisão corrente da v0.11:** análise `Ready` presente para
+`ea95c77`; promoção para Pronta presente; autorização de implementação ausente.
 
 **Especificação relacionada:** `docs/specs/Client-Deep-Sleep.md`
 
@@ -319,4 +319,8 @@ pino ainda abertas fora do `wake_led`, o pull `Floating` aceito, a necessidade d
 costura em `SetupHooks` para cobrir o preparo do contato com doubles e a seleção
 explícita do ESP-IDF 6.0.1 em evidência futura. O gate de análise passa a estar
 satisfeito para a revisão `ea95c77`; promoção e autorização de implementação
-permanecem ausentes.
+permaneciam ausentes naquele momento.
+
+Com base no confronto final r5, o Arquiteto promoveu a v0.11 para `Proposed`,
+Pronta para implementação. A promoção satisfaz o segundo gate, mas não concede
+autorização de implementação, que permanece ausente e separada.

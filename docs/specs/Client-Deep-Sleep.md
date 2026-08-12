@@ -2,16 +2,16 @@
 
 **Tipo:** Normativo
 
-**Estado normativo:** Draft para a v0.11; a v0.10 permanece `Proposed`
+**Estado normativo:** `Proposed` — Pronta para implementação para a v0.11; a
+v0.10 permanece `Proposed`
 
 **Estado da implementação:** não iniciada para a v0.11; `In Progress` somente
 para a v0.10
 
-**Estado do workflow:** Rascunho e análise para a v0.11
+**Estado do workflow:** Pronta para implementação para a v0.11
 
-**Análise de implementabilidade:** confronto final pendente para a revisão
-corrente da v0.11; a análise r4 classificou como `Ready` a revisão anterior no
-commit `5b2cc09`; `Ready` também permanece vigente para a v0.10
+**Análise de implementabilidade:** `Ready` para a revisão `ea95c77`, conforme o
+confronto final r5; `Ready` também permanece vigente para a v0.10
 
 **Autorização de implementação desta versão:** não concedida para a v0.11
 
@@ -63,8 +63,8 @@ não o reabre.
 ## 2. Relações com autoridades vigentes
 
 As relações abaixo valem para o contrato integral. As da v0.10 estão em
-`Proposed` e implementadas; as marcadas como acréscimo da v0.11 permanecem em
-`Draft` até a promoção do Arquiteto.
+`Proposed` e implementadas; as marcadas como acréscimo da v0.11 também estão em
+`Proposed`, promovidas pelo Arquiteto após o confronto final `Ready`.
 
 - **Altera (`Amends`) `ISSP-Configurable-Bootstrap.md` v1.5:** acrescenta
   `configureDeepSleep()` à API pública e uma quiescência privada e limitada
@@ -170,8 +170,8 @@ iotsmartsys::SmartSysApp::configureDeepSleep(
     const iotsmartsys::app::DeepSleepConfig &config);
 ```
 
-Os nomes desta seção integram o contrato que orienta a implementação; os da
-v0.11 integram-no após a promoção. `contactWakeup` é acrescentado ao final de
+Os nomes desta seção integram o contrato que orienta a implementação, inclusive
+os promovidos na v0.11. `contactWakeup` é acrescentado ao final de
 `DeepSleepConfig`, de modo que composições que não o declarem continuam válidas
 e o campo permanece inerte.
 Erros de configuração usam o `AppResult` vigente e são preservados em
@@ -819,22 +819,21 @@ Fontes de evidência existentes:
 - `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r3.md`;
 - `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r4.md`;
+- `docs/reports/client-deep-sleep/analysis/2026-08-12-v11-implementability-analysis-r5.md`;
 - `docs/reports/client-deep-sleep/implementation/2026-08-11-v10-implementation.md`.
 
 A v0.10 permanece `Proposed` e implementada. As primeiras análises da v0.11
 foram `Not Ready — Specification Defect`; a r4 classificou como `Ready` a
 revisão do commit `5b2cc09` e devolveu somente a precisão não bloqueante sobre
-pulls divergentes no mesmo GPIO. A v0.11 continua em `Draft`, agora com essa
-precisão incorporada e sem decisão normativa aberta. Recomendo confronto final
-da revisão corrente antes de qualquer promoção, preservando DEEPSLEEP-AC-012
-como evidência obrigatória de hardware que não pode ser satisfeita por leitura
-ou build.
+pulls divergentes no mesmo GPIO. O confronto final r5 classificou a revisão
+`ea95c77` como `Ready`, sem bloqueador, decisão normativa ausente ou contradição
+interna. Com base nessa evidência, o Arquiteto promoveu a v0.11 para `Proposed`,
+Pronta para implementação, preservando DEEPSLEEP-AC-012 como evidência
+obrigatória de hardware que não pode ser satisfeita por leitura ou build.
 
-Para evitar inferência entre revisões, os gates da revisão corrente da v0.11
-são: confronto final `Ready` pendente, promoção para Pronta ausente e
-autorização de implementação ausente. O `Ready` da r4 pertence ao commit
-`5b2cc09`; o estado `Proposed`, a análise e a implementação da v0.10 também não
-satisfazem gates da revisão corrente da v0.11.
+Os gates da revisão corrente da v0.11 são: análise `Ready` presente para
+`ea95c77`, promoção para Pronta presente e autorização de implementação
+ausente. A promoção não inicia implementação, build, teste ou hardware.
 
 Nem a v0.11 nem sua eventual promoção iniciam por si sós implementação, build,
 teste, execução em hardware, integração ou push; essas operações dependem de
