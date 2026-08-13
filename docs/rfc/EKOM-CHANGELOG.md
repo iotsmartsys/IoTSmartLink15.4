@@ -359,7 +359,7 @@ disparam juntas, e a incorporação de `dry_contact_wakeup` em
 
 ## EKOM-CHG-0003 — Identidade de reports entre boots
 
-**Estado:** v0.3 implementada, `In Progress` — aguardando Revisão do delta
+**Estado:** v0.3 Concluída [`Done`] por decisão do Arquiteto
 
 **Entrada da Implementação da revisão corrente:** análise `Ready` presente para
 o conteúdo normativo de `9687287`; ordem explícita para implementar a v0.3
@@ -572,3 +572,16 @@ diagnóstico próprio para frame v1 exigido pela seção 11; e preservou como
 evidência insuficiente a concorrência da AC-003, a fronteira UART da AC-007 e a
 execução do novo caso de comprimento. A recomendação é retornar à Autoria,
 corrigir o diagnóstico na Implementação e realizar Revisão curta posterior.
+
+Após a Revisão, o Arquiteto informou validação da implementação em hardware com
+comportamento funcional conforme esperado e determinou o encerramento da v0.3.
+A decisão e seus limites estão em
+`docs/reports/report-identity/validation/2026-08-12-v03-architectural-validation.md`.
+
+A conclusão aceita como riscos residuais conhecidos a contradição redacional
+entre as seções 4 e 8.3, a ausência de diagnóstico próprio para frame v1 e a
+falta de execução específica dos cenários adversos de concorrência e UART. Ela
+não transforma suítes `Not Executed` em sucesso nem afirma cobertura de
+cenários não enumerados. A fonte normativa permanece Active e o workflow da
+v0.3 passa a Concluído [`Done`]; nova evidência ou necessidade exige decisão de
+reabertura.

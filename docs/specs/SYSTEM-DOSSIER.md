@@ -80,14 +80,14 @@ normativa futura. Hardware real é evidência material quando solicitado.
 | Variantes | `Firmware-Variants-Menuconfig.md` | Especificado | Produto e board |
 | Targets e testes | `Repository-Test-Execution-Policy.md` | Especificado | Repositório inteiro |
 | Deep sleep do client | `Client-Deep-Sleep.md` | v0.10 e v0.11 implementadas em código; build H2 executado na v0.11; AC-012 pendente de hardware | Client a bateria |
-| Identidade de reports | `ISSP-Report-Identity.md`; ADR-0004 | v0.2 Proposed e Pronta; análise v0.2 Ready; implementação autorizada e `In Progress` | Client, protocolo, coordenador e ponte UART |
+| Identidade de reports | `ISSP-Report-Identity.md`; ADR-0004 | v0.3 Concluída [`Done`]; implementação e comportamento funcional validados | Client, protocolo, coordenador e ponte UART |
 
 ## 11. Riscos, legado e preparação futura
 
 O projeto ESP-IDF na raiz ainda é um protótipo não classificado. O protocolo
 wire integral continua incompletamente especificado; o recorte v2 para
-identidade de report possui fonte própria em Draft. Registros da EKM 1.x são
-históricos.
+identidade de report possui fonte própria Active e workflow concluído.
+Registros da EKM 1.x são históricos.
 
 ## 12. Questões abertas
 
@@ -95,7 +95,7 @@ históricos.
 |---|---|---|---|
 | `EKM-GAP-0002` | Contrato wire integral ainda não consolidado; recorte v2 de report implementado | Compatibilidade entre alvos | `ISSP-Report-Identity.md` e recorte futuro integral |
 | `EKM-GAP-0003` | Matriz requisito–evidência incompleta | Navegação de validação | Recorte futuro |
-| `EKM-GAP-0006` | Identidade e ACK v2 implementados; ainda não validados em hardware | Confiabilidade operacional | `ISSP-Report-Identity.md` |
+| `EKM-GAP-0006` | Identidade e ACK v2 validados no caminho funcional em hardware; cenários adversos de concorrência e UART não executados | Confiabilidade operacional | `ISSP-Report-Identity.md`; reabertura futura se o risco exigir |
 
 ## Regra de manutenção
 

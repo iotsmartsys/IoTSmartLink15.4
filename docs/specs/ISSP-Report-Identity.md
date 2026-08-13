@@ -2,14 +2,13 @@
 
 **Tipo:** Normativo
 
-**Estado normativo:** `Ready` — v0.3 analisada
+**Estado normativo:** Active
 
-**Estado da implementação:** v0.3 `In Progress` — delta implementado e builds
-concluídos, conforme `2026-08-12-v03-implementation.md`; execução de testes,
-flash, monitor e hardware permanece `Not Executed`
+**Estado da implementação:** Validated — v0.3 implementada, builds concluídos e
+comportamento funcional validado em hardware pelo Arquiteto
 
-**Estado do workflow:** Implementação da v0.3 executada por ordem explícita do
-Arquiteto; aguardando Revisão do delta
+**Estado do workflow:** Concluída [`Done`] por decisão do Arquiteto em
+12/08/2026
 
 **Análise de implementabilidade:** `Ready` para o conteúdo normativo da revisão
 `9687287`, conforme `2026-08-12-v03-implementability-analysis.md`. O `Ready` de
@@ -115,8 +114,8 @@ no deep sleep fica condicionada a esta base, mas o deep sleep não é reaberto.
   ID.
 - **Preserva `Repository-Test-Execution-Policy.md` v0.4 e ADR-0003:** builds são
   parte intrínseca de implementação autorizada; execução de testes, flash,
-  monitor e hardware exige autorização própria. Esta versão em Draft não
-  autoriza execução.
+  monitor e hardware exige autorização própria. A especificação não concede
+  essa autorização operacional por si só.
 
 Se a análise identificar conflito fora dessas alterações, deve classificar a
 especificação como não pronta. O Implementador não pode ampliar silenciosamente
@@ -675,11 +674,13 @@ portável do código.
 
 ### 14.4 Execução dependente de autorização
 
-Testes, flash, monitor e hardware ficam `Not Executed` até autorização própria.
-Quando autorizados, AC-013 deve observar dois boots com deep sleep e o
-coordenador continuamente ligado. Deve-se provocar também perda de ACK após a
-aceitação local para demonstrar AC-008. A evidência distingue logs do client,
-coordenador e host; não infere MQTT a partir do ACK de rádio.
+Testes automatizados permanecem `Not Executed` até autorização própria. A
+execução funcional em hardware relatada pelo Arquiteto está preservada na
+seção 17 e no relatório de validação, sem equivaler à execução de todos os
+casos desta seção. Em execução futura, AC-013 deve observar dois boots com deep
+sleep e o coordenador continuamente ligado. Deve-se provocar também perda de
+ACK após a aceitação local para demonstrar AC-008. A evidência distingue logs
+do client, coordenador e host; não infere MQTT a partir do ACK de rádio.
 
 ## 15. Decisões arquiteturais registradas
 
@@ -766,8 +767,21 @@ satisfeitos pela implementação vigente e não geraram mutação; a recusa de
 payload excedente foi aplicada às duas cópias da verificação de comprimento no
 coordenador, com motivos de log distinguíveis, e coberta pelos dois casos
 host-native que a seção 14.1 vincula ao AC-004. O build canônico ESP32-C6 do
-`coordinator_154` e os builds host-native afetados foram concluídos; execução de
-testes, flash, monitor e hardware permanece `Not Executed` por falta de
-permissão operacional própria. O registro está em
+`coordinator_154` e os builds host-native afetados foram concluídos. Na atuação
+de Implementação, testes, flash, monitor e hardware permaneceram `Not Executed`
+por falta de permissão operacional própria. O registro está em
 `docs/reports/report-identity/implementation/2026-08-12-v03-implementation.md`.
-A próxima etapa é a Revisão do delta.
+
+A Revisão do delta, registrada em
+`docs/reports/report-identity/review/2026-08-12-v03-review.md`, classificou D1,
+D2 e D3 como aderentes. Ela preservou três ressalvas anteriores: a seção 4 é
+mais ampla que a regra específica da seção 8.3; o coordenador recusa frame v1,
+mas ainda não o distingue de certos truncamentos no diagnóstico; e os cenários
+adversos de concorrência e UART não possuem execução própria.
+
+O Arquiteto relatou que a implementação foi validada em hardware e se comportou
+como esperado. Considerou o conjunto de evidências suficiente e determinou a
+conclusão da v0.3, aceitando explicitamente as ressalvas acima como risco
+residual. Essa decisão não converte suítes não executadas em sucesso nem afirma
+que todos os cenários adversos foram exercitados. O registro de validação está
+em `docs/reports/report-identity/validation/2026-08-12-v03-architectural-validation.md`.
