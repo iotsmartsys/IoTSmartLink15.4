@@ -297,7 +297,9 @@ static inline bool iot154_parse_frame_info(const uint8_t *frame, iot154_frame_in
     }
 
     const size_t mac_header_len = pos - 1;
-    if (frame[0] < mac_header_len + sizeof(*packet) + IOT154_FCS_LEN) {
+    /* ISSP v2 carries a fixed 20 byte payload: a frame longer than the header
+       plus that payload is refused just like a truncated one. */
+    if (frame[0] != mac_header_len + sizeof(*packet) + IOT154_FCS_LEN) {
         return false;
     }
 

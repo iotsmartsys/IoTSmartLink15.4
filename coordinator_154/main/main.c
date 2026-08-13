@@ -353,9 +353,12 @@ static bool diagnostic_extract_mac(const uint8_t *frame,
     }
 
     const size_t mac_header_length = pos - 1U;
-    if (frame[0] < mac_header_length + sizeof(*packet) + IOT154_FCS_LEN)
+    const size_t expected_length = mac_header_length + sizeof(*packet) + IOT154_FCS_LEN;
+    if (frame[0] != expected_length)
     {
-        *reason = "payload_truncated";
+        /* ISSP v2 payload is fixed at 20 bytes; the two invalid sizes are
+           distinguishable diagnostics. */
+        *reason = frame[0] < expected_length ? "payload_truncated" : "payload_excessive";
         return false;
     }
     *payload_length = frame[0] - mac_header_length - IOT154_FCS_LEN;

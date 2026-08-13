@@ -359,11 +359,11 @@ disparam juntas, e a incorporação de `dry_contact_wakeup` em
 
 ## EKOM-CHG-0003 — Identidade de reports entre boots
 
-**Estado:** v0.3 `Ready` — aguardando ordem explícita de Implementação
+**Estado:** v0.3 implementada, `In Progress` — aguardando Revisão do delta
 
 **Entrada da Implementação da revisão corrente:** análise `Ready` presente para
 o conteúdo normativo de `9687287`; ordem explícita para implementar a v0.3
-ainda ausente. As análises das versões anteriores permanecem históricas.
+recebida e executada. As análises das versões anteriores permanecem históricas.
 
 **Especificação relacionada:** `docs/specs/ISSP-Report-Identity.md`
 
@@ -538,3 +538,22 @@ versionada ficou superada. O Arquiteto reconheceu a classificação `Ready` e o
 estado corrente foi reconciliado na especificação, no changelog e no mapa. Pelo
 EKOM 4.1 não existe promoção intermediária para “Pronta”: a próxima passagem
 depende somente de ordem explícita para implementar a v0.3.
+
+A ordem foi emitida e a v0.3 está implementada, conforme
+`docs/reports/report-identity/implementation/2026-08-12-v03-implementation.md`.
+D1 e D2 foram confirmados por leitura, sem mutação, porque a implementação
+vigente já os satisfazia. D3 exigiu igualdade estrita de comprimento nas duas
+cópias da verificação do coordenador — `iot154_parse_frame_info()` e
+`diagnostic_extract_mac()` —, com `payload_truncated` e `payload_excessive`
+como motivos distinguíveis, mais um caso host-native na suíte de vetores já
+contratada. A verificação de mínimo foi preservada, de modo que frames v1
+continuam recusados antes de qualquer decodificação, e nenhum dos seis formatos
+legítimos passa a ser rejeitado. O build canônico ESP32-C6 e os três builds
+host-native do coordenador terminaram com código de saída zero; execução de
+testes, flash, monitor e hardware permanece `Not Executed`.
+
+Duas lacunas seguem abertas e devolvidas ao Arquiteto: o coordenador ainda não
+distingue frame v1 de truncamento, contra a seção 11 e anterior a este delta
+(O2); e a seção 4 da especificação continua excluindo de forma mais ampla que a
+seção 8.3 o tráfego de origem desconhecida durante commissioning (O1). A próxima
+etapa é a Revisão do delta.

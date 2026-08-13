@@ -171,6 +171,37 @@ static void invalid_versions_and_combinations_are_rejected(void)
     ++s_tests;
 }
 
+static void frame_lengths_other_than_the_payload_are_rejected(void)
+{
+    uint8_t frame[IOT154_MAX_FRAME_LEN + 1];
+    iot154_frame_info_t info;
+    iot154_packet_t packet;
+    iot154_packet_t decoded;
+
+    build(&packet, IOT154_MSG_DATA, DEVICE_ID, 0x0102, REPORT_ID, 1, 2, 1);
+    memset(frame, 0, sizeof(frame));
+    const size_t frame_length = iot154_build_frame(frame, 0x1234, 0x0000, 7, &packet);
+    CHECK(frame_length == IOT154_MAC_HEADER_LEN + VECTOR_SIZE + IOT154_FCS_LEN + 1u);
+
+    /* The exact v2 length is accepted. */
+    CHECK(iot154_parse_frame_info(frame, &info, &decoded));
+    CHECK(decoded.report_id == REPORT_ID);
+
+    /* One byte short of the fixed payload is refused. */
+    const uint8_t declared_length = frame[0];
+    frame[0] = (uint8_t)(declared_length - 1u);
+    CHECK(!iot154_parse_frame_info(frame, &info, &decoded));
+
+    /* One byte beyond it is refused as well: a longer frame whose first twenty
+       payload bytes form a valid v2 packet must not be accepted. */
+    frame[0] = (uint8_t)(declared_length + 1u);
+    CHECK(!iot154_parse_frame_info(frame, &info, &decoded));
+
+    frame[0] = declared_length;
+    CHECK(iot154_parse_frame_info(frame, &info, &decoded));
+    ++s_tests;
+}
+
 static void event_id_is_canonical(void)
 {
     char out[64];
@@ -200,6 +231,7 @@ int main(void)
     encoders_match_the_golden_vectors();
     decoders_read_the_golden_vectors();
     invalid_versions_and_combinations_are_rejected();
+    frame_lengths_other_than_the_payload_are_rejected();
     event_id_is_canonical();
     printf("%u Tests 0 Failures 0 Ignored\n", s_tests);
     return 0;

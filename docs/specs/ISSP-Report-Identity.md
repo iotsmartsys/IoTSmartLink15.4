@@ -4,10 +4,12 @@
 
 **Estado normativo:** `Ready` — v0.3 analisada
 
-**Estado da implementação:** v0.2 implementada e revisada; delta v0.3 pendente
+**Estado da implementação:** v0.3 `In Progress` — delta implementado e builds
+concluídos, conforme `2026-08-12-v03-implementation.md`; execução de testes,
+flash, monitor e hardware permanece `Not Executed`
 
-**Estado do workflow:** Análise de Implementabilidade concluída; aguardando
-ordem explícita de Implementação da v0.3
+**Estado do workflow:** Implementação da v0.3 executada por ordem explícita do
+Arquiteto; aguardando Revisão do delta
 
 **Análise de implementabilidade:** `Ready` para o conteúdo normativo da revisão
 `9687287`, conforme `2026-08-12-v03-implementability-analysis.md`. O `Ready` de
@@ -757,7 +759,15 @@ de aceite e o teste já pertencente ao AC-004.
 
 Como o item 2 altera comportamento normativo, a análise `Ready` da v0.2 não
 cobre esta revisão. A Análise de Implementabilidade própria da v0.3 classificou
-o conteúdo normativo registrado em `9687287` como `Ready`, sem bloqueador. Uma
-ordem explícita do Arquiteto para implementar a v0.3 inicia a correção no
-estágio de Implementação. Build continua intrínseco; execução de testes, flash,
-monitor e hardware exige permissão operacional própria.
+o conteúdo normativo registrado em `9687287` como `Ready`, sem bloqueador.
+
+Por ordem explícita do Arquiteto, a v0.3 foi implementada. D1 e D2 já estavam
+satisfeitos pela implementação vigente e não geraram mutação; a recusa de
+payload excedente foi aplicada às duas cópias da verificação de comprimento no
+coordenador, com motivos de log distinguíveis, e coberta pelos dois casos
+host-native que a seção 14.1 vincula ao AC-004. O build canônico ESP32-C6 do
+`coordinator_154` e os builds host-native afetados foram concluídos; execução de
+testes, flash, monitor e hardware permanece `Not Executed` por falta de
+permissão operacional própria. O registro está em
+`docs/reports/report-identity/implementation/2026-08-12-v03-implementation.md`.
+A próxima etapa é a Revisão do delta.
