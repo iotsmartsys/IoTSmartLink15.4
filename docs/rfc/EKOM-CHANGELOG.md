@@ -359,12 +359,11 @@ disparam juntas, e a incorporação de `dry_contact_wakeup` em
 
 ## EKOM-CHG-0003 — Identidade de reports entre boots
 
-**Estado:** v0.2 `Proposed` — Pronta para implementação
+**Estado:** v0.3 `Ready` — aguardando ordem explícita de Implementação
 
-**Gates da revisão corrente v0.2:** análise independente `Ready` presente para
-`f78c6d2`; promoção para Pronta presente; autorização de implementação ausente.
-A análise da v0.1, classificada `Não pronta — defeito da especificação`, não
-satisfaz a v0.2 e foi substituída pela análise própria desta revisão.
+**Entrada da Implementação da revisão corrente:** análise `Ready` presente para
+o conteúdo normativo de `9687287`; ordem explícita para implementar a v0.3
+ainda ausente. As análises das versões anteriores permanecem históricas.
 
 **Especificação relacionada:** `docs/specs/ISSP-Report-Identity.md`
 
@@ -532,3 +531,10 @@ ingresso; A4, A5 e A6 da Revisão seguem abertos e intocados pelo delta; e a v0.
 foi analisada na árvore de trabalho, sem commit ao qual vincular o `Ready`,
 enquanto o `KNOWLEDGE-MAP.md` ainda descreve a identidade de reports como v0.2
 `Proposed` com implementação `In Progress`.
+
+O commit `9687287` registrou sem alteração adicional o conteúdo normativo da
+v0.3 confrontado pela análise. Com isso, a ressalva sobre ausência de revisão
+versionada ficou superada. O Arquiteto reconheceu a classificação `Ready` e o
+estado corrente foi reconciliado na especificação, no changelog e no mapa. Pelo
+EKOM 4.1 não existe promoção intermediária para “Pronta”: a próxima passagem
+depende somente de ordem explícita para implementar a v0.3.

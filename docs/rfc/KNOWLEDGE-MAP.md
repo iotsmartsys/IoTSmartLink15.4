@@ -37,12 +37,12 @@ não criam autoridade paralela.
 | Bootstrap `SmartSysApp` | `docs/specs/ISSP-Configurable-Bootstrap.md`; ADR-0001 | Concluída para v1.5 | `components/issp_app_154` | Build H2 e hardware históricos; suítes não executadas | Revisado |
 | Variantes de firmware | `docs/specs/Firmware-Variants-Menuconfig.md`; ADR-0002 | Concluída | `client_154/main/` | Builds e hardware aprovados; suítes não executadas | Revisado |
 | Deep sleep do client | `docs/specs/Client-Deep-Sleep.md`; `docs/specs/ISSP-Configurable-Bootstrap.md`; `docs/specs/ISSP-Reusable-Components.md`; `docs/specs/Firmware-Variants-Menuconfig.md`; ADR-0002 | v0.10 e v0.11 em implementação [`In Progress`] | `components/issp_app_154`; `issp_core`; `issp_behaviors`; `issp_transport_154`; `client_154/main/` | Análises das v0.3 a v0.11 e relatórios de implementação da v0.10 e da v0.11; build canônico H2 da v0.11 executado; suítes não executadas | v0.11 implementada em código; DEEPSLEEP-AC-012 pendente de hardware |
-| Identidade de reports | `docs/specs/ISSP-Report-Identity.md`; ADR-0004 | v0.2 `Proposed`, Pronta; implementação autorizada e `In Progress` | `components/issp_core`; `issp_transport_154`; `components/issp_app_154`; `coordinator_154/main/report_data_policy.c` | Análise v0.2 Ready para `f78c6d2`; relatórios de implementação e de revisão v0.2 | Implementado e revisado; aderente com ressalvas; builds H2 e C6 verdes; execução `Not Executed` |
+| Identidade de reports | `docs/specs/ISSP-Report-Identity.md`; ADR-0004 | v0.3 `Ready`; aguardando ordem de Implementação | `components/issp_core`; `issp_transport_154`; `components/issp_app_154`; `coordinator_154/main/report_data_policy.c` | Análise v0.3 `Ready` para o conteúdo normativo de `9687287`; implementação e revisão v0.2; hardware do caminho principal relatado funcional | v0.2 implementada; v0.3 exige somente rejeição de payload excedente no coordenador; cenários adversos permanecem declarados |
 | Registry do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Implementação; validação pendente | `coordinator_154/main/device_registry*` | Build C6; 24 casos não executados | Especificado |
 | Targets e testes | `docs/specs/Repository-Test-Execution-Policy.md`; ADR-0003 | Concluída | guards CMake e test apps | 63 casos preservados e não executados; builds H2/C6 | Revisado |
 | Consolidação ISSP | `docs/specs/ISSP-Consolidation.md` | Concluída | Client e coordenador | Auditoria e hardware históricos | Revisado |
 | Protocolo wire ISSP | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0002` | v2 implementado nos dois codecs; protocolo integral ainda aberto | `issp_protocol.cpp`; `iot154_packet.h` | Vetores dourados host-native em ambos os targets | Cobertura parcial |
-| Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 implementada; correlação exige `report_id` | Transporte, executor e coordenador | Análise v0.2 Ready; relatório de implementação v0.2 | Implementado; correlação e deep sleep sem evidência física |
+| Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 implementada; correlação exige `report_id` | Transporte, executor e coordenador | Análises v0.2 e v0.3; implementação v0.2; caminho principal relatado funcional em hardware | Implementado; cenários adversos da fronteira UART ainda sem evidência |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
 
 ## 3. Árvore de conhecimento
@@ -108,7 +108,7 @@ dependência de código entre seus diretórios.
 | `EKM-GAP-0003` | Open | Matriz estável requisito–evidência incompleta | Matriz vigente e verificável | Recorte próprio |
 | `EKM-GAP-0004` | Closed | Contratos e prova de reutilização | Dois consumidores e compatibilidade comprovados | Componentes reutilizáveis |
 | `EKM-GAP-0005` | Closed | Destino dos relatórios de validação indefinido | `docs/reports/` e roteamento EKOM 3.2 adotados | Reconciliação EKOM 3.2 concluída |
-| `EKM-GAP-0006` | In Progress | Identidade e ACK v2 implementados nos dois alvos; falta evidência em hardware | Identidade e ACK v2 repetidos em hardware, com fronteira UART observada | `ISSP-Report-Identity.md`; ADR-0004 |
+| `EKM-GAP-0006` | Partial | Identidade e ACK v2 funcionais no caminho principal relatado em hardware; fronteira UART adversa ainda sem evidência | Identidade e ACK v2 repetidos em hardware, com fronteira UART adversa observada | `ISSP-Report-Identity.md`; ADR-0004 |
 | `EKM-GAP-0007` | Open | Projeto ESP-IDF da raiz não classificado | Propósito, target e autoridade definidos ou projeto retirado | Decisão arquitetural futura |
 
 Uma lacuna registrada não autoriza preenchimento por suposição.

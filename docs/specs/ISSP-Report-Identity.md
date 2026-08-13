@@ -2,15 +2,16 @@
 
 **Tipo:** Normativo
 
-**Estado normativo:** `Draft` — v0.3 em Autoria
+**Estado normativo:** `Ready` — v0.3 analisada
 
 **Estado da implementação:** v0.2 implementada e revisada; delta v0.3 pendente
 
-**Estado do workflow:** Autoria da v0.3
+**Estado do workflow:** Análise de Implementabilidade concluída; aguardando
+ordem explícita de Implementação da v0.3
 
-**Análise de implementabilidade:** pendente para a v0.3. O `Ready` da revisão
-`f78c6d2` permanece válido somente para a v0.2, conforme
-`2026-08-12-v02-implementability-analysis.md`.
+**Análise de implementabilidade:** `Ready` para o conteúdo normativo da revisão
+`9687287`, conforme `2026-08-12-v03-implementability-analysis.md`. O `Ready` de
+`f78c6d2` permanece histórico para a v0.2.
 
 **Versão:** 0.3
 
@@ -755,7 +756,8 @@ implementação contra contrato já vigente; a v0.3 apenas torna explícito o ca
 de aceite e o teste já pertencente ao AC-004.
 
 Como o item 2 altera comportamento normativo, a análise `Ready` da v0.2 não
-cobre esta revisão. A v0.3 permanece `Draft` até nova Análise de
-Implementabilidade. Depois de `Ready`, uma ordem explícita do Arquiteto inicia
-a correção no estágio de Implementação. Build continua intrínseco; execução de
-testes, flash, monitor e hardware exige permissão operacional própria.
+cobre esta revisão. A Análise de Implementabilidade própria da v0.3 classificou
+o conteúdo normativo registrado em `9687287` como `Ready`, sem bloqueador. Uma
+ordem explícita do Arquiteto para implementar a v0.3 inicia a correção no
+estágio de Implementação. Build continua intrínseco; execução de testes, flash,
+monitor e hardware exige permissão operacional própria.
