@@ -10,13 +10,8 @@ on:
         required: true
         type: string
 
-      title:
-        description: Título da demanda
-        required: true
-        type: string
-
-      request:
-        description: Descrição da necessidade
+      specification_path:
+        description: Caminho da especificação EKOM
         required: true
         type: string
 
@@ -56,6 +51,8 @@ jobs:
           PHASE: ${{ inputs.phase }}
           ALLOW_CODE_CHANGES: ${{ inputs.allow_code_changes }}
           REQUIRE_ARCHITECT_APPROVAL: ${{ inputs.require_architect_approval }}
+          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
         run: |
           set -euo pipefail
 
@@ -74,20 +71,33 @@ jobs:
             exit 1
           fi
 
+          if [ "$WORKING_BRANCH" = "main" ]; then
+            echo "A análise deve usar uma branch de trabalho."
+            exit 1
+          fi
+
+          case "$SPECIFICATION_PATH" in
+            docs/specs/*.md) ;;
+            *)
+              echo "A especificação deve estar em docs/specs/ e ser Markdown."
+              exit 1
+              ;;
+          esac
+
       - name: Registrar resumo
         env:
           CHANGE_ID: ${{ inputs.change_id }}
-          TITLE: ${{ inputs.title }}
+          SPECIFICATION_PATH: ${{ inputs.specification_path }}
           PHASE: ${{ inputs.phase }}
           WORKING_BRANCH: ${{ inputs.working_branch }}
         run: |
           {
-            echo "## Solicitação EKOM recebida"
+            echo "## Especificação EKOM submetida"
             echo
             echo "- Change ID: \`$CHANGE_ID\`"
-            echo "- Título: $TITLE"
+            echo "- Especificação: \`$SPECIFICATION_PATH\`"
             echo "- Fase: \`$PHASE\`"
-            echo "- Branch planejada: \`$WORKING_BRANCH\`"
+            echo "- Branch analisada: \`$WORKING_BRANCH\`"
             echo "- Alterações de código: não autorizadas"
             echo "- Aprovação do Arquiteto: obrigatória"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -95,7 +105,7 @@ jobs:
       - name: Baixar o repositório
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ inputs.working_branch }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -120,31 +130,26 @@ jobs:
 
             Leia primeiro o AGENTS.md do projeto e siga todas as instruções aplicáveis. As diretrizes canônicas vigentes estão disponíveis em .ekom-guidelines/. Use esse caminho no ambiente da Action quando o AGENTS.md mencionar a instalação local externa.
 
-            Demanda:
+            Submissão:
             - ID: ${{ inputs.change_id }}
-            - Título: ${{ inputs.title }}
-            - Necessidade: ${{ inputs.request }}
-            - Branch planejada: ${{ inputs.working_branch }}
+            - Especificação: ${{ inputs.specification_path }}
+            - Branch analisada: ${{ inputs.working_branch }}
 
-            Contrato funcional confirmado:
-            - capability: battery_level;
-            - valor percentual inteiro entre 0 e 100;
-            - direção: cliente para coordenador;
-            - reportada junto ao ciclo normal de report do dispositivo;
-            - não criar comunicação adicional apenas para a bateria;
-            - não é endpoint HTTP;
-            - conversão física para percentual não deve ser inventada se o
-              repositório não fornecer contrato suficiente.
+            Leia integralmente a especificação indicada. Não reconstrua o
+            contrato a partir de dados do workflow. A especificação versionada
+            na branch é a fonte normativa da demanda.
 
-            Investigue o repositório e apresente:
-            1. componentes e arquivos potencialmente impactados;
-            2. comportamento existente relevante;
-            3. restrições e precedentes arquiteturais;
-            4. incertezas e decisões ainda necessárias;
-            5. experimentos e evidências necessários;
-            6. avaliação de implementabilidade;
-            7. proposta de conteúdo para a especificação EKOM.
+            Confronte a especificação com as autoridades, arquitetura,
+            precedentes e código existentes e apresente:
+
+            1. fontes normativas e elementos afetados;
+            2. relação da mudança com cada autoridade vigente;
+            3. componentes e arquivos potencialmente impactados;
+            4. comportamento existente relevante;
+            5. restrições, incertezas e decisões necessárias;
+            6. experimentos e evidências necessários;
+            7. classificação de implementabilidade conforme o EKOM vigente.
 
             Não altere arquivos, não crie branch, não implemente código, não
-            faça commit e não faça push. Sua resposta é apenas uma análise
-            para avaliação do Arquiteto.
+            faça commit e não faça push. Sua resposta é apenas a análise para
+            avaliação do Arquiteto.
