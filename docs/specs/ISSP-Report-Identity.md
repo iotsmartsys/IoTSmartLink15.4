@@ -2,21 +2,17 @@
 
 **Tipo:** Normativo
 
-**Estado normativo:** `Proposed` — Pronta para implementação para a v0.2
+**Estado normativo:** `Draft` — v0.3 em Autoria
 
-**Estado da implementação:** `In Progress`
+**Estado da implementação:** v0.2 implementada e revisada; delta v0.3 pendente
 
-**Estado do workflow:** implementação autorizada e em andamento
+**Estado do workflow:** Autoria da v0.3
 
-**Análise de implementabilidade:** `Ready` para a revisão `f78c6d2`, conforme
-`2026-08-12-v02-implementability-analysis.md`; a v0.1 foi classificada
-`Not Ready — Specification Defect`. Entre `f78c6d2` e a revisão implementada,
-esta fonte mudou somente em campos de estado, sem alteração normativa.
+**Análise de implementabilidade:** pendente para a v0.3. O `Ready` da revisão
+`f78c6d2` permanece válido somente para a v0.2, conforme
+`2026-08-12-v02-implementability-analysis.md`.
 
-**Autorização de implementação desta versão:** concedida pelo Arquiteto por
-ordem explícita de implementar a v0.2
-
-**Versão:** 0.2
+**Versão:** 0.3
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -197,9 +193,10 @@ Invariantes:
 ### 6.1 Corte de versão
 
 `IOT154_VERSION` e a versão equivalente no core passam de 1 para 2. Todos os
-tipos atuais usam payload fixo de 20 bytes. Frames v1, comprimentos diferentes
-e combinações inválidas são rejeitados; não há fallback, tradução ou operação
-mista silenciosa.
+tipos atuais usam payload fixo de 20 bytes. Frames v1, comprimentos menores ou
+maiores que 20 bytes e combinações inválidas são rejeitados pelos dois targets;
+não há fallback, tradução, bytes adicionais ignorados ou operação mista
+silenciosa.
 
 O deployment é uma janela coordenada de manutenção: atualizar coordenador e
 clients para v2. Atualizar somente um lado causa indisponibilidade temporária,
@@ -426,21 +423,26 @@ Este recorte não torna uma origem conhecida a partir de `DATA` e não cria cach
 persistente ou slot de deduplicação para origem desconhecida.
 
 Quando a política vigente aceitar `DATA` desconhecido durante janela aberta, o
-coordenador valida `report_id`, encaminha e ACKa conforme o comportamento
-existente, mas não promete deduplicação entre retries. Fechada a janela, ou com
-registry indisponível, preserva a rejeição vigente sem evento e sem ACK.
+coordenador valida `report_id` e aplica a mesma aceitação local sem espera da
+seção 8.2: só ACKa depois que JSON e delimitador forem aceitos integralmente
+pela UART. Lock indisponível, consulta falha, espaço insuficiente ou retorno
+inesperado não produzem ACK; o client pode tentar novamente. Não existe cache
+nem promessa de deduplicação entre retries de origem desconhecida. Fechada a
+janela, ou com registry indisponível, preserva a rejeição vigente sem evento e
+sem ACK.
 
-Essa assimetria é deliberada: alterar a aceitação operacional durante
-commissioning pertence à especificação do registry. Se a análise considerar
-deduplicação de desconhecidos necessária ao objetivo, deve bloquear e devolver
-ao Arquiteto em vez de criar estado paralelo.
+A assimetria de deduplicação é deliberada. A especificação do registry continua
+dona da decisão de admitir ou rejeitar origem desconhecida; este contrato só
+governa a aceitação local e o ACK depois que essa admissão ocorrer. Se a análise
+considerar deduplicação de desconhecidos necessária ao objetivo, deve bloquear
+e devolver ao Arquiteto em vez de criar estado paralelo.
 
 ### 8.4 Evento ao host
 
 Eventos `direction:"evt"` acrescentam:
 
 ```json
-{"event_id":"00124b0000000001:0123456789ABCDEF"}
+{"device_id":"issp154-00124B0000000001","event_id":"issp154-00124B0000000001:0123456789ABCDEF"}
 ```
 
 O formato canônico é `<device_id textual>:<report_id com 16 dígitos
@@ -573,7 +575,8 @@ crítica.
 
 **REPORT-ID-AC-004 — vetores wire v2.** Client C++ e coordenador C coincidem
 byte a byte para cada tipo, checksum, little-endian, ID zero/não nulo e valores
-de fronteira. v1, tamanhos e combinações inválidas são rejeitados.
+de fronteira. v1, payload truncado, payload excedente e combinações inválidas
+são rejeitados pelos dois parsers.
 
 **REPORT-ID-AC-005 — correlação.** ACK de report só conclui com origem,
 device, sequência, ID, endpoint e status válidos; ACK atrasado ou de comando
@@ -631,6 +634,8 @@ com `report_id == 0` fora do fluxo de DATA.
 ### 14.1 Evidência host-native sem execução física
 
 - vetores dourados em ambos os codecs para AC-004 e AC-015;
+- no codec do coordenador, caso explícito de payload menor e maior que 20 bytes
+  para AC-004, sem criar suíte paralela;
 - teste de formatação para AC-011;
 - policy/core privado extraído do coordenador, com efeitos substituíveis, para
   AC-006 a AC-010 e AC-012.
@@ -731,20 +736,26 @@ aumento de reservas, API além da DEC-010 ou alteração funcional do deep sleep
 Nesses casos deve recomendar especificação complementar, não acumular a mudança
 nesta fonte.
 
-## 17. Estado e gates de entrada
+## 17. Estado do workflow
 
-O Arquiteto promoveu esta v0.2 para `Proposed`, Pronta para implementação, com
-base na análise independente `Ready` da revisão `f78c6d2`. A análise da v0.1
-não satisfaz esta versão. ADR-0004 registra a decisão arquitetural, mas não
-substitui os gates do workflow.
+A v0.2 recebeu análise `Ready`, foi implementada e passou pela Revisão. A
+evidência de hardware do caminho principal foi relatada pelo Arquiteto como
+funcional, sem converter automaticamente cenários adversos não executados em
+sucesso.
 
-Os gates da revisão corrente são:
+A Revisão devolveu dois ajustes normativos incorporados nesta v0.3:
 
-1. análise independente `Ready`: **presente**;
-2. promoção explícita pelo Arquiteto para Pronta: **presente**;
-3. autorização explícita de implementação desta versão: **presente**, por ordem
-   explícita do Arquiteto para implementar a v0.2.
+1. o exemplo de `event_id` passa a usar exatamente a forma textual existente de
+   `device_id`, preservando a implementação;
+2. a aceitação UART sem espera e a regra “aceitar localmente antes de ACKar”
+   passam a abranger também origem desconhecida admitida durante commissioning.
 
-Com os três gates satisfeitos, a implementação está autorizada e inclui o build
-canônico dos entregáveis construíveis afetados. Coleta ou execução de testes,
-flash, monitor e hardware continuam exigindo autorização própria.
+O parser do coordenador aceitar payload maior que 20 bytes permanece defeito de
+implementação contra contrato já vigente; a v0.3 apenas torna explícito o caso
+de aceite e o teste já pertencente ao AC-004.
+
+Como o item 2 altera comportamento normativo, a análise `Ready` da v0.2 não
+cobre esta revisão. A v0.3 permanece `Draft` até nova Análise de
+Implementabilidade. Depois de `Ready`, uma ordem explícita do Arquiteto inicia
+a correção no estágio de Implementação. Build continua intrínseco; execução de
+testes, flash, monitor e hardware exige permissão operacional própria.

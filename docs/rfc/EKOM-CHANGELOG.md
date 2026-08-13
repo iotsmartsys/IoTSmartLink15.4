@@ -489,3 +489,46 @@ REPORT-ID-AC-003 não tem oráculo de concorrência real nem da fonte fora do
 porque a costura substitui o evento inteiro; e `publishReport()` não revalida a
 identidade contra os slots ocupados, risco residual só alcançável com gerador
 determinístico. A revisão não executou build, teste nem hardware.
+
+Em 12/08/2026 o Arquiteto relatou que a implementação foi exercitada em
+hardware e se comportou como esperado no caminho principal. Esse relato
+sustenta a funcionalidade observada, mas não substitui os cenários adversos
+explicitamente não executados pela Revisão.
+
+A Autoria incorporou os dois ajustes normativos devolvidos pela Revisão e abriu
+a v0.3 em `Draft`: o exemplo de `event_id` agora reutiliza exatamente a forma
+textual do `device_id`, e a aceitação UART sem espera antes do ACK passa a valer
+também para origem desconhecida admitida durante commissioning. O contrato de
+20 bytes foi explicitado para rejeitar tanto truncamento quanto excedente, e o
+caso excedente foi vinculado à suíte já contratada do codec do coordenador.
+
+Como a aceitação de origem desconhecida mudou normativamente, o `Ready` da v0.2
+não cobre a v0.3. A próxima etapa é Análise de Implementabilidade do delta; não
+há autorização de correção da v0.3 nesta atuação de Autoria.
+
+A análise do delta está em
+`docs/reports/report-identity/analysis/2026-08-12-v03-implementability-analysis.md`
+e classifica a v0.3 como `Pronta`. Das três mudanças normativas, duas já estão
+satisfeitas pela implementação vigente e não geram trabalho: o exemplo do
+`event_id` passou a descrever o que `format_device_id()` e
+`iot154_format_event_id()` já produzem, e a aceitação sem espera para origem
+desconhecida já é o caminho único de evento desde `22e5e10`, com resultado, log
+e caso de teste próprios. A regra da seção 8.3 preenche a célula que a matriz
+9.1 do registry deixou deliberadamente aberta, sem persistir, sem criar entrada
+e sem tornar a origem conhecida, de modo que não há conflito de autoridade.
+
+Resta a recusa de payload excedente no coordenador, verificada em duas cópias da
+mesma condição — `iot154_parse_frame_info()` e `diagnostic_extract_mac()` — mais
+dois casos host-native na suíte de vetores já contratada. A igualdade estrita foi
+confrontada contra os seis formatos de frame dos dois targets, todos com
+`frame[0] == mac_header_len + 20 + 2`, de modo que nenhum frame legítimo passa a
+ser rejeitado; frames v1 continuam recusados pelo mínimo já existente.
+
+Seis observações acompanham o relatório, todas não bloqueantes: a seção 4 ainda
+exclui de forma mais ampla que a seção 8.3 o tráfego de origem desconhecida; o
+coordenador não distingue v1 de truncamento, contra a seção 11; a verificação de
+comprimento está duplicada; a contenção do lock UART passa a alcançar a janela de
+ingresso; A4, A5 e A6 da Revisão seguem abertos e intocados pelo delta; e a v0.3
+foi analisada na árvore de trabalho, sem commit ao qual vincular o `Ready`,
+enquanto o `KNOWLEDGE-MAP.md` ainda descreve a identidade de reports como v0.2
+`Proposed` com implementação `In Progress`.
