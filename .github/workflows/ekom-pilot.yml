@@ -99,6 +99,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Baixar diretrizes EKOM vigentes
+        uses: actions/checkout@v5
+        with:
+          repository: iotsmartsys/EKM-guidelines
+          ref: main
+          path: .ekom-guidelines
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Executar análise EKOM
         id: codex_analysis
         uses: openai/codex-action@v1
@@ -107,11 +116,9 @@ jobs:
           sandbox: read-only
           codex-args: '["--ephemeral"]'
           prompt: |
-            Atue somente na fase de autoria e análise de implementabilidade
-            do EKOM 3.2.
+            Atue somente na fase de autoria e análise de implementabilidadeda versão vigente do EKOM.
 
-            Leia primeiro o AGENTS.md e siga todas as instruções aplicáveis
-            do repositório.
+            Leia primeiro o AGENTS.md do projeto e siga todas as instruções aplicáveis. As diretrizes canônicas vigentes estão disponíveis em .ekom-guidelines/. Use esse caminho no ambiente da Action quando o AGENTS.md mencionar a instalação local externa.
 
             Demanda:
             - ID: ${{ inputs.change_id }}
