@@ -91,3 +91,53 @@ jobs:
             echo "- Alterações de código: não autorizadas"
             echo "- Aprovação do Arquiteto: obrigatória"
           } >> "$GITHUB_STEP_SUMMARY"
+            
+      - name: Baixar o repositório
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Executar análise EKOM
+        id: codex_analysis
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: read-only
+          codex-args: '["--ephemeral"]'
+          prompt: |
+            Atue somente na fase de autoria e análise de implementabilidade
+            do EKOM 3.2.
+
+            Leia primeiro o AGENTS.md e siga todas as instruções aplicáveis
+            do repositório.
+
+            Demanda:
+            - ID: ${{ inputs.change_id }}
+            - Título: ${{ inputs.title }}
+            - Necessidade: ${{ inputs.request }}
+            - Branch planejada: ${{ inputs.working_branch }}
+
+            Contrato funcional confirmado:
+            - capability: battery_level;
+            - valor percentual inteiro entre 0 e 100;
+            - direção: cliente para coordenador;
+            - reportada junto ao ciclo normal de report do dispositivo;
+            - não criar comunicação adicional apenas para a bateria;
+            - não é endpoint HTTP;
+            - conversão física para percentual não deve ser inventada se o
+              repositório não fornecer contrato suficiente.
+
+            Investigue o repositório e apresente:
+            1. componentes e arquivos potencialmente impactados;
+            2. comportamento existente relevante;
+            3. restrições e precedentes arquiteturais;
+            4. incertezas e decisões ainda necessárias;
+            5. experimentos e evidências necessários;
+            6. avaliação de implementabilidade;
+            7. proposta de conteúdo para a especificação EKOM.
+
+            Não altere arquivos, não crie branch, não implemente código, não
+            faça commit e não faça push. Sua resposta é apenas uma análise
+            para avaliação do Arquiteto.
