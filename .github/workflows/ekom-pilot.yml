@@ -1,0 +1,93 @@
+name: EKOM Pilot
+
+run-name: "EKOM · ${{ inputs.change_id }} · ${{ inputs.phase }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      change_id:
+        description: Identificador da demanda EKOM
+        required: true
+        type: string
+
+      title:
+        description: Título da demanda
+        required: true
+        type: string
+
+      request:
+        description: Descrição da necessidade
+        required: true
+        type: string
+
+      phase:
+        description: Fase solicitada
+        required: true
+        type: string
+
+      working_branch:
+        description: Branch de trabalho
+        required: true
+        type: string
+
+      allow_code_changes:
+        description: Autoriza alterações de código
+        required: true
+        type: boolean
+        default: false
+
+      require_architect_approval:
+        description: Exige aprovação do Arquiteto
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validar solicitação EKOM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validar controles da fase
+        env:
+          PHASE: ${{ inputs.phase }}
+          ALLOW_CODE_CHANGES: ${{ inputs.allow_code_changes }}
+          REQUIRE_ARCHITECT_APPROVAL: ${{ inputs.require_architect_approval }}
+        run: |
+          set -euo pipefail
+
+          if [ "$PHASE" != "analysis" ]; then
+            echo "Esta versão do piloto aceita somente a fase analysis."
+            exit 1
+          fi
+
+          if [ "$ALLOW_CODE_CHANGES" != "false" ]; then
+            echo "A fase analysis não permite alterações de código."
+            exit 1
+          fi
+
+          if [ "$REQUIRE_ARCHITECT_APPROVAL" != "true" ]; then
+            echo "A aprovação do Arquiteto é obrigatória."
+            exit 1
+          fi
+
+      - name: Registrar resumo
+        env:
+          CHANGE_ID: ${{ inputs.change_id }}
+          TITLE: ${{ inputs.title }}
+          PHASE: ${{ inputs.phase }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
+        run: |
+          {
+            echo "## Solicitação EKOM recebida"
+            echo
+            echo "- Change ID: \`$CHANGE_ID\`"
+            echo "- Título: $TITLE"
+            echo "- Fase: \`$PHASE\`"
+            echo "- Branch planejada: \`$WORKING_BRANCH\`"
+            echo "- Alterações de código: não autorizadas"
+            echo "- Aprovação do Arquiteto: obrigatória"
+          } >> "$GITHUB_STEP_SUMMARY"
