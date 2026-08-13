@@ -557,3 +557,18 @@ distingue frame v1 de truncamento, contra a seção 11 e anterior a este delta
 (O2); e a seção 4 da especificação continua excluindo de forma mais ampla que a
 seção 8.3 o tráfego de origem desconhecida durante commissioning (O1). A próxima
 etapa é a Revisão do delta.
+
+A Revisão da implementação v0.3 está em
+`docs/reports/report-identity/review/2026-08-12-v03-review.md`. O delta D3 foi
+classificado como aderente: decisão e diagnóstico exigem comprimento exato, o
+caso contratado cobre um byte a menos e a mais na função de produção e não
+houve ampliação de API, arquitetura, reserva ou deep sleep. D1 e D2 permanecem
+coerentes por leitura.
+
+A versão integral ainda não sustenta `Done`. A Revisão confirmou como defeito
+da especificação a contradição entre a exclusão ampla da seção 4 e a regra
+específica da seção 8.3; confirmou como defeito de implementação a ausência do
+diagnóstico próprio para frame v1 exigido pela seção 11; e preservou como
+evidência insuficiente a concorrência da AC-003, a fronteira UART da AC-007 e a
+execução do novo caso de comprimento. A recomendação é retornar à Autoria,
+corrigir o diagnóstico na Implementação e realizar Revisão curta posterior.
