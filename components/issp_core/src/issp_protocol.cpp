@@ -5,8 +5,10 @@ namespace issp
 namespace
 {
 
-// Mirrors the current packed ISSP wire format during the C-to-C++ transition.
-constexpr std::uint8_t kProtocolVersion = 1;
+// ISSP v2 packed wire format. The client codec and the coordinator codec are
+// separate implementations of this same table and are kept byte-for-byte
+// compatible by shared golden vectors, never by sharing code across targets.
+constexpr std::uint8_t kProtocolVersion = 2;
 constexpr std::uint8_t kDataMessageType = 1;
 constexpr std::uint8_t kAckMessageType = 2;
 constexpr std::uint8_t kDiscoveryRequestMessageType = 3;
@@ -16,10 +18,11 @@ constexpr std::size_t kVersionOffset = 0;
 constexpr std::size_t kMessageTypeOffset = 1;
 constexpr std::size_t kDeviceIdOffset = 2;
 constexpr std::size_t kSequenceOffset = 6;
-constexpr std::size_t kEndpointIdOffset = 8;
-constexpr std::size_t kEventTypeOffset = 9;
-constexpr std::size_t kValueOffset = 10;
-constexpr std::size_t kChecksumOffset = 11;
+constexpr std::size_t kReportIdOffset = 8;
+constexpr std::size_t kEndpointIdOffset = 16;
+constexpr std::size_t kEventTypeOffset = 17;
+constexpr std::size_t kValueOffset = 18;
+constexpr std::size_t kChecksumOffset = 19;
 
 constexpr std::uint8_t kAckStatusOk = 0;
 constexpr std::uint8_t kAckStatusUnsupported = 1;
@@ -37,6 +40,26 @@ std::uint16_t readUint16LittleEndian(const std::uint8_t *data)
 {
     return static_cast<std::uint16_t>(data[0]) |
            static_cast<std::uint16_t>(static_cast<std::uint16_t>(data[1]) << 8U);
+}
+
+std::uint64_t readUint64LittleEndian(const std::uint8_t *data)
+{
+    std::uint64_t value = 0;
+    for (std::size_t index = 0; index < 8U; ++index)
+    {
+        value |= static_cast<std::uint64_t>(data[index])
+                 << (8U * static_cast<unsigned>(index));
+    }
+    return value;
+}
+
+void writeUint64LittleEndian(std::uint8_t *output, std::uint64_t value)
+{
+    for (std::size_t index = 0; index < 8U; ++index)
+    {
+        output[index] = static_cast<std::uint8_t>(
+            value >> (8U * static_cast<unsigned>(index)));
+    }
 }
 
 void writeUint32LittleEndian(std::uint8_t *output, std::uint32_t value)
@@ -132,6 +155,7 @@ IsspResult encodeDiscoveryRequest(
     output[kMessageTypeOffset] = kDiscoveryRequestMessageType;
     writeUint32LittleEndian(&output[kDeviceIdOffset], deviceId);
     writeUint16LittleEndian(&output[kSequenceOffset], sequence);
+    writeUint64LittleEndian(&output[kReportIdOffset], 0);
     output[kEndpointIdOffset] = 0;
     output[kEventTypeOffset] = 0;
     output[kValueOffset] = 0;
@@ -153,7 +177,8 @@ IsspResult decodeDiscoveryResponse(
 
     if (data[kVersionOffset] != kProtocolVersion ||
         data[kChecksumOffset] != calculateChecksum(data, kChecksumOffset) ||
-        data[kMessageTypeOffset] != kDiscoveryResponseMessageType)
+        data[kMessageTypeOffset] != kDiscoveryResponseMessageType ||
+        readUint64LittleEndian(&data[kReportIdOffset]) != 0U)
     {
         return IsspResult::Failed;
     }
@@ -187,6 +212,7 @@ IsspResult decodeCommand(
     if (data[kVersionOffset] != kProtocolVersion ||
         data[kChecksumOffset] != calculateChecksum(data, kChecksumOffset) ||
         data[kMessageTypeOffset] != kCommandMessageType ||
+        readUint64LittleEndian(&data[kReportIdOffset]) != 0U ||
         readUint32LittleEndian(&data[kDeviceIdOffset]) != expectedDeviceId)
     {
         return IsspResult::Failed;
@@ -231,6 +257,7 @@ IsspResult decodeAck(
     decodedAck = {
         .deviceId = readUint32LittleEndian(&data[kDeviceIdOffset]),
         .sequence = readUint16LittleEndian(&data[kSequenceOffset]),
+        .reportId = readUint64LittleEndian(&data[kReportIdOffset]),
         .endpointId = data[kEndpointIdOffset],
         .status = status,
     };
@@ -276,9 +303,17 @@ IsspResult decodeReport(
         return IsspResult::Failed;
     }
 
+    // Invariant 1: report_id == 0 never identifies a DATA frame.
+    const std::uint64_t reportId = readUint64LittleEndian(&data[kReportIdOffset]);
+    if (reportId == 0U)
+    {
+        return IsspResult::Failed;
+    }
+
     decodedReport = {
         .deviceId = readUint32LittleEndian(&data[kDeviceIdOffset]),
         .sequence = readUint16LittleEndian(&data[kSequenceOffset]),
+        .reportId = reportId,
         .report = {
             .endpointId = data[kEndpointIdOffset],
             .eventType = data[kEventTypeOffset],
@@ -327,6 +362,8 @@ IsspResult encodeCommandAck(
     output[kMessageTypeOffset] = kAckMessageType;
     writeUint32LittleEndian(&output[kDeviceIdOffset], deviceId);
     writeUint16LittleEndian(&output[kSequenceOffset], sequence);
+    // A command ACK is identified on the single wire ACK type by a zero ID.
+    writeUint64LittleEndian(&output[kReportIdOffset], 0);
     output[kEndpointIdOffset] = endpointId;
     output[kEventTypeOffset] = 0;
     output[kValueOffset] = ackStatusToWireValue(commandResultToAckStatus(commandResult));
@@ -338,12 +375,13 @@ IsspResult encodeCommandAck(
 IsspResult encodeReport(
     std::uint32_t deviceId,
     std::uint16_t sequence,
+    std::uint64_t reportId,
     const IsspReport &report,
     std::uint8_t *output,
     std::size_t outputCapacity,
     std::size_t &outputLength)
 {
-    if (output == nullptr || outputCapacity < IsspPayloadSize)
+    if (output == nullptr || outputCapacity < IsspPayloadSize || reportId == 0U)
     {
         return IsspResult::InvalidArgument;
     }
@@ -352,6 +390,7 @@ IsspResult encodeReport(
     output[kMessageTypeOffset] = kDataMessageType;
     writeUint32LittleEndian(&output[kDeviceIdOffset], deviceId);
     writeUint16LittleEndian(&output[kSequenceOffset], sequence);
+    writeUint64LittleEndian(&output[kReportIdOffset], reportId);
     output[kEndpointIdOffset] = report.endpointId;
     output[kEventTypeOffset] = report.eventType;
     output[kValueOffset] = report.value;

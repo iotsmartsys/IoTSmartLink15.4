@@ -52,6 +52,56 @@ struct PushButtonConfig
     std::uint32_t pollIntervalMs;
 };
 
+enum class DeepSleepTimeUnit : std::uint8_t
+{
+    Minutes,
+    Hours,
+};
+
+enum class WakeLedOnMode : std::uint8_t
+{
+    DurationMs,
+    UntilSleep,
+};
+
+struct TimerWakeupConfig
+{
+    bool enabled;
+    std::uint32_t interval;
+    DeepSleepTimeUnit unit;
+};
+
+struct WakeLedConfig
+{
+    bool enabled;
+    gpio_num_t pin;
+    bool activeHigh;
+    WakeLedOnMode onMode;
+    std::uint32_t onTimeMs;
+};
+
+// The product hands over the GPIO it received from the board model; the facade
+// never discovers pinout on its own. It carries no logical polarity: the
+// rearming is electrical -- the level read at the start of the terminal
+// sequence decides the opposite level armed on EXT1 -- so a polarity field
+// would have no effect.
+struct ContactWakeupConfig
+{
+    bool enabled;
+    gpio_num_t pin;
+};
+
+struct DeepSleepConfig
+{
+    bool enabled;
+    std::uint32_t maxAwakeTimeMs;
+    TimerWakeupConfig timerWakeup;
+    WakeLedConfig wakeLed;
+    // Appended last, so a composition that does not declare it stays valid and
+    // the field remains inert.
+    ContactWakeupConfig contactWakeup;
+};
+
 } // namespace iotsmartsys::app
 
 namespace iotsmartsys::core
@@ -149,6 +199,34 @@ public:
         AppResult (*startReportExecutor)(void *context);
         void (*rollbackTransport)(void *context);
         void *context;
+
+        // Deep-sleep seam (specification section 7, DEEPSLEEP-AC-010). It lets
+        // the lifecycle, the validation and the failures be verified with
+        // doubles; like the steps above it is not part of the normative product
+        // contract. Every entry left null keeps the target-agnostic default:
+        // the runtime steps behind hardwareStorage_ are skipped as a successful
+        // no-op -- which is also the contract when the corresponding object was
+        // never started -- while the wakeup source and the sleep entry fall back
+        // to the real ESP-IDF calls.
+        AppResult (*beginDeviceQuiescence)(void *context);
+        // Ok when the executor task terminated inside its bounded wait, Busy
+        // when that wait expired; Busy suppresses the transport shutdown.
+        AppResult (*stopReportExecutor)(void *context);
+        void (*endTransport)(void *context);
+        std::size_t (*pendingReportCount)(void *context);
+        void (*stopResetButtonMonitor)(void *context);
+        AppResult (*prepareTimerWakeup)(void *context, std::uint64_t sleepUs);
+        // Prepares the dry-contact source: reapplies to the pad the input mode
+        // and the pull of the matching capability, reads the electrical level
+        // and arms the external wakeup for the opposite one. Null falls back to
+        // the real ESP-IDF calls.
+        AppResult (*prepareContactWakeup)(void *context, gpio_num_t pin,
+                                          app::DigitalInputPull pull);
+        void (*enterDeepSleep)(void *context);
+        // Zero derives the limit from the target capabilities and from the slow
+        // clock source fixed by the project; a non-zero value is only honoured
+        // by doubles and creates no normative API.
+        std::uint64_t maxTimerWakeupUs;
     };
 
     explicit SmartSysApp(const app::SmartSysAppConfig &config);
@@ -169,6 +247,12 @@ public:
     AppResult
     configureFactoryResetButton(const app::PushButtonConfig &config);
 
+    // Opt-in to deep sleep for a battery-powered client. Accepted only once and
+    // only while Configuring; the configuration is copied and no resource is
+    // started before setup(). Absence of the call, or enabled=false, preserves
+    // the current runtime and touches neither GPIO nor wakeup sources.
+    AppResult configureDeepSleep(const app::DeepSleepConfig &config);
+
     SetupResult setup();
 
     AppState state() const;
@@ -186,8 +270,11 @@ public:
 
     // Sized generously and verified by a static_assert against the real
     // Impl definition in smart_sys_app.cpp. Public only because it sizes a
-    // private member; it names no protocol or transport type.
-    static constexpr std::size_t kImplStorageBytes = 10240;
+    // private member; it names no protocol or transport type. It also covers
+    // the statically allocated stack of the private power-lifecycle task, which
+    // exists in every composition even when deep sleep is not configured,
+    // because the project allocates task stacks statically.
+    static constexpr std::size_t kImplStorageBytes = 16384;
 
 private:
     Impl &impl();

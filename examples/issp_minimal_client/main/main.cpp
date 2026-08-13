@@ -12,6 +12,17 @@ namespace
 constexpr std::uint32_t kExampleDeviceId = 0x15400002;
 constexpr std::uint8_t kExampleEndpointId = 1;
 constexpr std::uint8_t kExampleEventType = 2;
+
+// A consumer supplies its own source of report identities. The example is a
+// compile/link integration proof and never publishes, so a deterministic
+// counter is enough and keeps the example free of platform randomness.
+std::uint64_t exampleReportId(void *context)
+{
+    (void)context;
+    static std::uint64_t next = 0;
+    ++next;
+    return next;
+}
 }
 
 // Constructing and configuring the facade proves compile and link
@@ -35,6 +46,8 @@ extern "C" void app_main()
     };
     static const issp::IsspDeviceConfig deviceConfig = {
         .deviceId = kExampleDeviceId,
+        .reportIdGenerator = &exampleReportId,
+        .reportIdGeneratorContext = nullptr,
     };
     static const issp::DigitalOutputConfig behaviorConfig = {
         .endpointId = kExampleEndpointId,

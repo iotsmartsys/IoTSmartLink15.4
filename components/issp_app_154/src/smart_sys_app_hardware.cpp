@@ -15,6 +15,7 @@
 
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_random.h"
 #include "issp154_network_manager.hpp"
 #include "issp154_report_executor.hpp"
 #include "issp154_transport.hpp"
@@ -88,6 +89,19 @@ HardwareState &hardwareOf(SmartSysApp::Impl *impl)
     return *std::launder(reinterpret_cast<HardwareState *>(impl->hardwareStorage_));
 }
 
+/// Production source of report identities. It lives in the facade, not in
+/// issp_core: the core stays free of ESP-IDF headers for this purpose, and the
+/// randomness is not claimed to be cryptographic. It is only ever called
+/// outside the device critical section, so the busy wait esp_random() may
+/// perform on the H2 cannot block another publisher inside the portMUX.
+std::uint64_t generateReportId(void *context)
+{
+    (void)context;
+    std::uint64_t reportId = 0;
+    esp_fill_random(&reportId, sizeof(reportId));
+    return reportId;
+}
+
 esp_err_t clearNetworkConfiguration(void *context)
 {
     if (context == nullptr)
@@ -131,12 +145,26 @@ AppResult SmartSysApp::Impl::realInitializePlatform(void *context)
     };
     hardware.transport.emplace(transportConfig);
     hardware.networkManager.emplace(*hardware.transport, self->config_.deviceId);
-    hardware.device.emplace(issp::IsspDeviceConfig{self->config_.deviceId}, *hardware.transport);
+    hardware.device.emplace(
+        issp::IsspDeviceConfig{
+            .deviceId = self->config_.deviceId,
+            .reportIdGenerator = &generateReportId,
+            .reportIdGeneratorContext = nullptr,
+        },
+        *hardware.transport);
     hardware.reportExecutor.emplace(*hardware.device, *hardware.transport);
 
     if (self->factoryResetConfigured_)
     {
-        hardware.factoryResetService.emplace(&clearNetworkConfiguration, self);
+        // The service only requests the single power transition; the facade owns
+        // the three-state holder, so the network-binding cleanup and the commit
+        // of a deep sleep can never overlap.
+        const FactoryResetArbiter arbiter = {
+            .acquire = &Impl::acquireFactoryResetTransition,
+            .release = &Impl::releaseFactoryResetTransition,
+            .context = self,
+        };
+        hardware.factoryResetService.emplace(&clearNetworkConfiguration, self, arbiter);
         const ResetButtonConfig resetConfig = {
             .gpio = self->factoryResetConfig_.pin,
             .holdTimeMs = self->factoryResetConfig_.holdTimeMs,
@@ -190,6 +218,76 @@ void SmartSysApp::Impl::realRollbackTransport(void *context)
     const issp::IsspResult result = hardware.transport->end();
     ESP_LOGI("SmartSysApp", "app_setup rollback transport=%u",
              static_cast<unsigned>(result));
+}
+
+// --- deep sleep seam, wired to the real runtime objects ------------------
+//
+// Each of these is the terminal, idempotent operation authorized for the
+// preparation of deep sleep. They never destroy an object and never allow a
+// restart in the same boot; when the corresponding object was never started
+// they are a successful no-op, which is what makes the sequence safe after a
+// setup() that failed past InitializePlatform.
+
+AppResult SmartSysApp::Impl::realBeginDeviceQuiescence(void *context)
+{
+    auto *self = static_cast<Impl *>(context);
+    HardwareState &hardware = hardwareOf(self);
+    if (!hardware.device.has_value())
+    {
+        return AppResult::Ok;
+    }
+    return mapIsspResult(hardware.device->beginQuiescence());
+}
+
+AppResult SmartSysApp::Impl::realStopReportExecutor(void *context)
+{
+    auto *self = static_cast<Impl *>(context);
+    HardwareState &hardware = hardwareOf(self);
+    if (!hardware.reportExecutor.has_value())
+    {
+        return AppResult::Ok;
+    }
+    return mapIsspResult(hardware.reportExecutor->stop());
+}
+
+void SmartSysApp::Impl::realEndTransport(void *context)
+{
+    auto *self = static_cast<Impl *>(context);
+    HardwareState &hardware = hardwareOf(self);
+    if (!hardware.transport.has_value())
+    {
+        return;
+    }
+    const issp::IsspResult result = hardware.transport->end();
+    ESP_LOGI("SmartSysApp", "deep_sleep transport_end result=%u",
+             static_cast<unsigned>(result));
+}
+
+std::size_t SmartSysApp::Impl::realPendingReportCount(void *context)
+{
+    auto *self = static_cast<Impl *>(context);
+    HardwareState &hardware = hardwareOf(self);
+    if (!hardware.device.has_value())
+    {
+        return 0;
+    }
+    return hardware.device->pendingReportCount();
+}
+
+void SmartSysApp::Impl::realStopResetButtonMonitor(void *context)
+{
+    auto *self = static_cast<Impl *>(context);
+    HardwareState &hardware = hardwareOf(self);
+    if (!hardware.resetButtonMonitor.has_value())
+    {
+        return;
+    }
+    const esp_err_t result = hardware.resetButtonMonitor->stop();
+    if (result != ESP_OK)
+    {
+        ESP_LOGW("SmartSysApp", "deep_sleep reset_monitor_stop result=%s",
+                 esp_err_to_name(result));
+    }
 }
 
 SmartSysApp::SmartSysApp(const app::SmartSysAppConfig &config)

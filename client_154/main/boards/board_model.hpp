@@ -26,11 +26,24 @@ enum class InputPull : std::uint8_t
     PullDown,
 };
 
+// A board that also offers the dry_contact_wakeup resource (declared in the
+// CMake composition, not here) states that this same pin is eligible as an
+// external wakeup source on its target. The physical capability stays with the
+// board; using it as a wakeup source stays a product policy.
 struct DryContactInputResource
 {
     gpio_num_t pin;
     bool activeHigh;
     InputPull pull;
+};
+
+// Indicator lit on every operational boot of a battery-powered product. The
+// board owns only the GPIO and the electrical polarity; the duration and the
+// on mode are product policy.
+struct WakeLedResource
+{
+    gpio_num_t pin;
+    bool activeHigh;
 };
 
 // A selected board defines only the accessors for resources it offers. CMake
@@ -40,5 +53,6 @@ struct DryContactInputResource
 const DigitalOutputResource &selectedDigitalOutput();
 const UserButtonResource &selectedUserButton();
 const DryContactInputResource &selectedDryContactInput();
+const WakeLedResource &selectedWakeLed();
 
 } // namespace client154

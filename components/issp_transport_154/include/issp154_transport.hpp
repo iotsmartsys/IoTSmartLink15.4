@@ -36,6 +36,9 @@ struct Issp154AckExpectation
 {
     std::uint32_t deviceId;
     std::uint16_t sequence;
+    /// Identity of the logical report the attempt belongs to. Non-zero for a
+    /// report expectation; an ACK carrying a different or zero ID is not it.
+    std::uint64_t reportId;
     std::uint8_t endpointId;
 };
 

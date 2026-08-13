@@ -8,7 +8,9 @@
 namespace issp
 {
 
-constexpr std::size_t IsspPayloadSize = 12;
+/// ISSP v2 fixed payload. The 8-byte report_id at offset 8 replaces the v1
+/// layout; there is no fallback, translation or mixed operation with v1.
+constexpr std::size_t IsspPayloadSize = 20;
 
 IsspResult encodeDiscoveryRequest(
     std::uint32_t deviceId,
@@ -59,9 +61,11 @@ IsspResult encodeCommandAck(
     std::size_t outputCapacity,
     std::size_t &outputLength);
 
+/// A report carries its logical identity: reportId must be non-zero.
 IsspResult encodeReport(
     std::uint32_t deviceId,
     std::uint16_t sequence,
+    std::uint64_t reportId,
     const IsspReport &report,
     std::uint8_t *output,
     std::size_t outputCapacity,

@@ -1,6 +1,6 @@
 # Instruções permanentes e roteamento EKOM
 
-**Modelo EKOM:** 3.2
+**Modelo EKOM:** 3.6
 
 **Modalidade:** capacidades referenciadas e governança proporcional
 
@@ -36,6 +36,12 @@ Análise de implementabilidade é obrigatória antes da implementação, mas pod
 ser executada na mesma atuação quando autorizada. Challenge é consultivo e
 proporcional ao risco, não um gate universal.
 
+Implementação exige análise `Ready`, promoção registrada e autorização da mesma
+versão. Com esses gates satisfeitos, o build canônico dos entregáveis
+construíveis afetados integra a implementação e não exige cláusula na
+especificação. Coleta ou execução de testes, flash, monitor e hardware exigem
+autorização própria.
+
 ## Fontes locais do projeto
 
 - especificações: `docs/specs/`;
@@ -56,7 +62,10 @@ proporcional ao risco, não um gate universal.
 - Os únicos targets físicos admitidos são ESP32-H2 para `client_154` e
   ESP32-C6 para `coordinator_154`; o repositório não contempla ESP32-C3.
 - QEMU não é estratégia admitida. Testes não são executados automaticamente;
-  sua execução depende de autorização em especificação futura.
+  sua execução depende de autorização explícita no recorte aplicável.
+- Build canônico dos targets afetados é obrigatório na implementação autorizada
+  e segue `Repository-Test-Execution-Policy.md`; build falho ou não executado
+  não sustenta implementação concluída.
 - Product firmware define composição funcional; board model define recursos e
   pinagem físicos; Kconfig escolhe a composição e não governa lógica interna
   de componentes compartilhados.
@@ -67,7 +76,7 @@ proporcional ao risco, não um gate universal.
 - Análise, implementação, challenge e validação produzem relatórios separados;
   não são anexados à especificação.
 - O mapa combina índice de autoridade, árvore e Mermaid conforme a ADR-0004 do
-  EKOM 3.2.
+  EKOM.
 - Somente o Arquiteto incorpora achados em fontes normativas, aceita ADRs,
   promove estados e determina conclusão ou reabertura.
 - Nunca registre segredo, token, chave, header de autorização ou connection

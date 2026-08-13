@@ -35,12 +35,23 @@ struct IsspDecodedReport
 {
     std::uint32_t deviceId;
     std::uint16_t sequence;
+    std::uint64_t reportId;
     IsspReport report;
 };
+
+/// Source of report identities, injected by the composition root. It must
+/// return a 64-bit value and is called outside every critical section, so it
+/// may block briefly. Returning zero or a value already held by an occupied
+/// slot makes the device retry within a bounded local search.
+using ReportIdGenerator = std::uint64_t (*)(void *context);
 
 struct IsspDeviceConfig
 {
     std::uint32_t deviceId;
+    /// Required for operational v2 construction: a configuration without a
+    /// generator rejects every report admission.
+    ReportIdGenerator reportIdGenerator;
+    void *reportIdGeneratorContext;
 };
 
 enum class IsspCommandResult : std::uint8_t
@@ -58,10 +69,13 @@ enum class IsspAckStatus : std::uint8_t
     Invalid,
 };
 
+/// The wire ACK type is single. A non-zero reportId identifies the ACK of a
+/// report and echoes its identity; zero identifies the ACK of a command.
 struct IsspDecodedAck
 {
     std::uint32_t deviceId;
     std::uint16_t sequence;
+    std::uint64_t reportId;
     std::uint8_t endpointId;
     IsspAckStatus status;
 };

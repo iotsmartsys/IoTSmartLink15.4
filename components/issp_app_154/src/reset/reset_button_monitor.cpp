@@ -17,7 +17,9 @@ ResetButtonMonitor::ResetButtonMonitor(const ResetButtonConfig &config,
       requester_(requester),
       taskControl_{},
       taskStack_{},
-      taskHandle_(nullptr)
+      taskHandle_(nullptr),
+      stopRequested_(false),
+      taskExited_(false)
 {
 }
 
@@ -66,6 +68,41 @@ esp_err_t ResetButtonMonitor::start()
     return ESP_OK;
 }
 
+esp_err_t ResetButtonMonitor::stop()
+{
+    // taskHandle_ is assigned only after xTaskCreateStatic() returned a valid
+    // handle, so a null handle identifies exactly the monitor never started.
+    if (taskHandle_ == nullptr)
+    {
+        return ESP_OK;
+    }
+    if (taskExited_.load(std::memory_order_acquire))
+    {
+        return ESP_OK;
+    }
+
+    stopRequested_.store(true, std::memory_order_release);
+    xTaskNotifyGive(taskHandle_);
+
+    const std::int64_t deadlineUs =
+        esp_timer_get_time() +
+        static_cast<std::int64_t>(config_.pollIntervalMs + kStopSchedulingMarginMs) * 1000;
+    while (!taskExited_.load(std::memory_order_acquire))
+    {
+        if (esp_timer_get_time() >= deadlineUs)
+        {
+            ESP_LOGW(kTag, "stop timeout_ms=%lu",
+                     static_cast<unsigned long>(config_.pollIntervalMs +
+                                                kStopSchedulingMarginMs));
+            return ESP_ERR_TIMEOUT;
+        }
+        vTaskDelay(1);
+    }
+
+    ESP_LOGI(kTag, "stop completed");
+    return ESP_OK;
+}
+
 void ResetButtonMonitor::runTask(void *context)
 {
     if (context != nullptr)
@@ -81,6 +118,7 @@ void ResetButtonMonitor::run()
     bool armed = !isPressed();
     bool pressed = false;
     bool resetRequested = false;
+    bool rejectionLogged = false;
     std::int64_t pressedAtUs = 0;
 
     if (!armed)
@@ -88,7 +126,7 @@ void ResetButtonMonitor::run()
         ESP_LOGW(kTag, "waiting_for_release gpio=%d", static_cast<int>(config_.gpio));
     }
 
-    for (;;)
+    while (!stopRequested_.load(std::memory_order_acquire))
     {
         const bool currentlyPressed = isPressed();
 
@@ -104,6 +142,7 @@ void ResetButtonMonitor::run()
         {
             pressed = true;
             resetRequested = false;
+            rejectionLogged = false;
             pressedAtUs = esp_timer_get_time();
             ESP_LOGI(kTag, "pressed");
         }
@@ -115,6 +154,7 @@ void ResetButtonMonitor::run()
                      static_cast<unsigned long>(elapsedMs));
             pressed = false;
             resetRequested = false;
+            rejectionLogged = false;
         }
         else if (currentlyPressed && pressed && !resetRequested)
         {
@@ -122,15 +162,35 @@ void ResetButtonMonitor::run()
                 (esp_timer_get_time() - pressedAtUs) / 1000);
             if (elapsedMs >= config_.holdTimeMs)
             {
-                resetRequested = true;
-                ESP_LOGW(kTag, "countdown completed elapsed_ms=%lu",
-                         static_cast<unsigned long>(elapsedMs));
-                requester_.requestFactoryReset();
+                // A rejected request does not consume the hold in course: the
+                // press stays valid and the request is presented again while the
+                // button is held, in case the transition is released.
+                const FactoryResetRequestResult requestResult =
+                    requester_.requestFactoryReset();
+                if (requestResult == FactoryResetRequestResult::Accepted)
+                {
+                    resetRequested = true;
+                    ESP_LOGW(kTag, "countdown completed elapsed_ms=%lu",
+                             static_cast<unsigned long>(elapsedMs));
+                }
+                else if (!rejectionLogged)
+                {
+                    rejectionLogged = true;
+                    ESP_LOGW(kTag,
+                             "countdown completed but request rejected "
+                             "elapsed_ms=%lu hold_preserved=yes",
+                             static_cast<unsigned long>(elapsedMs));
+                }
             }
         }
 
-        vTaskDelay(pollDelay);
+        // Preserves the configured period while letting stop() interrupt the
+        // wait without xTaskAbortDelay or a Kconfig option.
+        (void)ulTaskNotifyTake(pdTRUE, pollDelay);
     }
+
+    ESP_LOGI(kTag, "task ended reason=deep_sleep_transition");
+    taskExited_.store(true, std::memory_order_release);
 }
 
 bool ResetButtonMonitor::isPressed() const

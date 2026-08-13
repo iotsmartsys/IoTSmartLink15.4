@@ -383,6 +383,23 @@ IsspCommandResult DigitalInputBehavior::handle(const IsspCommand &command)
     return IsspCommandResult::Unsupported;
 }
 
+IsspResult DigitalInputBehavior::quiesce()
+{
+    // timer_ is non-null only after createTimer() succeeded, and every failure
+    // path of beginTimerBacked() calls stopAndDeleteTimer(). A null timer
+    // therefore identifies exactly the behavior whose begin() never completed,
+    // and stopAndDeleteTimer() is itself idempotent.
+    if (timer_ == nullptr)
+    {
+        return IsspResult::Ok;
+    }
+    stopAndDeleteTimer();
+    ESP_LOGI(kTag, "quiesced endpoint=%u event=%u",
+             static_cast<unsigned>(config_.endpointId),
+             static_cast<unsigned>(config_.eventType));
+    return IsspResult::Ok;
+}
+
 bool DigitalInputBehavior::hasConfirmedState() const
 {
     return confirmedState_.load(std::memory_order_relaxed) != kStateUnknown;

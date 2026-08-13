@@ -1,6 +1,7 @@
 #include "issp154_report_executor.hpp"
 
 #include "esp_log.h"
+#include "esp_timer.h"
 
 namespace issp
 {
@@ -28,7 +29,9 @@ Issp154ReportExecutor::Issp154ReportExecutor(
       transport_(transport),
       taskControl_{},
       taskStack_{},
-      taskHandle_(nullptr)
+      taskHandle_(nullptr),
+      stopRequested_(false),
+      taskExited_(false)
 {
 }
 
@@ -64,6 +67,37 @@ IsspResult Issp154ReportExecutor::start()
     return IsspResult::Ok;
 }
 
+IsspResult Issp154ReportExecutor::stop()
+{
+    // taskHandle_ is assigned only after xTaskCreateStatic() returned a valid
+    // handle, so a null handle identifies exactly the executor never started.
+    if (taskHandle_ == nullptr) {
+        return IsspResult::Ok;
+    }
+    if (taskExited_.load(std::memory_order_acquire)) {
+        return IsspResult::Ok;
+    }
+
+    stopRequested_.store(true, std::memory_order_release);
+    device_.setPendingReportHandler(nullptr, nullptr);
+    xTaskNotifyGive(taskHandle_);
+
+    const std::int64_t deadlineUs =
+        esp_timer_get_time() + static_cast<std::int64_t>(kStopTimeoutMs) * 1000;
+    while (!taskExited_.load(std::memory_order_acquire)) {
+        if (esp_timer_get_time() >= deadlineUs) {
+            ESP_LOGW("REPORT_EXECUTOR",
+                     "stop timeout_ms=%lu state=attempt_in_flight",
+                     static_cast<unsigned long>(kStopTimeoutMs));
+            return IsspResult::Busy;
+        }
+        vTaskDelay(pdMS_TO_TICKS(kStopPollIntervalMs));
+    }
+
+    ESP_LOGI("REPORT_EXECUTOR", "stop completed");
+    return IsspResult::Ok;
+}
+
 IsspResult Issp154ReportExecutor::processOne()
 {
     IsspPreparedReport prepared{};
@@ -75,6 +109,7 @@ IsspResult Issp154ReportExecutor::processOne()
     const Issp154AckExpectation expectation{
         .deviceId = prepared.deviceId,
         .sequence = prepared.sequence,
+        .reportId = prepared.reportId,
         .endpointId = prepared.report.endpointId,
     };
     Issp154ConfirmedSendSummary summary{};
@@ -108,10 +143,10 @@ IsspResult Issp154ReportExecutor::processOne()
 
 void Issp154ReportExecutor::runTask(void *context)
 {
-    if (context == nullptr) {
-        return;
+    if (context != nullptr) {
+        static_cast<Issp154ReportExecutor *>(context)->run();
     }
-    static_cast<Issp154ReportExecutor *>(context)->run();
+    vTaskDelete(nullptr);
 }
 
 void Issp154ReportExecutor::notifyPendingReport(void *context)
@@ -126,23 +161,39 @@ void Issp154ReportExecutor::notifyPendingReport(void *context)
     }
 }
 
+bool Issp154ReportExecutor::waitRetryDelayOrStop()
+{
+    // Preserves the retry duration in force while allowing stop() to interrupt
+    // it, without xTaskAbortDelay, a Kconfig option or an external dependency.
+    (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kPendingReportRetryDelayMs));
+    return stopRequested_.load(std::memory_order_acquire);
+}
+
 void Issp154ReportExecutor::run()
 {
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (stopRequested_.load(std::memory_order_acquire)) {
+            break;
+        }
         for (;;) {
             IsspReport report{};
             if (!device_.peekPendingReport(report)) {
                 break;
             }
             const IsspResult processResult = processOne();
+            if (stopRequested_.load(std::memory_order_acquire)) {
+                break;
+            }
             if (processResult != IsspResult::Ok) {
                 if (isRetryableResult(processResult)) {
                     ESP_LOGW("REPORT_EXECUTOR",
                              "pending_report_retry scheduled_in_ms=%lu result=%u",
                              static_cast<unsigned long>(kPendingReportRetryDelayMs),
                              static_cast<unsigned>(processResult));
-                    vTaskDelay(pdMS_TO_TICKS(kPendingReportRetryDelayMs));
+                    if (waitRetryDelayOrStop()) {
+                        break;
+                    }
                     continue;
                 }
                 ESP_LOGE("REPORT_EXECUTOR",
@@ -151,7 +202,12 @@ void Issp154ReportExecutor::run()
                 break;
             }
         }
+        if (stopRequested_.load(std::memory_order_acquire)) {
+            break;
+        }
     }
+
+    taskExited_.store(true, std::memory_order_release);
 }
 
 } // namespace issp

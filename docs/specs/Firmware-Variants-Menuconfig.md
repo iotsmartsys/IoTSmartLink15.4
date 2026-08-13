@@ -73,7 +73,7 @@ validada de `SmartSysApp` ou dos componentes ISSP.
   `IDF_TARGET`;
 - primeira migração do produto atual de tomada simples como prova de
   preservação;
-- segunda variante `Door sensor` e segundo board ESP32-H2 como prova de
+- segunda variante `Door sensor battery H2` e segundo board ESP32-H2 como prova de
   evolução da composição e da compatibilidade por recursos físicos;
 - espaço arquitetural para tomada dupla + luz e sensor de presença, sem
   incluí-los nesta entrega.
@@ -98,7 +98,7 @@ segunda composição escolhida pelo Arquiteto e o teste 3 da estratégia EKOM.
 
 ### Fase 2 — segunda composição: sensor de porta
 
-A segunda variante é `Door sensor`. A escolha é sustentada por dois fatos do
+A segunda variante é `Door sensor battery H2`. A escolha é sustentada por dois fatos do
 repositório: o coordenador vigente já interpreta o evento `Door` (`event type
 1`) e o histórico do antigo `sensor_154` contém a fiação e o comportamento de
 entrada usados como referência. O histórico informa contexto; este recorte é o
@@ -106,7 +106,7 @@ contrato vigente.
 
 A Fase 2 contém:
 
-- product firmware `Door sensor`, com device ID `0x15400001`, endpoint 1,
+- product firmware `Door sensor battery H2`, com device ID `0x15400001`, endpoint 1,
   event type 1, `1 = open`, `0 = closed` e report inicial habilitado;
 - board model `Door Sensor Battery H2`, compatível
   somente com `IDF_TARGET=esp32h2`;
@@ -259,9 +259,9 @@ incompatíveis com o target já configurado pelo ESP-IDF.
     a promoção anterior não substitui esse confronto.
 15. Na Fase 2, produto e board são compatíveis por classes e quantidades de
     recursos físicos. `Single smart plug` exige uma saída digital e um botão de
-    usuário; `Door sensor` exige uma entrada para contato seco e um botão de
-    usuário. O board atual oferece a saída e o botão; o Door Sensor Battery H2
-    oferece a entrada e o botão.
+    usuário; `Door sensor battery H2` exige uma entrada para contato seco, um
+    botão de usuário e o indicador `wake_led`. O board atual oferece a saída e o
+    botão; o Door Sensor Battery H2 oferece a entrada, o botão e o `wake_led`.
 16. Cada ramo de seleção no CMake declara uma lista de recursos exigidos pelo
     produto ou oferecidos pelo board. O CMake calcula os recursos ausentes e
     rejeita a composição quando a diferença não é vazia. O diagnóstico deve
@@ -346,7 +346,7 @@ não modifica a governança geral do repositório.
 IoTSmartLink15.4
 ├── Product firmware
 │   ├── Single smart plug (default)
-│   └── Door sensor (Fase 2)
+│   └── Door sensor battery H2 (Fase 2)
 └── Board model
     ├── Current client ESP32-H2 wiring (default)
     └── Door Sensor Battery H2 (Fase 2)
@@ -368,7 +368,7 @@ client_154/
     ├── product_firmware.hpp
     ├── firmwares/
     │   ├── single_smart_plug.cpp
-    │   └── door_sensor.cpp
+    │   └── door_sensor_battery_h2.cpp
     └── boards/
         ├── board_model.hpp
         ├── current_client_esp32h2_wiring.cpp
@@ -393,9 +393,9 @@ Somente arquivos de variantes e boards realmente suportados devem existir. A
 |---|---|---|
 | `client_154/main/Kconfig.projbuild` | adicionar as escolhas de sensor e Door Sensor Battery H2 | escolha exclusiva e ausência de lógica funcional |
 | `client_154/main/CMakeLists.txt` | selecionar as novas fontes e validar requisitos contra recursos oferecidos | uma variante, um board e diagnóstico antes do binário |
-| `client_154/main/firmwares/door_sensor.cpp` | compor identidade, endpoint, evento e debounce do sensor | nenhuma pinagem literal ou lógica de transporte |
+| `client_154/main/firmwares/door_sensor_battery_h2.cpp` | compor identidade, endpoint, evento e debounce do sensor | nenhuma pinagem literal ou lógica de transporte |
 | `client_154/main/boards/board_model.hpp` | substituir campos orientados ao relé por recursos físicos | preservar a composição da tomada e evitar framework genérico |
-| `client_154/main/boards/door_sensor_battery_h2.cpp` | declarar entrada de contato seco e botão de usuário | nenhuma regra de produto ou protocolo |
+| `client_154/main/boards/door_sensor_battery_h2.cpp` | declarar entrada de contato seco, botão de usuário e `wake_led` | nenhuma regra de produto ou protocolo |
 | `components/issp_behaviors` | adicionar `DigitalInputBehavior`, dependência explícita de `esp_timer` e ciclo de vida do timer | reutilizável, sem produto, board, `CONFIG_*`, tarefa ou pilha própria |
 | `components/issp_app_154` | expor `addDoorSensorCapability()` e unificar o registro interno | não expor tipos privados do ISSP nem mudar as operações vigentes |
 | `components/issp_core` | serializar o bookkeeping dos pending reports e assumir dependência interna de FreeRTOS | nenhuma regra de produto; codificação, callbacks, notificações e transporte fora da seção crítica |
@@ -416,8 +416,9 @@ Somente arquivos de variantes e boards realmente suportados devem existir. A
 - **Dado** um par produto/board válido, **quando** o projeto é configurado e
   compilado, **então** somente as fontes desse produto e desse board entram no
   binário.
-- **Dadas** as combinações `Single smart plug` + board atual e `Door sensor` +
-  Door Sensor Battery H2, **quando** cada build H2 é configurado, **então** ambas são
+- **Dadas** as combinações `Single smart plug` + board atual e
+  `Door sensor battery H2` + Door Sensor Battery H2, **quando** cada build H2 é
+  configurado, **então** ambas são
   aceitas e as escolhas default continuam sendo a tomada e o board atual.
 - **Dado** o board atual da Fase 1 e `IDF_TARGET=esp32c6`, **quando** a
   configuração ou o build é executado, **então** a combinação é impedida com

@@ -4,7 +4,7 @@
 
 **Estado da fonte:** Vigente [`Active`]
 
-**Última auditoria:** 2026-08-11
+**Última auditoria:** 2026-08-12
 
 ## 1. Resumo executivo
 
@@ -19,7 +19,7 @@ oferece uma ponte JSON-lines por UART para o host.
 | `client_154` em ESP32-H2 | Suportado | Decisão | ADR-0003 |
 | `coordinator_154` em ESP32-C6 | Suportado | Decisão | ADR-0003 |
 | ESP32-C3 e QEMU | Não suportados | Decisão | ADR-0003 |
-| Single smart plug e Door sensor | Implementados | Fato observado | Especificação de variantes |
+| Single smart plug e Door sensor battery H2 | Implementados | Fato observado | Especificação de variantes |
 
 ## 3. Arquitetura
 
@@ -45,7 +45,9 @@ técnicos. `examples/issp_minimal_client` é o segundo consumidor local.
 ## 6. Dados e persistência
 
 Client e coordenador usam NVS para rede e registry. O wire ISSP possui
-implementações nos dois alvos, mas ainda não tem especificação dedicada.
+implementações nos dois alvos, já no envelope v2 de 20 bytes definido por
+`ISSP-Report-Identity.md` para a identidade de DATA/ACK; o protocolo integral
+ainda não está consolidado em uma única fonte dedicada.
 
 ## 7. Integrações e protocolos
 
@@ -56,8 +58,10 @@ implementações nos dois alvos, mas ainda não tem especificação dedicada.
 ## 8. Falhas, segurança e recuperação
 
 Commissioning e factory reset tratam recuperação do client. Persistência do
-registry trata reinicialização do coordenador. A confiabilidade residual de
-ACK/retry permanece em `EKM-GAP-0006`.
+registry trata reinicialização do coordenador. A identidade de report entre
+boots e sua deduplicação seguem `ISSP-Report-Identity.md` e estão
+implementadas nos dois alvos; a validação em hardware permanece em
+`EKM-GAP-0006`.
 
 ## 9. Build, testes e operação
 
@@ -75,20 +79,23 @@ normativa futura. Hardware real é evidência material quando solicitado.
 | Registry | `ISSP-Coordinator-Paired-Device-Registry.md` | Especificado | Coordenador |
 | Variantes | `Firmware-Variants-Menuconfig.md` | Especificado | Produto e board |
 | Targets e testes | `Repository-Test-Execution-Policy.md` | Especificado | Repositório inteiro |
+| Deep sleep do client | `Client-Deep-Sleep.md` | v0.10 e v0.11 implementadas em código; build H2 executado na v0.11; AC-012 pendente de hardware | Client a bateria |
+| Identidade de reports | `ISSP-Report-Identity.md`; ADR-0004 | v0.3 Concluída [`Done`]; implementação e comportamento funcional validados | Client, protocolo, coordenador e ponte UART |
 
 ## 11. Riscos, legado e preparação futura
 
 O projeto ESP-IDF na raiz ainda é um protótipo não classificado. O protocolo
-wire e a confiabilidade do enlace confirmado continuam incompletamente
-especificados. Registros da EKM 1.x são históricos.
+wire integral continua incompletamente especificado; o recorte v2 para
+identidade de report possui fonte própria Active e workflow concluído.
+Registros da EKM 1.x são históricos.
 
 ## 12. Questões abertas
 
 | ID | Questão | Impacto | Destino |
 |---|---|---|---|
-| `EKM-GAP-0002` | Contrato wire dedicado ausente | Compatibilidade entre alvos | Especificação futura |
+| `EKM-GAP-0002` | Contrato wire integral ainda não consolidado; recorte v2 de report implementado | Compatibilidade entre alvos | `ISSP-Report-Identity.md` e recorte futuro integral |
 | `EKM-GAP-0003` | Matriz requisito–evidência incompleta | Navegação de validação | Recorte futuro |
-| `EKM-GAP-0006` | ACK/retry residual | Confiabilidade operacional | Especificação futura |
+| `EKM-GAP-0006` | Identidade e ACK v2 validados no caminho funcional em hardware; cenários adversos de concorrência e UART não executados | Confiabilidade operacional | `ISSP-Report-Identity.md`; reabertura futura se o risco exigir |
 
 ## Regra de manutenção
 

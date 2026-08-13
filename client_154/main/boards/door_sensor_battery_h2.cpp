@@ -9,6 +9,8 @@ namespace client154
 {
 namespace
 {
+// GPIO 14 is inside the range the ESP32-H2 accepts as an external wakeup
+// source, which is what lets this board offer the dry_contact_wakeup resource.
 constexpr DryContactInputResource kDryContactInput = {
     .pin = GPIO_NUM_14,
     .activeHigh = true,
@@ -17,6 +19,10 @@ constexpr DryContactInputResource kDryContactInput = {
 constexpr UserButtonResource kUserButton = {
     .pin = GPIO_NUM_9,
     .activeLow = true,
+};
+constexpr WakeLedResource kWakeLed = {
+    .pin = GPIO_NUM_13,
+    .activeHigh = true,
 };
 }
 
@@ -28,6 +34,11 @@ const DryContactInputResource &selectedDryContactInput()
 const UserButtonResource &selectedUserButton()
 {
     return kUserButton;
+}
+
+const WakeLedResource &selectedWakeLed()
+{
+    return kWakeLed;
 }
 
 } // namespace client154

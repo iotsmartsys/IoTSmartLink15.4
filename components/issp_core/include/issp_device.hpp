@@ -20,6 +20,8 @@ struct IsspPreparedReport
     IsspPendingReportToken token;
     std::uint32_t deviceId;
     std::uint16_t sequence;
+    /// Logical identity of the report, stable across every attempt.
+    std::uint64_t reportId;
     IsspReport report;
     std::array<std::uint8_t, IsspPayloadSize> payload;
     std::size_t payloadLength;
@@ -41,6 +43,13 @@ public:
     IsspTransportState transportState() const;
     IsspResult publishState(const IsspReport &report) override;
     IsspResult publishReport(const IsspReport &report);
+    /// Terminal, idempotent quiescence for the current boot. Atomically closes
+    /// the dispatch of new commands and the admission of new reports: commands
+    /// still received are answered with IsspCommandResult::Failed, new
+    /// publications return IsspResult::NotReady, and every slot already admitted
+    /// is preserved so the pending count remains a stable delivery oracle. It
+    /// does not stop the transport and cannot be reverted in the same boot.
+    IsspResult beginQuiescence();
     /// Pending-report publication, reservation, completion, and inspection are
     /// internally serialized. Callbacks, encoding, notifications, and transport
     /// operations execute outside the critical section.
@@ -65,6 +74,10 @@ private:
     struct PendingReportSlot
     {
         IsspReport report;
+        // Identity of the admission currently held by the slot. A concurrent
+        // update overwrites it, while the attempt already in flight keeps the
+        // previous identity in its prepared copy and ACK expectation.
+        std::uint64_t reportId;
         std::uint32_t generation;
         std::uint32_t inFlightGeneration;
         std::uint32_t insertionOrder;
@@ -72,9 +85,15 @@ private:
         bool inFlight;
     };
 
+    // Bounded local search: a generator that only yields zero or collisions
+    // fails explicitly instead of looping or mutating a slot partially.
+    static constexpr std::size_t kReportIdGenerationAttempts = 8;
+
     static void advanceGeneration(std::uint32_t &generation);
+    bool reportIdInUseLocked(std::uint64_t reportId) const;
     bool acquirePendingReportLocked(IsspReport &report,
-                                    IsspPendingReportToken &token);
+                                    IsspPendingReportToken &token,
+                                    std::uint64_t &reportId);
     void notifyPendingReport();
     void finishCommandProcessing();
     std::uint32_t nextPendingReportOrder();
@@ -100,6 +119,7 @@ private:
     mutable portMUX_TYPE reportLock_ = portMUX_INITIALIZER_UNLOCKED;
     bool processingCommand_;
     bool reportNotificationDeferred_;
+    bool quiescing_;
     bool hasLastCommand_;
     std::uint16_t lastCommandSequence_;
     IsspCommand lastCommand_;
