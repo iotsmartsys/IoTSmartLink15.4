@@ -20,7 +20,7 @@ organiza; o diagrama, como os alvos separados se conectam.
 | Mapa | `docs/rfc/KNOWLEDGE-MAP.md` | Normativo | Active |
 | Histórico EKOM | `docs/rfc/EKOM-CHANGELOG.md` | Operacional | Active |
 | Dossiê do sistema | `docs/specs/SYSTEM-DOSSIER.md` | Informativo | Active |
-| Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0004 Accepted; ADR-0005 Proposed |
+| Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0005 Accepted; ADR-0001 com nota de reavaliação de 14/08/2026 |
 | Relatórios | `docs/reports/` | Evidência histórica | Roteamento EKOM 4.4 vigente |
 | Débitos técnicos | Seção 7 deste mapa | Normativo | `EKOM-DEBT-0001` a `EKOM-DEBT-0004` Accepted |
 | Registros EKM 1.x | `docs/history/ekom-1x/` | Histórico | Superseded para novas atuações |
@@ -44,8 +44,8 @@ não criam autoridade paralela.
 | Consolidação ISSP | `docs/specs/ISSP-Consolidation.md` | Concluída | Client e coordenador | Auditoria e hardware históricos | Revisado |
 | Protocolo wire ISSP | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0002` | v2 implementado nos dois codecs; protocolo integral ainda aberto | `issp_protocol.cpp`; `iot154_packet.h` | Vetores dourados host-native em ambos os targets | Cobertura parcial |
 | Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 concluída; correlação exige `report_id` | Transporte, executor e coordenador | Análises, implementações e revisões v0.2/v0.3; comportamento funcional relatado validado em hardware | Implementado e validado no caminho funcional; cenários adversos da fronteira UART aceitos sem execução própria |
-| Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.3 em rascunho [`Draft`]; ADR-0005 `Proposed` | Nenhum; não implementado | Nenhuma | Especificada, não analisada |
-| Identidade de capability | ADR-0005; `EKOM-DEBT-0001` | Modelo decidido na ADR; retrofit postergado | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client` | Nenhuma | Divergente do modelo nas capabilities existentes |
+| Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.4 em rascunho [`Draft`]; ADR-0005 `Accepted` | Nenhum; não implementado | Análises da v0.1 e da v0.3, ambas Não pronta — defeito da especificação | v0.4 especificada, não analisada |
+| Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001` | Modelo aceito em 14/08/2026; retrofit postergado | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client` | Nenhuma | Divergente do modelo nas capabilities existentes |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
 
 ## 3. Árvore de conhecimento
@@ -63,7 +63,7 @@ IoTSmartLink15.4
 │   │   └── SmartSysApp + componentes ISSP compartilhados
 │   │       ├── Deep sleep opt-in — timer e wakeup por contato (EXT1) implementados
 │   │       ├── Identidade de report gerada no client — v0.3 concluída
-│   │       └── Nível de bateria — especificado em v0.3 Draft, não implementado
+│   │       └── Nível de bateria — especificado em v0.4 Draft, não implementado
 │   └── coordinator_154 — ESP32-C6
 │       ├── commissioning e rádio
 │       ├── registry persistente
@@ -181,7 +181,7 @@ em desconformidade nem altera evidência.
 - **Postergação:** aceita pelo Arquiteto em 14/08/2026.
 - **Critério de quitação:** bootstrap emendado citando a ADR-0005 como origem da
   extensão.
-- **Gatilho de reavaliação:** aceitação da ADR-0005.
+- **Gatilho de reavaliação:** aceitação da ADR-0005, **ocorrida em 14/08/2026**; a remediação não foi autorizada e o débito permanece `Accepted`.
 - **Relações:** ADR-0005; `docs/specs/ISSP-Configurable-Bootstrap.md`.
 
 ### `EKOM-DEBT-0003` — tabela de tipos de evento sem guarda

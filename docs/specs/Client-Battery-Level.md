@@ -4,14 +4,16 @@
 
 **Classe da fonte:** Normativa
 
-**Versão:** 0.3
+**Versão:** 0.4
 
 **Estado do workflow:** `Draft`
 
-**Análise de implementabilidade:** Pendente para a v0.3. A v0.1 recebeu
-classificação **Não pronta — defeito da especificação**; seus defeitos foram
-corrigidos na v0.2, e a v0.3 incorpora o modelo de identidade de capability
-decidido na ADR-0005. Nenhuma análise anterior se aplica a esta versão.
+**Análise de implementabilidade:** Pendente para a v0.4. A v0.1 e a v0.3
+receberam classificação **Não pronta — defeito da especificação**. Os defeitos
+da v0.1 foram corrigidos na v0.2; a v0.3 incorporou o modelo de identidade da
+ADR-0005; e a v0.4 resolve os três bloqueadores devolvidos pela análise da v0.3:
+ADR-0005 aceita, autoridade normativa dos valores concretos e fronteira dos
+tipos de ADC na fachada. Nenhuma análise anterior se aplica a esta versão.
 
 **Bloqueio arquitetural:** Nenhum
 
@@ -25,11 +27,10 @@ decidido na ADR-0005. Nenhuma análise anterior se aplica a esta versão.
 
 - Nova [`New`] — não existe autoridade anterior para telemetria de bateria no
   client;
-- Depende de [`Depends On`] `docs/adr/ADR-0005-CAPABILITY-IDENTITY.md@Proposed`
+- Depende de [`Depends On`] `docs/adr/ADR-0005-CAPABILITY-IDENTITY.md@Accepted`
   — endpoint como identificador congelado, tipo de evento como natureza da
-  capability, unicidade por endpoint e registro normativo dos tipos; enquanto a
-  ADR permanecer `Proposed`, esta especificação não pode receber recomendação de
-  prontidão;
+  capability, unicidade por endpoint e registro normativo dos tipos. A ADR foi
+  aceita pelo Arquiteto em 14/08/2026;
 - Depende de [`Depends On`] `docs/specs/Client-Deep-Sleep.md@v0.11` — estado
   material necessário: o boot operacional, o ciclo acordado e a drenagem de
   reports pendentes precisam existir como comportamento implementado. A
@@ -45,10 +46,11 @@ decidido na ADR-0005. Nenhuma análise anterior se aplica a esta versão.
   dela;
 - Apoia-se em `docs/adr/ADR-0001-ISSP-COMPONENT-BOUNDARIES.md@Accepted` — a
   configuração da capability leva unidade, canal e atenuação de ADC à fachada
-  pública. Isso se apoia no precedente já vigente de `gpio_num_t` em
-  `SmartSysApp.h`, não rompe a direção de dependência e não expõe tipo de
-  protocolo ou de transporte. Se o Arquiteto considerar que o critério de
-  reavaliação daquela ADR foi alcançado, a decisão é dele;
+  pública. O critério de reavaliação daquela ADR foi acionado e **decidido pelo
+  Arquiteto em 14/08/2026**: tipos de driver do ESP-IDF podem aparecer na
+  fachada, pelo mesmo precedente de `gpio_num_t`, com a dependência
+  correspondente declarada pública. A decisão está registrada como nota naquela
+  ADR e não autoriza expor tipo de protocolo, transporte ou commissioning;
 - Preserva `docs/specs/ISSP-Configurable-Bootstrap.md`,
   `docs/specs/ISSP-Reusable-Components.md` e
   `docs/specs/ISSP-Report-Identity.md` — nenhuma mudança de wire, de versão de
@@ -78,7 +80,10 @@ O contrato é escrito em três camadas explicitamente separadas, e essa separaç
 3. os **fatos elétricos do board model**, apenas repassados pelo produto.
 
 A configuração concreta do `door_sensor_battery_h2` é registrada na seção 8 e é
-**informativa**: descreve o primeiro produto, não a capability.
+**normativa para aquele produto e para o seu board**, jamais para a capability.
+Normatividade e generalidade são coisas distintas aqui: a seção 8 obriga a
+composição do primeiro produto, e as seções 4 a 7 permanecem sem qualquer valor
+concreto. Alterar a seção 8 não exige emendar as seções 4 a 7.
 
 ## 2. Escopo
 
@@ -296,6 +301,11 @@ O board model que oferece o recurso de medição declara a unidade e o canal do
 ADC, a atenuação e as duas resistências do divisor. O produto recebe esses
 valores e os repassa à capability sem reescrevê-los; a fachada nunca descobre
 pinagem por conta própria.
+
+Unidade, canal e atenuação atravessam a fachada como **tipos do ESP-IDF**,
+conforme a decisão registrada na nota de reavaliação da ADR-0001, e o componente
+declara a dependência correspondente como pública, no mesmo padrão já usado para
+GPIO. Nenhum tipo de protocolo, transporte ou commissioning é exposto.
 
 O recurso corresponde a um divisor permanentemente conectado à bateria. A
 drenagem contínua resultante é fato conhecido do arranjo elétrico e risco
@@ -533,11 +543,16 @@ introduzir valor sentinela, que manteria o domínio do evento restrito a 0–100
 Compilação não comprova execução. A ausência de teste automatizado nesta versão
 é decisão registrada, e o risco correspondente está na seção 9.
 
-## 8. Configuração inicial do `door_sensor_battery_h2` — informativa
+## 8. Composição normativa do `door_sensor_battery_h2`
 
-Esta seção **não é normativa**. Ela registra a configuração do primeiro produto
-que adota a capability, para rastreabilidade. Nenhum valor abaixo é regra da
-capability, e alterá-los não exige emendar as seções 4 a 7.
+Esta seção **é normativa para a composição deste produto e do seu board model**,
+e constitui a emenda declarada a `Firmware-Variants-Menuconfig.md`. Ela dá ao
+Implementador a autoridade para escrever exatamente estes valores no board model
+e no product firmware.
+
+Nenhum valor abaixo é regra da capability: as seções 4 a 7 permanecem genéricas e
+sem valores. Outro produto que adote a capability declara a sua própria
+composição e não herda nada desta seção.
 
 **Fatos do board model `Door Sensor Battery H2`:**
 
@@ -564,6 +579,10 @@ capability, e alterá-los não exige emendar as seções 4 a 7.
 O valor 5 de `reportDeltaPercent` satisfaz o invariante incondicional de
 `BATTERY-011`, mas **não é exercitado** neste produto, cujo gatilho é o boot
 operacional. Ele passa a valer se o mesmo produto vier a operar sem deep sleep.
+
+Um produto que registre esta capability sem oferecer o recurso de medição, ou
+com valores que violem os invariantes da seção 5.1, falha na configuração do
+build ou no registro, conforme o mecanismo aplicável.
 
 O tipo de evento não aparece acima porque não é configuração do produto: a
 capability reporta o tipo 3, fixado pela ADR-0005 e já registrado no coordenador
@@ -618,6 +637,16 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - a divergência das capabilities existentes permanece fora deste recorte e está
   registrada como `EKOM-DEBT-0001`.
 
+**Decisões acrescentadas na v0.4, em resposta à análise da v0.3:**
+
+- a `ADR-0005` foi aceita em 14/08/2026, encerrando a dependência de fonte ainda
+  não vigente;
+- a seção 8 passa a ser **normativa para a composição do primeiro produto e do
+  seu board**, sem tornar qualquer valor regra da capability; é essa seção que
+  materializa a emenda declarada a `Firmware-Variants-Menuconfig.md`;
+- tipos de driver do ESP-IDF podem atravessar a fachada pública, decisão tomada
+  sob o critério de reavaliação da ADR-0001 e registrada como nota naquela ADR.
+
 **Riscos residuais aceitos:**
 
 - drenagem contínua do divisor permanentemente conectado, inerente ao arranjo
@@ -629,13 +658,14 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 
 **Pendências:**
 
-- a `ADR-0005` está em `Proposed`; sua aceitação é do Arquiteto e condiciona
-  qualquer recomendação de prontidão desta especificação;
 - os débitos `EKOM-DEBT-0001` a `EKOM-DEBT-0004`, registrados no mapa, alcançam
   esta especificação; a aceitação da postergação não torna conforme a
   divergência das capabilities existentes;
-- a v0.2 ainda não foi analisada; a análise da v0.1 concluiu **Não pronta —
-  defeito da especificação** e não se aplica a esta versão;
+- a aceitação da ADR-0005 disparou o gatilho de reavaliação de
+  `EKOM-DEBT-0002`; a remediação daquele débito não foi autorizada e permanece
+  fora deste recorte;
+- a v0.4 ainda não foi analisada; as análises da v0.1 e da v0.3 concluíram **Não
+  pronta — defeito da especificação** e não se aplicam a esta versão;
 - a ausência da capability por falha de configuração do ADC é silenciosa para o
   host, consequência aceita do segundo desvio arquitetural;
 - os valores elétricos da seção 8 foram confirmados pelo Arquiteto por

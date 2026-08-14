@@ -43,3 +43,15 @@ fachada ou, quando necessário, consumir os componentes técnicos explicitamente
 
 Reavaliar se outro transporte, outra plataforma ou uma capability exigir
 romper a direção de dependência ou expor tipos técnicos na fachada pública.
+
+## Nota de reavaliação — tipos de driver na fachada (14/08/2026)
+
+A capability de nível de bateria de `EKOM-BATTERY-001` acionou este critério ao
+levar unidade, canal e atenuação de ADC à configuração pública. O Arquiteto
+decidiu que **tipos de driver do ESP-IDF podem aparecer na fachada**, pelo
+mesmo precedente já vigente de `gpio_num_t` em `SwitchConfig` e
+`PushButtonConfig`, com a dependência correspondente declarada pública.
+
+A decisão não altera a direção de dependência nem autoriza expor tipo de
+protocolo, transporte ou commissioning na fachada, que permanecem privados. A
+decisão vale para tipos de periférico entregues pelo board model ao produto.

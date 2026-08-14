@@ -1,8 +1,10 @@
 # ADR-0005 — Identidade de capability: endpoint congelado e tipo de evento como natureza
 
-**Estado:** Proposed
+**Estado:** Accepted
 
 **Data:** 2026-08-14
+
+**Aceita pelo Arquiteto em:** 14/08/2026
 
 **Decisores:** Arquiteto humano
 

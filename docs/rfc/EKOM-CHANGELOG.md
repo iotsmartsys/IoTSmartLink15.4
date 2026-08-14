@@ -588,7 +588,7 @@ reabertura.
 
 ## EKOM-CHG-0004 — Nível de bateria do client
 
-**Estado:** v0.3 em rascunho [`Draft`]; sem análise de implementabilidade
+**Estado:** v0.4 em rascunho [`Draft`]; sem análise de implementabilidade
 aplicável
 
 **Especificação relacionada:** `docs/specs/Client-Battery-Level.md`
@@ -602,7 +602,8 @@ inteiro e o publica como report ISSP, sem alterar wire, coordenador ou host.
 
 - o contrato é escrito em três camadas separadas de forma normativa: contrato
   genérico sem números, parâmetros do product firmware e fatos elétricos do
-  board model; a configuração do `door_sensor_battery_h2` é informativa;
+  board model; a composição do `door_sensor_battery_h2` é normativa somente para
+  aquele produto;
 - conversão linear entre `emptyMv` e `fullMv`, com aritmética inteira,
   arredondamento do meio para cima e saturação em 0 e 100;
 - gatilho duplo: em composição com deep sleep, publica a cada wakeup, qualquer
@@ -630,13 +631,25 @@ emendá-la. Preserva bootstrap, componentes reutilizáveis e identidade de repor
 
 - a análise da v0.1 classificou **Não pronta — defeito da especificação**; os
   oito achados foram confrontados e resolvidos na v0.2 e na v0.3;
+- a análise da v0.3, executada pelo piloto automatizado sobre o commit
+  `333adcf`, repetiu a classificação **Não pronta — defeito da especificação**
+  com três bloqueadores: ADR-0005 ainda `Proposed`, ausência de autoridade
+  normativa para os valores concretos do produto e do board, e fronteira não
+  decidida para os tipos de ADC na fachada pública;
 - `EKOM-DEBT-0004` registra a observabilidade ausente no host para capability
   inerte por falha de ADC e para valor aproximado no modo degradado.
 
+### Resolução dos bloqueadores na v0.4
+
+O Arquiteto aceitou a `ADR-0005` em 14/08/2026; tornou a seção 8 normativa para
+a composição do primeiro produto e do seu board, preservando as seções 4 a 7 sem
+valores; e decidiu, sob o critério de reavaliação da ADR-0001, que tipos de
+driver do ESP-IDF podem atravessar a fachada pública, com a decisão registrada
+como nota naquela ADR.
+
 ### Próxima etapa
 
-Aceitação da `ADR-0005`, que condiciona qualquer recomendação de prontidão, e
-análise de implementabilidade da v0.3. Não há autorização de implementação.
+Análise de implementabilidade da v0.4. Não há autorização de implementação.
 
 ## EKOM-CHG-0005 — Adoção do EKOM 4.4 e registro de débitos técnicos
 
