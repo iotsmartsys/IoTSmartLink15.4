@@ -151,7 +151,8 @@ jobs:
           sandbox: read-only
           codex-args: '["--ephemeral"]'
           prompt: |
-            Atue somente na fase de autoria e análise de implementabilidadeda versão vigente do EKOM.
+            Atue somente na fase de análise de implementabilidade da versão
+            vigente do EKOM.
 
             Leia primeiro o AGENTS.md do projeto e siga todas as instruções aplicáveis. As diretrizes canônicas vigentes estão disponíveis em .ekom-guidelines/. Use esse caminho no ambiente da Action quando o AGENTS.md mencionar a instalação local externa.
 
@@ -165,20 +166,27 @@ jobs:
             na branch é a fonte normativa da demanda.
 
             Política de leitura e economia de contexto:
-            - RTK está instalado. Use `rtk ls`, `rtk grep`, `rtk git status`,
-              `rtk git log` e `rtk git diff` para descoberta e saídas operacionais.
-            - Não use RTK para comprimir documentos normativos. Leia
-              integralmente, uma única vez, o AGENTS.md, os perfis EKOM
-              obrigatórios, a especificação submetida e cada autoridade
-              normativa materialmente aplicável.
-            - Comece pelas fontes roteadas pelo AGENTS.md, pela especificação e
-              por suas relações declaradas. Amplie a busca somente quando houver
-              evidência de impacto.
-            - Não repita a leitura integral de uma fonte já lida. Para código,
-              localize primeiro os símbolos e depois leia somente os trechos
-              exatos necessários para sustentar a análise.
+            - Leia integralmente e uma única vez, nesta ordem: `AGENTS.md`,
+              `.ekom-guidelines/roles/REGRAS-COMUNS.md`,
+              `.ekom-guidelines/roles/ENGENHEIRO-ANALISTA.md` e a especificação
+              submetida. Leia um documento completo por comando, do início ao
+              EOF; não carregue o perfil do Autor nesta atuação de Análise.
+            - Não use RTK para comprimir esses quatro documentos obrigatórios.
+              Não os concatene, não os releia e não repita seu conteúdo apenas
+              para obter números de linha.
+            - Para descoberta, use somente a sintaxe suportada, sem flags de
+              `rg` ou `grep`: `rtk ls <caminho>`, `rtk grep "<padrão>" <caminhos>`,
+              `rtk git status`, `rtk git log` e `rtk git diff`.
+            - Use o mapa, as relações declaradas e buscas compactas para localizar
+              nas demais autoridades somente as seções pertinentes ao recorte.
+              Leia trechos exatos com `sed -n`. Amplie para o documento completo
+              apenas quando os trechos não bastarem para decidir uma relação,
+              conflito ou bloqueador material.
+            - Para código, localize primeiro os símbolos com RTK e depois leia
+              somente os trechos exatos necessários. Se precisar citar linhas,
+              numere apenas esses trechos; não releia o arquivo inteiro.
             - Evite listagens completas do repositório, buscas com centenas de
-              resultados e concatenação de muitos arquivos em um único comando.
+              resultados e comandos que concatenem muitos arquivos.
 
             Confronte a especificação com as autoridades, arquitetura,
             precedentes e código existentes e apresente:
