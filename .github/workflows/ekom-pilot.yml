@@ -44,6 +44,9 @@ jobs:
   validate-request:
     name: Validar solicitação EKOM
     runs-on: ubuntu-latest
+    outputs:
+      report_path: ${{ steps.prepare_report.outputs.report_path }}
+      report_sha256: ${{ steps.prepare_report.outputs.report_sha256 }}
 
     steps:
       - name: Validar controles da fase
@@ -71,11 +74,6 @@ jobs:
             exit 1
           fi
 
-          if [ "$WORKING_BRANCH" = "main" ]; then
-            echo "A análise deve usar uma branch de trabalho."
-            exit 1
-          fi
-
           case "$SPECIFICATION_PATH" in
             docs/specs/*.md) ;;
             *)
@@ -83,6 +81,30 @@ jobs:
               exit 1
               ;;
           esac
+
+          case "$WORKING_BRANCH" in
+            spec/*) ;;
+            *)
+              echo "A análise deve usar uma branch spec/*."
+              exit 1
+              ;;
+          esac
+
+          git check-ref-format --branch "$WORKING_BRANCH" >/dev/null
+
+          SPEC_NAME="$(basename "$SPECIFICATION_PATH" .md)"
+          SPEC_SLUG="$(printf '%s' "$SPEC_NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | tr '_' '-' \
+            | sed 's/[^a-z0-9-]//g')"
+          EXPECTED_BRANCH="spec/$SPEC_SLUG"
+
+          if [ "$WORKING_BRANCH" != "$EXPECTED_BRANCH" ]; then
+            echo "A branch não corresponde ao nome da especificação."
+            echo "Esperada: $EXPECTED_BRANCH"
+            echo "Recebida: $WORKING_BRANCH"
+            exit 1
+          fi
 
       - name: Registrar resumo
         env:
@@ -108,6 +130,41 @@ jobs:
           ref: ${{ inputs.working_branch }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Validar identidade da especificação
+        env:
+          CHANGE_ID: ${{ inputs.change_id }}
+          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
+        run: |
+          set -euo pipefail
+
+          if [ "$(git branch --show-current)" != "$WORKING_BRANCH" ]; then
+            echo "A branch baixada não corresponde à submissão."
+            exit 1
+          fi
+
+          if [ ! -f "$SPECIFICATION_PATH" ]; then
+            echo "A especificação não existe na branch submetida."
+            exit 1
+          fi
+
+          DOCUMENT_CHANGE_ID="$(
+            sed -nE 's/^\*\*ID:\*\*[[:space:]]*`([^`]+)`.*/\1/p' \
+              "$SPECIFICATION_PATH" | head -n 1
+          )"
+
+          if [ -z "$DOCUMENT_CHANGE_ID" ]; then
+            echo "A especificação não declara o campo **ID:**."
+            exit 1
+          fi
+
+          if [ "$DOCUMENT_CHANGE_ID" != "$CHANGE_ID" ]; then
+            echo "O ID submetido não corresponde ao documento."
+            echo "Documento: $DOCUMENT_CHANGE_ID"
+            echo "Submissão: $CHANGE_ID"
+            exit 1
+          fi
 
       - name: Baixar diretrizes EKOM vigentes
         uses: actions/checkout@v5
@@ -212,7 +269,8 @@ jobs:
             printf '**Data da análise:** `%s`\n\n' "$RUN_DATE"
             printf '%s\n\n' '---'
             printf '## Relatório do Engenheiro Analista\n\n'
-            printf '%s\n' "$(cat "$SOURCE_REPORT")"
+            cat "$SOURCE_REPORT"
+            printf '\n'
           } > "$REPORT_PATH"
 
           STATUS="$(git status --porcelain --untracked-files=all \
@@ -229,7 +287,10 @@ jobs:
             exit 1
           fi
 
+          REPORT_SHA256="$(sha256sum "$REPORT_PATH" | cut -d ' ' -f 1)"
+
           echo "report_path=$REPORT_PATH" >> "$GITHUB_OUTPUT"
+          echo "report_sha256=$REPORT_SHA256" >> "$GITHUB_OUTPUT"
 
           {
             echo
@@ -238,5 +299,165 @@ jobs:
             echo "- Caminho: \`$REPORT_PATH\`"
             echo "- Revisão analisada: \`$REVISION\`"
             echo "- Tamanho: $(wc -c < "$REPORT_PATH") bytes"
+            echo "- SHA-256: \`$REPORT_SHA256\`"
             echo "- Nenhum outro arquivo foi alterado"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Transferir relatório para persistência
+        uses: actions/upload-artifact@v7
+        with:
+          name: ekom-analysis-${{ github.run_id }}
+          path: ${{ steps.prepare_report.outputs.report_path }}
+          if-no-files-found: error
+          retention-days: 1
+
+  persist-report:
+    name: Persistir relatório EKOM
+    needs: validate-request
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Baixar a branch da especificação
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.working_branch }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Baixar relatório analisado
+        uses: actions/download-artifact@v8
+        with:
+          name: ekom-analysis-${{ github.run_id }}
+          path: ${{ runner.temp }}/ekom-analysis
+
+      - name: Registrar relatório na branch da especificação
+        env:
+          ARTIFACT_DIR: ${{ runner.temp }}/ekom-analysis
+          REPORT_PATH: ${{ needs.validate-request.outputs.report_path }}
+          EXPECTED_SHA256: ${{ needs.validate-request.outputs.report_sha256 }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
+          CHANGE_ID: ${{ inputs.change_id }}
+        run: |
+          set -euo pipefail
+
+          case "$WORKING_BRANCH" in
+            spec/*) ;;
+            *)
+              echo "O relatório somente pode ser registrado em branch spec/*."
+              exit 1
+              ;;
+          esac
+
+          git check-ref-format --branch "$WORKING_BRANCH" >/dev/null
+
+          ACTUAL_BRANCH="$(git branch --show-current)"
+
+          if [ "$ACTUAL_BRANCH" != "$WORKING_BRANCH" ]; then
+            echo "A branch efetivamente baixada não corresponde à submissão."
+            echo "Esperada: $WORKING_BRANCH"
+            echo "Atual: $ACTUAL_BRANCH"
+            exit 1
+          fi
+
+          if [ -z "$REPORT_PATH" ]; then
+            echo "O job de análise não informou o caminho do relatório."
+            exit 1
+          fi
+
+          if [[ ! "$REPORT_PATH" =~ ^docs/reports/[a-z0-9-]+/analysis/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9a-f]{7}-run-[0-9]+-implementability-analysis\.md$ ]]; then
+            echo "O destino do relatório está fora do padrão autorizado."
+            exit 1
+          fi
+
+          if [[ ! "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "O job de análise não informou um SHA-256 válido."
+            exit 1
+          fi
+
+          if [ -e "$REPORT_PATH" ]; then
+            echo "O relatório de destino já existe e não será sobrescrito."
+            exit 1
+          fi
+
+          mapfile -t ARTIFACT_FILES < <(
+            find "$ARTIFACT_DIR" -type f -print
+          )
+
+          if [ "${#ARTIFACT_FILES[@]}" -ne 1 ]; then
+            echo "O artefato deve conter exatamente um arquivo."
+            printf 'Quantidade encontrada: %s\n' "${#ARTIFACT_FILES[@]}"
+            exit 1
+          fi
+
+          SOURCE_REPORT="${ARTIFACT_FILES[0]}"
+
+          if [ ! -s "$SOURCE_REPORT" ]; then
+            echo "O relatório transferido está vazio."
+            exit 1
+          fi
+
+          if [ "$(basename "$SOURCE_REPORT")" != "$(basename "$REPORT_PATH")" ]; then
+            echo "O nome do artefato não corresponde ao relatório autorizado."
+            exit 1
+          fi
+
+          ACTUAL_SHA256="$(sha256sum "$SOURCE_REPORT" | cut -d ' ' -f 1)"
+
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "O conteúdo transferido não corresponde ao relatório analisado."
+            exit 1
+          fi
+
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "A branch de persistência não iniciou com árvore limpa."
+            git status --short --untracked-files=all
+            exit 1
+          fi
+
+          mkdir -p "$(dirname "$REPORT_PATH")"
+          install -m 0644 "$SOURCE_REPORT" "$REPORT_PATH"
+
+          STATUS="$(git status --porcelain --untracked-files=all)"
+
+          if [ "$STATUS" != "?? $REPORT_PATH" ]; then
+            echo "Foram encontradas alterações fora do relatório autorizado:"
+            printf '%s\n' "$STATUS"
+            exit 1
+          fi
+
+          git add -- "$REPORT_PATH"
+
+          STAGED_FILES="$(git diff --cached --name-only)"
+
+          if [ "$STAGED_FILES" != "$REPORT_PATH" ]; then
+            echo "O commit contém arquivos fora do relatório autorizado:"
+            printf '%s\n' "$STAGED_FILES"
+            exit 1
+          fi
+
+          git diff --cached --check
+
+          git config user.name "EKOM Automation"
+          git config user.email "ekom-automation@users.noreply.github.com"
+
+          git commit \
+            -m "docs: registra análise de implementabilidade $CHANGE_ID"
+
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "A árvore não ficou limpa após o commit do relatório."
+            git status --short --untracked-files=all
+            exit 1
+          fi
+
+          git push origin "HEAD:refs/heads/$WORKING_BRANCH"
+
+          {
+            echo
+            echo "## Relatório registrado"
+            echo
+            echo "- Arquivo: \`$REPORT_PATH\`"
+            echo "- Branch: \`$WORKING_BRANCH\`"
+            echo "- Commit: \`$(git rev-parse --short HEAD)\`"
           } >> "$GITHUB_STEP_SUMMARY"
