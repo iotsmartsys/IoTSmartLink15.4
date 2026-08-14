@@ -11,6 +11,10 @@
 
 **Habilita:** `EKOM-BATTERY-001`
 
+**Relação normativa:** estende [`Amends`] a semântica de `endpointId` e
+`eventType` fixada em `docs/specs/ISSP-Configurable-Bootstrap.md`, que permanece
+vigente em todo o restante. Nenhuma outra fonte é alterada.
+
 ## Contexto
 
 O ISSP identifica cada capability pelo par `endpointId` e `eventType`. Ambos são
@@ -59,13 +63,34 @@ leitura e responde `Unsupported` a qualquer comando dirigido a ele. A distinçã
 endianness, tipo de frame nem tamanho de payload, e não introduz estrutura de
 transporte.
 
+**A categoria de um endpoint é declarada pela especificação que o define, e
+nunca deduzida do seu número.** Não existe faixa reservada: nenhum número
+identifica por si categoria funcional ou de telemetria, e host, coordenador e
+client não podem inferi-la. Produtos permanecem livres para numerar seus
+endpoints, desde que o par `endpointId` e `eventType` permaneça único no
+dispositivo.
+
+**O `Unsupported` de um endpoint de telemetria é produzido pelo behavior que
+reconhece o par e o recusa**, e não pela ausência de behavior correspondente. Os
+dois caminhos produzem o mesmo resultado no wire, mas apenas o primeiro mantém a
+capability registrada e o par reservado, de modo que uma eventual leitura sob
+demanda futura seja mudança de comportamento, e não de roteamento. O precedente
+é o sensor de porta.
+
+**Esta ADR normatiza o registro semântico dos tipos de evento, e não o layout
+wire.** Tamanho, offsets, checksum, endianness e compatibilidade do protocolo
+integral permanecem sob a lacuna `EKM-GAP-0002` e não são consolidados aqui.
+
 **O registro de tipos de evento passa a ter fonte normativa nesta ADR:**
 
-| Tipo | Significado | Domínio do valor |
-|---|---|---|
-| 1 | Sensor de porta | 1 aberto, 0 fechado |
-| 2 | Plug comutável | conforme a especificação do plug |
-| 3 | Nível de bateria em percentual | 0 a 100 |
+| Tipo | Significado | Domínio do valor | Fonte que o governa |
+|---|---|---|---|
+| 1 | Sensor de porta | 1 aberto, 0 fechado | `docs/specs/Firmware-Variants-Menuconfig.md` |
+| 2 | Plug comutável | ligado, desligado e alternar | `docs/specs/ISSP-Configurable-Bootstrap.md`; `docs/specs/Firmware-Variants-Menuconfig.md` |
+| 3 | Nível de bateria em percentual | 0 a 100 | `docs/specs/Client-Battery-Level.md` |
+
+Esta ADR registra a alocação e a estabilidade de cada tipo; o domínio detalhado
+e o comportamento de cada um permanecem com a fonte indicada na última coluna.
 
 O registro descreve o que já existe em código; nenhuma alteração de coordenador,
 de client ou de host decorre desta ADR.
@@ -89,6 +114,13 @@ binding é importada, agora ou por analogia futura.
   com identidade estável e rótulo correto no host;
 - a numeração de tipos de evento fica global, e não por endpoint: um produto não
   reinicia a contagem, o que preserva a tradução existente no coordenador;
+- nenhuma faixa de endpoint é reservada: a categoria não é legível a partir do
+  número, de modo que ferramentas, host e diagnósticos precisam consultar a
+  especificação do produto para saber se um endpoint é funcional ou de
+  telemetria;
+- o par de um endpoint de telemetria permanece registrado no dispositivo, e não
+  apenas ausente, o que consome uma entrada de behavior e mantém a recusa
+  explícita;
 - alocar um tipo de evento novo passa a exigir emenda desta ADR, o que
   acrescenta um passo de governança onde antes bastava editar um cabeçalho;
 - convenções que hoje existem apenas em código do coordenador passam a ter fonte
