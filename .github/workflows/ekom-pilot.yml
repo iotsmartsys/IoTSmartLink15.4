@@ -44,8 +44,6 @@ jobs:
   validate-request:
     name: Validar solicitação EKOM
     runs-on: ubuntu-latest
-    env:
-      RTK_TELEMETRY_DISABLED: "1"
 
     steps:
       - name: Validar controles da fase
@@ -120,29 +118,6 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Instalar RTK para leitura compacta
-        env:
-          RTK_VERSION: 0.45.0
-          RTK_SHA256: c4c036fbf181fc55ef329786c8c17e0d427972b053b825944d968a6aafef1ba4
-        run: |
-          set -euo pipefail
-
-          archive="$RUNNER_TEMP/rtk.tar.gz"
-          install_dir="$RUNNER_TEMP/rtk-bin"
-
-          curl --fail --silent --show-error --location \
-            "https://github.com/rtk-ai/rtk/releases/download/v${RTK_VERSION}/rtk-x86_64-unknown-linux-musl.tar.gz" \
-            --output "$archive"
-
-          echo "$RTK_SHA256  $archive" | sha256sum --check --strict
-
-          mkdir -p "$install_dir"
-          tar -xzf "$archive" -C "$install_dir"
-          chmod 0755 "$install_dir/rtk"
-
-          echo "$install_dir" >> "$GITHUB_PATH"
-          "$install_dir/rtk" --version
-
       - name: Executar análise EKOM
         id: codex_analysis
         uses: openai/codex-action@v1
@@ -171,20 +146,19 @@ jobs:
               `.ekom-guidelines/roles/ENGENHEIRO-ANALISTA.md` e a especificação
               submetida. Leia um documento completo por comando, do início ao
               EOF; não carregue o perfil do Autor nesta atuação de Análise.
-            - Não use RTK para comprimir esses quatro documentos obrigatórios.
-              Não os concatene, não os releia e não repita seu conteúdo apenas
-              para obter números de linha.
-            - Para descoberta, use somente a sintaxe suportada, sem flags de
-              `rg` ou `grep`: `rtk ls <caminho>`, `rtk grep "<padrão>" <caminhos>`,
-              `rtk git status`, `rtk git log` e `rtk git diff`.
-            - Use o mapa, as relações declaradas e buscas compactas para localizar
-              nas demais autoridades somente as seções pertinentes ao recorte.
-              Leia trechos exatos com `sed -n`. Amplie para o documento completo
-              apenas quando os trechos não bastarem para decidir uma relação,
-              conflito ou bloqueador material.
-            - Para código, localize primeiro os símbolos com RTK e depois leia
-              somente os trechos exatos necessários. Se precisar citar linhas,
-              numere apenas esses trechos; não releia o arquivo inteiro.
+            - Não concatene nem releia esses quatro documentos obrigatórios e
+              não repita seu conteúdo apenas para obter números de linha.
+            - Use `rg --files` para localizar arquivos, `rg -n` para buscas
+              textuais e os comandos Git somente quando necessários. Limite
+              buscas amplas e refine o padrão antes de ampliar os resultados.
+            - Use o mapa, as relações declaradas e buscas direcionadas para
+              localizar nas demais autoridades somente as seções pertinentes ao
+              recorte. Leia trechos exatos com `sed -n`. Amplie para o documento
+              completo apenas quando os trechos não bastarem para decidir uma
+              relação, conflito ou bloqueador material.
+            - Para código, localize primeiro os símbolos e depois leia somente
+              os trechos exatos necessários. Se precisar citar linhas, numere
+              apenas esses trechos; não releia o arquivo inteiro.
             - Evite listagens completas do repositório, buscas com centenas de
               resultados e comandos que concatenem muitos arquivos.
 
@@ -202,12 +176,3 @@ jobs:
             Não altere arquivos, não crie branch, não implemente código, não
             faça commit e não faça push. Sua resposta é apenas a análise para
             avaliação do Arquiteto.
-
-      - name: Registrar economia estimada do RTK
-        if: always()
-        run: |
-          {
-            echo "## RTK — economia estimada de saída"
-            echo
-            rtk gain --all --format json || true
-          } >> "$GITHUB_STEP_SUMMARY"
