@@ -4,11 +4,13 @@
 
 **Classe da fonte:** Normativa
 
-**Versão:** 0.1
+**Versão:** 0.2
 
 **Estado do workflow:** `Draft`
 
-**Análise de implementabilidade:** Pendente
+**Análise de implementabilidade:** Pendente para a v0.2. A v0.1 recebeu
+classificação **Não pronta — defeito da especificação**; os defeitos apontados
+foram corrigidos nesta versão e a análise anterior não se aplica a ela.
 
 **Bloqueio arquitetural:** Nenhum
 
@@ -26,12 +28,27 @@
   — identidade de endpoint de telemetria e registro normativo dos tipos de
   evento; enquanto a ADR permanecer `Proposed`, esta especificação não pode
   receber recomendação de prontidão;
-- Depende de [`Depends On`] `docs/specs/Client-Deep-Sleep.md@v0.11` — o boot
-  operacional, o ciclo acordado e a drenagem de reports pendentes pertencem
-  àquela fonte e não são redefinidos aqui;
+- Depende de [`Depends On`] `docs/specs/Client-Deep-Sleep.md@v0.11` — estado
+  material necessário: o boot operacional, o ciclo acordado e a drenagem de
+  reports pendentes precisam existir como comportamento implementado. A
+  dependência é do comportamento, não da conclusão daquela versão, que
+  permanece `In Progress`; nada aqui a emenda;
+- Altera [`Amends`] `docs/specs/Firmware-Variants-Menuconfig.md` — a composição
+  enumerada do produto `Door sensor battery H2` passa a incluir um recurso
+  físico de medição de bateria e a capability correspondente. O mecanismo de
+  declaração e validação de recursos é preservado integralmente; apenas a
+  enumeração daquele produto é estendida;
+- Apoia-se em `docs/adr/ADR-0002-PRODUCT-BOARD-COMPOSITION.md@Accepted` — a nova
+  classe de recurso é exercício da regra de composição produto/board, não desvio
+  dela;
+- Apoia-se em `docs/adr/ADR-0001-ISSP-COMPONENT-BOUNDARIES.md@Accepted` — a
+  configuração da capability leva unidade, canal e atenuação de ADC à fachada
+  pública. Isso se apoia no precedente já vigente de `gpio_num_t` em
+  `SmartSysApp.h`, não rompe a direção de dependência e não expõe tipo de
+  protocolo ou de transporte. Se o Arquiteto considerar que o critério de
+  reavaliação daquela ADR foi alcançado, a decisão é dele;
 - Preserva `docs/specs/ISSP-Configurable-Bootstrap.md`,
-  `docs/specs/ISSP-Reusable-Components.md`,
-  `docs/specs/Firmware-Variants-Menuconfig.md` e
+  `docs/specs/ISSP-Reusable-Components.md` e
   `docs/specs/ISSP-Report-Identity.md` — nenhuma mudança de wire, de versão de
   protocolo, de checksum, de sequência ou de identidade de report.
 
@@ -104,12 +121,21 @@ com temporizador próprio; `board_model.hpp` e a composição em
   irrelevante enquanto o estado for `Configuring`;
 - client e coordenador continuam sem dependência de código entre si.
 
-**Desvio arquitetural explícito:** o primeiro report da capability é
-**incondicional**, enquanto o precedente `reportOnStart` o torna configurável
-por produto. O desvio é deliberado: a regra de variação compara contra o último
-percentual publicado, de modo que sem o primeiro report não existe base de
-comparação e a capability permaneceria muda por tempo indeterminado. Um produto
-não pode desabilitar essa primeira publicação.
+**Desvios arquiteturais explícitos:** são dois, ambos deliberados.
+
+1. **Primeiro report incondicional.** O precedente `reportOnStart` torna a
+   primeira publicação configurável por produto; aqui ela é obrigatória. A regra
+   de variação compara contra o último percentual publicado, de modo que sem o
+   primeiro report não existe base de comparação e a capability permaneceria
+   muda por tempo indeterminado. Um produto não pode desabilitar essa primeira
+   publicação.
+2. **Falha de configuração do ADC não impede `Running`.** O precedente é que
+   `IsspDevice::start()` aborta no primeiro behavior cujo `begin()` falha, e
+   alcançar `Running` prova que todos tiveram sucesso. A capability de bateria é
+   exceção: telemetria não deve impedir a função principal do produto, e um
+   sensor de porta com medição defeituosa continua reportando porta. O custo
+   aceito é que a ausência da capability é silenciosa para o host e observável
+   apenas em log local.
 
 ### 3.2 Limite de escopo funcional
 
@@ -134,7 +160,8 @@ valores concretos.
   consecutivas, separadas por `sampleIntervalMs`.
 - **`BATTERY-003`:** a tensão medida é convertida em percentual inteiro por
   interpolação linear entre `emptyMv`, que corresponde a 0%, e `fullMv`, que
-  corresponde a 100%.
+  corresponde a 100%, com aritmética inteira e arredondamento do meio para cima,
+  conforme a seção 5.1.
 - **`BATTERY-004`:** o percentual publicado é sempre saturado no intervalo de 0
   a 100; nenhum outro valor pode alcançar o wire.
 - **`BATTERY-005`:** o percentual é publicado como report ISSP no par
@@ -154,8 +181,10 @@ valores concretos.
 - **`BATTERY-010`:** o último percentual publicado é mantido apenas em memória
   volátil; nenhum estado da capability sobrevive a um ciclo de energia.
 - **`BATTERY-011`:** a configuração é rejeitada quando `samples` for zero,
-  quando `reportDeltaPercent` estiver fora do intervalo de 1 a 100, ou quando
-  `fullMv` não for maior que `emptyMv`.
+  quando `reportDeltaPercent` estiver fora do intervalo de 1 a 100, quando
+  `fullMv` não for maior que `emptyMv`, ou quando a resistência inferior do
+  divisor declarada pelo board for zero. O invariante de `reportDeltaPercent` é
+  incondicional, inclusive em composições cujo gatilho não o exercita.
 - **`BATTERY-012`:** a coerência entre `samplePeriodMs` e o gatilho é verificada
   em `setup()`, e não no registro da capability, de modo a preservar a
   irrelevância da ordem de configuração.
@@ -165,8 +194,17 @@ valores concretos.
 - **`BATTERY-014`:** percentual fora do intervalo definido por `emptyMv` e
   `fullMv`, quando eletricamente válido, não é falha: satura e é publicado.
 - **`BATTERY-015`:** calibração de ADC indisponível não impede a operação; a
-  capability converte pelo fundo de escala, registra a degradação e continua
-  publicando.
+  capability converte a leitura bruta linearmente entre zero e a tensão de fundo
+  de escala correspondente à atenuação declarada pelo board, registra a
+  degradação e continua publicando.
+- **`BATTERY-016`:** falha ao configurar a unidade ou o canal do ADC no início
+  da capability não impede o dispositivo de alcançar `Running`. A capability
+  permanece inerte, sem publicar, e a condição é registrada em log local;
+  nenhuma outra capability e nenhum estágio de `setup()` é afetado.
+- **`BATTERY-017`:** o report de bateria não integra a evidência de admissão de
+  deep sleep. Sua publicação segue as regras de drenagem de reports pendentes já
+  contratadas em `Client-Deep-Sleep.md`, mas o ciclo acordado nunca aguarda por
+  ele para autorizar o sleep antecipado.
 
 ## 5. Fluxos, estados e contratos
 
@@ -176,11 +214,18 @@ Sendo `Vpino` a tensão média no pino, `Rtop` e `Rbottom` as resistências do
 divisor e `Vbat` a tensão da bateria:
 
 ```text
-Vbat = Vpino * (Rtop + Rbottom) / Rbottom
+Vbat_mV = Vpino_mV * (Rtop + Rbottom) / Rbottom
 
-pct  = arredonda( (Vbat_mV - emptyMv) * 100 / (fullMv - emptyMv) )
-pct  = satura(pct, 0, 100)
+span    = fullMv - emptyMv
+pct     = ( (Vbat_mV - emptyMv) * 100 + span / 2 ) / span
+pct     = satura(pct, 0, 100)
 ```
+
+A conversão usa **aritmética inteira**, e o arredondamento é do **meio para
+cima**, expresso pelo termo `span / 2` acima. Ponto flutuante não é exigido em
+nenhum ponto do contrato. A saturação é aplicada depois do arredondamento, de
+modo que a expressão intermediária pode ser negativa ou maior que 100 sem violar
+`BATTERY-004`.
 
 Invariantes normativos, todos derivados e nenhum escolhido por julgamento:
 
@@ -189,6 +234,7 @@ Invariantes normativos, todos derivados e nenhum escolhido por julgamento:
 | `samples >= 1` | média inexistente e divisão por zero com zero amostras |
 | `1 <= reportDeltaPercent <= 100` | domínio do próprio percentual: 0 publicaria a cada amostragem, acima de 100 é inalcançável e tornaria a capability permanentemente muda |
 | `fullMv > emptyMv` | a interpolação é indefinida ou invertida em caso contrário |
+| resistência inferior do divisor maior que zero | a razão do divisor divide por ela; zero torna a tensão indeterminável |
 | `samplePeriodMs` coerente com o gatilho | zero em composição sem deep sleep nunca mediria; não nulo em composição com deep sleep cria temporizador que não chega a disparar |
 
 `sampleIntervalMs` **não** possui faixa normativa, e o valor zero é
@@ -201,6 +247,12 @@ Nenhuma outra faixa numérica é normatizada. Em particular, não existem limite
 normativos para `samples`, `sampleIntervalMs` ou `samplePeriodMs` além dos
 invariantes acima, porque nenhuma evidência de plataforma, protocolo ou
 documento vigente os sustenta.
+
+**Exatidão e transbordo.** A escolha das larguras inteiras intermediárias
+pertence à implementação e não é prescrita aqui. O contrato exige apenas que a
+média das amostras e a conversão produzam o percentual exato para os valores
+declarados pelo board e pelo produto, sem transbordo. Nenhum tipo, largura ou
+ordem de operações é imposto.
 
 **Dimensionamento (informativo, não normativo):** em composição com deep sleep,
 `samples` multiplicado por `sampleIntervalMs` consome parte da janela acordada
@@ -299,9 +351,24 @@ falha. O percentual satura em 0 ou 100 e é publicado normalmente. É justamente
 caso em que o report tem maior valor: bateria abaixo de `emptyMv` deve alcançar
 o host como 0%, e não como silêncio.
 
-**Calibração indisponível.** Não é falha. A capability converte pelo fundo de
-escala, registra a degradação e continua publicando. O host não distingue valor
-calibrado de aproximado; isso é risco residual declarado na seção 9.
+**Calibração indisponível.** Não é falha. A capability converte a leitura bruta
+linearmente entre zero e a tensão de fundo de escala correspondente à atenuação
+que o board declara, obtida da fonte do alvo; nenhum valor literal de fundo de
+escala pertence a esta especificação, porque ele varia com a atenuação e com o
+alvo. A degradação é registrada em log e a publicação continua. O host não
+distingue valor calibrado de aproximado; isso é risco residual declarado na
+seção 9.
+
+**Falha na configuração do ADC.** Distinta das três classes acima, porque ocorre
+antes de qualquer medição. A unidade ou o canal não puderam ser configurados no
+início da capability. Conforme `BATTERY-016` e o segundo desvio da seção 3.1, o
+dispositivo alcança `Running` normalmente, a capability permanece inerte e a
+condição é registrada em log local.
+
+**Retentativa.** Nova tentativa de medição dentro do mesmo ciclo, após falha,
+não pertence a este contrato: o resultado observável já é a ausência do report,
+e a escolha é da implementação. O próximo gatilho realiza nova medição
+normalmente.
 
 **Supressão e ambiguidade.** A supressão do report em falha é indistinguível,
 para o host, de perda de rádio. É consequência aceita da decisão de não
@@ -315,9 +382,11 @@ introduzir valor sentinela, que manteria o domínio do evento restrito a 0–100
 
 - **Dado que** a capability está configurada com `emptyMv` e `fullMv` válidos;
 - **Quando** a tensão média corresponder a `emptyMv`, a `fullMv`, ao ponto
-  médio, a um valor abaixo de `emptyMv` e a um valor acima de `fullMv`;
+  médio, a um valor cuja fração seja exatamente meio ponto percentual, a um
+  valor abaixo de `emptyMv` e a um valor acima de `fullMv`;
 - **Então** o percentual publicado é, respectivamente, 0, 100, o valor
-  interpolado, 0 e 100, e nenhum valor fora de 0 a 100 alcança o wire;
+  interpolado, o inteiro imediatamente superior, 0 e 100, e nenhum valor fora de
+  0 a 100 alcança o wire;
 - **Evidência:** inspeção do delta e validação em hardware com fonte variável,
   reservada a etapa posterior.
 
@@ -402,6 +471,31 @@ introduzir valor sentinela, que manteria o domínio do evento restrito a 0–100
   o report continua sendo publicado;
 - **Evidência:** validação em hardware reservada a etapa posterior.
 
+### `BATTERY-AC-009` — falha de configuração do ADC não impede a operação
+
+**Cobre:** `BATTERY-016`
+
+- **Dado que** um produto registra a capability e a configuração da unidade ou
+  do canal do ADC falha;
+- **Quando** `setup()` é executado;
+- **Então** o dispositivo alcança `Running`, as demais capabilities operam
+  normalmente, a capability de bateria permanece inerte sem publicar, e a
+  condição fica registrada em log local;
+- **Evidência:** inspeção do delta; validação em hardware reservada a etapa
+  posterior.
+
+### `BATTERY-AC-010` — bateria não retém o dispositivo acordado
+
+**Cobre:** `BATTERY-017`
+
+- **Dado que** um produto com deep sleep habilitado registra a capability;
+- **Quando** a medição falhar em um boot, e quando ela tiver sucesso em outro;
+- **Então** a admissão de sleep antecipado permanece exatamente a mesma dos dois
+  casos, sem prolongar a janela acordada à espera do report de bateria, e o
+  report bem-sucedido continua sendo transmitido pela drenagem de pendentes;
+- **Evidência:** inspeção do delta; validação em hardware ESP32-H2 reservada a
+  etapa posterior.
+
 ### 7.1 Evidências planejadas
 
 - **Artefatos de teste no recorte:** Nenhum. Nenhum teste automatizado é criado
@@ -445,9 +539,13 @@ capability, e alterá-los não exige emendar as seções 4 a 7.
 | `samples` | 8 |
 | `sampleIntervalMs` | 5 |
 | `samplePeriodMs` | 0, porque o gatilho é o boot operacional |
-| `reportDeltaPercent` | inerte neste produto; o gatilho não usa variação |
+| `reportDeltaPercent` | 5 |
 | `endpointId` | 2 |
 | `eventType` | 3 |
+
+O valor 5 de `reportDeltaPercent` satisfaz o invariante incondicional de
+`BATTERY-011`, mas **não é exercitado** neste produto, cujo gatilho é o boot
+operacional. Ele passa a valer se o mesmo produto vier a operar sem deep sleep.
 
 O evento 3 é o já registrado para nível de bateria em percentual; o coordenador
 o traduz para o host sem qualquer alteração. A origem histórica desses valores
@@ -474,6 +572,20 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - calibração indisponível como modo degradado, não como falha;
 - nenhum artefato de teste no recorte.
 
+**Decisões acrescentadas na v0.2, em resposta à análise da v0.1:**
+
+- arredondamento inteiro com o meio para cima, sem ponto flutuante;
+- fallback sem calibração definido pelo fundo de escala da atenuação declarada
+  pelo board, sem literal nesta especificação;
+- falha de configuração do ADC **não** impede `Running`, como segundo desvio
+  arquitetural explícito;
+- o report de bateria **não** integra a evidência de admissão de deep sleep,
+  preservando `Client-Deep-Sleep` sem emenda;
+- invariante incondicional de `reportDeltaPercent`, com valor válido registrado
+  também para o produto cujo gatilho não o exercita;
+- transbordo tratado como responsabilidade da implementação, com exigência
+  apenas de exatidão para os valores declarados.
+
 **Riscos residuais aceitos:**
 
 - drenagem contínua do divisor permanentemente conectado, inerente ao arranjo
@@ -489,6 +601,9 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
   qualquer recomendação de prontidão desta especificação;
 - o mapa de conhecimento e o changelog ainda não registram esta especificação
   nem a ADR; a atualização não integrou a autorização desta atuação;
-- a análise de implementabilidade não foi realizada e não foi autorizada;
+- a v0.2 ainda não foi analisada; a análise da v0.1 concluiu **Não pronta —
+  defeito da especificação** e não se aplica a esta versão;
+- a ausência da capability por falha de configuração do ADC é silenciosa para o
+  host, consequência aceita do segundo desvio arquitetural;
 - os valores elétricos da seção 8 foram confirmados pelo Arquiteto por
   declaração, sem medição em placa registrada nesta atuação.
