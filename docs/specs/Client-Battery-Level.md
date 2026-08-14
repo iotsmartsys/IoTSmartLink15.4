@@ -4,13 +4,14 @@
 
 **Classe da fonte:** Normativa
 
-**Versão:** 0.2
+**Versão:** 0.3
 
 **Estado do workflow:** `Draft`
 
-**Análise de implementabilidade:** Pendente para a v0.2. A v0.1 recebeu
-classificação **Não pronta — defeito da especificação**; os defeitos apontados
-foram corrigidos nesta versão e a análise anterior não se aplica a ela.
+**Análise de implementabilidade:** Pendente para a v0.3. A v0.1 recebeu
+classificação **Não pronta — defeito da especificação**; seus defeitos foram
+corrigidos na v0.2, e a v0.3 incorpora o modelo de identidade de capability
+decidido na ADR-0005. Nenhuma análise anterior se aplica a esta versão.
 
 **Bloqueio arquitetural:** Nenhum
 
@@ -24,10 +25,11 @@ foram corrigidos nesta versão e a análise anterior não se aplica a ela.
 
 - Nova [`New`] — não existe autoridade anterior para telemetria de bateria no
   client;
-- Depende de [`Depends On`] `docs/adr/ADR-0005-TELEMETRY-ENDPOINTS.md@Proposed`
-  — identidade de endpoint de telemetria e registro normativo dos tipos de
-  evento; enquanto a ADR permanecer `Proposed`, esta especificação não pode
-  receber recomendação de prontidão;
+- Depende de [`Depends On`] `docs/adr/ADR-0005-CAPABILITY-IDENTITY.md@Proposed`
+  — endpoint como identificador congelado, tipo de evento como natureza da
+  capability, unicidade por endpoint e registro normativo dos tipos; enquanto a
+  ADR permanecer `Proposed`, esta especificação não pode receber recomendação de
+  prontidão;
 - Depende de [`Depends On`] `docs/specs/Client-Deep-Sleep.md@v0.11` — estado
   material necessário: o boot operacional, o ciclo acordado e a drenagem de
   reports pendentes precisam existir como comportamento implementado. A
@@ -82,7 +84,8 @@ A configuração concreta do `door_sensor_battery_h2` é registrada na seção 8
 
 - medição de tensão de bateria por entrada analógica com divisor resistivo;
 - conversão em percentual inteiro de 0 a 100;
-- publicação como report ISSP em par `endpointId`/`eventType` de telemetria;
+- publicação como report ISSP no endpoint atribuído pelo produto, com o tipo de
+  evento fixado pela capability;
 - duas regras de gatilho, conforme a composição possua ou não deep sleep;
 - classificação de falha, invalidez elétrica e saturação;
 - invariantes de configuração validados pela fachada;
@@ -115,8 +118,8 @@ com temporizador próprio; `board_model.hpp` e a composição em
 - o board model oferece recurso elétrico; o product firmware define política; a
   fachada não descobre pinagem;
 - a composição CMake valida produto contra board por recurso requerido;
-- capabilities são registradas antes de `setup()`, com par `endpointId` e
-  `eventType` único no dispositivo;
+- capabilities são registradas antes de `setup()`; conforme a ADR-0005, o
+  endpoint identifica a capability e é único no dispositivo;
 - a ordem entre registrar uma capability e configurar deep sleep permanece
   irrelevante enquanto o estado for `Configuring`;
 - client e coordenador continuam sem dependência de código entre si.
@@ -164,11 +167,13 @@ valores concretos.
   conforme a seção 5.1.
 - **`BATTERY-004`:** o percentual publicado é sempre saturado no intervalo de 0
   a 100; nenhum outro valor pode alcançar o wire.
-- **`BATTERY-005`:** o percentual é publicado como report ISSP no par
-  `endpointId` e `eventType` configurado, único entre as capabilities do
-  dispositivo.
-- **`BATTERY-006`:** a capability é somente leitura; comando dirigido ao seu par
-  `endpointId`/`eventType` é respondido com `Unsupported`.
+- **`BATTERY-005`:** o percentual é publicado como report ISSP no endpoint que o
+  produto atribui à capability, único entre as capabilities do dispositivo, com
+  o tipo de evento fixado pela própria capability conforme a ADR-0005. O produto
+  não escolhe nem sobrescreve o tipo de evento, que não integra sua
+  configuração.
+- **`BATTERY-006`:** a capability é somente leitura; comando dirigido ao par que
+  ela ocupa é reconhecido pelo behavior e respondido com `Unsupported`.
 - **`BATTERY-007`:** em composição com deep sleep habilitado, a capability mede
   e publica em todo boot operacional, qualquer que seja a causa do wakeup, sem
   condição de variação.
@@ -182,9 +187,11 @@ valores concretos.
   volátil; nenhum estado da capability sobrevive a um ciclo de energia.
 - **`BATTERY-011`:** a configuração é rejeitada quando `samples` for zero,
   quando `reportDeltaPercent` estiver fora do intervalo de 1 a 100, quando
-  `fullMv` não for maior que `emptyMv`, ou quando a resistência inferior do
-  divisor declarada pelo board for zero. O invariante de `reportDeltaPercent` é
-  incondicional, inclusive em composições cujo gatilho não o exercita.
+  `fullMv` não for maior que `emptyMv`, quando a resistência inferior do
+  divisor declarada pelo board for zero, quando `endpointId` for zero, ou quando
+  o endpoint já estiver ocupado por outra capability do dispositivo. O
+  invariante de `reportDeltaPercent` é incondicional, inclusive em composições
+  cujo gatilho não o exercita.
 - **`BATTERY-012`:** a coerência entre `samplePeriodMs` e o gatilho é verificada
   em `setup()`, e não no registro da capability, de modo a preservar a
   irrelevância da ordem de configuração.
@@ -271,13 +278,17 @@ Fornecidos pelo product firmware ao configurar a capability:
 | `sampleIntervalMs` | espera entre amostras consecutivas |
 | `samplePeriodMs` | período de amostragem sem deep sleep; zero significa sem amostragem periódica |
 | `reportDeltaPercent` | variação mínima, em pontos, para publicar sem deep sleep |
-| `endpointId` | endpoint de telemetria do report |
-| `eventType` | tipo de evento do report |
+| `endpointId` | identificador da capability dentro do produto, atribuído uma vez e congelado |
 
 `emptyMv` e `fullMv` pertencem ao produto porque decorrem da química e do pack
 escolhidos, não da fórmula. `samples` e `sampleIntervalMs` pertencem ao produto
 porque trocam ruído por tempo acordado. `reportDeltaPercent` pertence ao produto
-porque troca tráfego de rádio por resolução.
+porque troca tráfego de rádio por resolução. `endpointId` pertence ao produto
+porque identifica esta capability entre as demais **daquele** firmware.
+
+O tipo de evento **não** é parâmetro do produto. Ele é a natureza da capability,
+fixado pela ADR-0005, e por isso não aparece nesta tabela nem na configuração
+que o product firmware fornece.
 
 ### 5.3 Camada do board model — fatos elétricos
 
@@ -296,19 +307,26 @@ demais recursos: produto sem board compatível falha na configuração do build.
 
 ### 5.4 Identidade e transporte
 
-O par `endpointId` e `eventType` é a chave de roteamento da capability. No ISSP,
-`endpointId` é um campo de um byte do frame, ao lado de `eventType` e `value`;
-não existe cluster, atributo, descritor, binding nem descoberta de lista de
-endpoints. **Não é endpoint no sentido Zigbee e não introduz estrutura nova de
-transporte.**
+Conforme a ADR-0005, o **endpoint identifica** a capability dentro do produto e
+o **tipo de evento diz o que ela é**. O endpoint é atribuído uma vez, com origem
+sequencial, e permanece congelado nas revisões seguintes do firmware; o tipo de
+evento desta capability é fixado pela ADR e vale para qualquer produto que a
+registre.
+
+No ISSP, `endpointId` é um campo de um byte do frame, ao lado de `eventType` e
+`value`; não existe cluster, atributo, descritor, binding nem descoberta de
+lista de endpoints. **Não é endpoint no sentido Zigbee e não introduz estrutura
+nova de transporte.**
 
 Portanto esta especificação não altera wire, versão de protocolo, checksum,
 endianness, sequência, tipo de frame nem tamanho de payload. O percentual ocupa
 o campo `value` de 8 bits já existente.
 
-A distinção entre endpoint funcional e endpoint de telemetria, e o registro
-normativo dos tipos de evento, pertencem à `ADR-0005` e não são redefinidos
-aqui.
+O modelo de identidade — endpoint congelado, tipo como natureza, unicidade por
+endpoint — e o registro normativo dos tipos de evento pertencem à `ADR-0005` e
+não são redefinidos aqui. As capabilities já existentes ainda não seguem esse
+modelo; a divergência é conhecida e está registrada como `EKOM-DEBT-0001`, sem
+integrar o recorte desta especificação.
 
 ### 5.5 Gatilhos
 
@@ -453,11 +471,12 @@ introduzir valor sentinela, que manteria o domínio do evento restrito a 0–100
 
 **Cobre:** `BATTERY-005`, `BATTERY-006`
 
-- **Dado que** a capability está registrada em endpoint de telemetria;
-- **Quando** outra capability tentar registrar o mesmo par, e quando um comando
-  for dirigido ao par da bateria;
-- **Então** o registro duplicado é rejeitado e o comando é respondido com
-  `Unsupported`;
+- **Dado que** a capability está registrada no endpoint atribuído pelo produto,
+  com o tipo de evento fixado pela própria capability;
+- **Quando** outra capability tentar registrar o mesmo endpoint, ainda que com
+  tipo de evento distinto, e quando um comando for dirigido ao par da bateria;
+- **Então** o registro é rejeitado e o comando é reconhecido pelo behavior e
+  respondido com `Unsupported`;
 - **Evidência:** inspeção do delta; validação em hardware reservada a etapa
   posterior.
 
@@ -540,15 +559,16 @@ capability, e alterá-los não exige emendar as seções 4 a 7.
 | `sampleIntervalMs` | 5 |
 | `samplePeriodMs` | 0, porque o gatilho é o boot operacional |
 | `reportDeltaPercent` | 5 |
-| `endpointId` | 2 |
-| `eventType` | 3 |
+| `endpointId` | 2 — segunda capability do firmware, congelada nesse valor |
 
 O valor 5 de `reportDeltaPercent` satisfaz o invariante incondicional de
 `BATTERY-011`, mas **não é exercitado** neste produto, cujo gatilho é o boot
 operacional. Ele passa a valer se o mesmo produto vier a operar sem deep sleep.
 
-O evento 3 é o já registrado para nível de bateria em percentual; o coordenador
-o traduz para o host sem qualquer alteração. A origem histórica desses valores
+O tipo de evento não aparece acima porque não é configuração do produto: a
+capability reporta o tipo 3, fixado pela ADR-0005 e já registrado no coordenador
+para nível de bateria em percentual, que o traduz para o host sem qualquer
+alteração. O sensor de porta deste mesmo firmware ocupa o endpoint 1. A origem histórica desses valores
 elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 `EKM-GAP-0007` e **não** é fonte normativa.
 
@@ -561,7 +581,7 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - interpolação linear, sem tabela por trechos;
 - média de amostras, sem mediana nem descarte de extremos;
 - divisor permanentemente ligado, sem GPIO de habilitação;
-- endpoint dedicado de telemetria, com o tipo de evento já registrado;
+- endpoint próprio para a capability, com o tipo de evento já registrado;
 - configuração própria da capability, fora de `DeepSleepConfig`;
 - reporte incondicional a cada wakeup em composição com deep sleep, e por
   variação em composição sem deep sleep;
@@ -586,6 +606,18 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - transbordo tratado como responsabilidade da implementação, com exigência
   apenas de exatidão para os valores declarados.
 
+**Decisões acrescentadas na v0.3, após a reformulação da ADR-0005:**
+
+- o tipo de evento deixa de ser parâmetro do produto e passa a ser a natureza da
+  capability, fixado pela ADR;
+- `endpointId` permanece do produto, agora qualificado como identificador
+  atribuído uma vez e congelado, com zero rejeitado;
+- a unicidade exigida no registro passa a ser do **endpoint**, e não do par;
+- a categoria "endpoint de telemetria" foi abandonada: ser somente leitura é
+  propriedade da capability, não do número que a identifica;
+- a divergência das capabilities existentes permanece fora deste recorte e está
+  registrada como `EKOM-DEBT-0001`.
+
 **Riscos residuais aceitos:**
 
 - drenagem contínua do divisor permanentemente conectado, inerente ao arranjo
@@ -599,8 +631,9 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 
 - a `ADR-0005` está em `Proposed`; sua aceitação é do Arquiteto e condiciona
   qualquer recomendação de prontidão desta especificação;
-- o mapa de conhecimento e o changelog ainda não registram esta especificação
-  nem a ADR; a atualização não integrou a autorização desta atuação;
+- os débitos `EKOM-DEBT-0001` a `EKOM-DEBT-0004`, registrados no mapa, alcançam
+  esta especificação; a aceitação da postergação não torna conforme a
+  divergência das capabilities existentes;
 - a v0.2 ainda não foi analisada; a análise da v0.1 concluiu **Não pronta —
   defeito da especificação** e não se aplica a esta versão;
 - a ausência da capability por falha de configuração do ADC é silenciosa para o

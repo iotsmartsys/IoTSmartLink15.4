@@ -44,7 +44,7 @@ não criam autoridade paralela.
 | Consolidação ISSP | `docs/specs/ISSP-Consolidation.md` | Concluída | Client e coordenador | Auditoria e hardware históricos | Revisado |
 | Protocolo wire ISSP | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0002` | v2 implementado nos dois codecs; protocolo integral ainda aberto | `issp_protocol.cpp`; `iot154_packet.h` | Vetores dourados host-native em ambos os targets | Cobertura parcial |
 | Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 concluída; correlação exige `report_id` | Transporte, executor e coordenador | Análises, implementações e revisões v0.2/v0.3; comportamento funcional relatado validado em hardware | Implementado e validado no caminho funcional; cenários adversos da fronteira UART aceitos sem execução própria |
-| Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.2 em rascunho [`Draft`]; ADR-0005 `Proposed` | Nenhum; não implementado | Nenhuma | Especificada, não analisada |
+| Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.3 em rascunho [`Draft`]; ADR-0005 `Proposed` | Nenhum; não implementado | Nenhuma | Especificada, não analisada |
 | Identidade de capability | ADR-0005; `EKOM-DEBT-0001` | Modelo decidido na ADR; retrofit postergado | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client` | Nenhuma | Divergente do modelo nas capabilities existentes |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
 
@@ -63,7 +63,7 @@ IoTSmartLink15.4
 │   │   └── SmartSysApp + componentes ISSP compartilhados
 │   │       ├── Deep sleep opt-in — timer e wakeup por contato (EXT1) implementados
 │   │       ├── Identidade de report gerada no client — v0.3 concluída
-│   │       └── Nível de bateria — especificado em v0.2 Draft, não implementado
+│   │       └── Nível de bateria — especificado em v0.3 Draft, não implementado
 │   └── coordinator_154 — ESP32-C6
 │       ├── commissioning e rádio
 │       ├── registry persistente

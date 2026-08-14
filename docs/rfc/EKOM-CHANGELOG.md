@@ -585,3 +585,92 @@ não transforma suítes `Not Executed` em sucesso nem afirma cobertura de
 cenários não enumerados. A fonte normativa permanece Active e o workflow da
 v0.3 passa a Concluído [`Done`]; nova evidência ou necessidade exige decisão de
 reabertura.
+
+## EKOM-CHG-0004 — Nível de bateria do client
+
+**Estado:** v0.3 em rascunho [`Draft`]; sem análise de implementabilidade
+aplicável
+
+**Especificação relacionada:** `docs/specs/Client-Battery-Level.md`
+(`EKOM-BATTERY-001`)
+
+**Objetivo:** especificar a capability de nível de bateria do client, que mede a
+tensão por entrada analógica com divisor resistivo, converte em percentual
+inteiro e o publica como report ISSP, sem alterar wire, coordenador ou host.
+
+### Decisões relacionadas
+
+- o contrato é escrito em três camadas separadas de forma normativa: contrato
+  genérico sem números, parâmetros do product firmware e fatos elétricos do
+  board model; a configuração do `door_sensor_battery_h2` é informativa;
+- conversão linear entre `emptyMv` e `fullMv`, com aritmética inteira,
+  arredondamento do meio para cima e saturação em 0 e 100;
+- gatilho duplo: em composição com deep sleep, publica a cada wakeup, qualquer
+  que seja a causa; sem deep sleep, amostra por período próprio e publica na
+  variação mínima, com o primeiro valor válido sempre publicado;
+- nenhuma faixa numérica é normatizada; existem apenas invariantes derivados,
+  porque nenhuma evidência de plataforma sustentava os limites antes propostos;
+- falha de leitura ou amostra em extremo de escala suprime somente o report;
+  calibração indisponível é modo degradado, não falha; falha de configuração do
+  ADC não impede `Running`, como desvio arquitetural explícito;
+- o report de bateria não integra a evidência de admissão de deep sleep, o que
+  preserva `Client-Deep-Sleep.md` sem emenda;
+- ADR-0005 fixa o modelo de identidade, e a v0.3 retira o tipo de evento da
+  camada de parâmetros do produto;
+- nenhum artefato de teste integra o recorte.
+
+### Relações e limites
+
+A fonte é nova, altera de forma delimitada `Firmware-Variants-Menuconfig.md`
+pela composição do produto a bateria, apoia-se em ADR-0001 e ADR-0002 e depende
+do comportamento de boot operacional de `Client-Deep-Sleep.md@v0.11`, sem
+emendá-la. Preserva bootstrap, componentes reutilizáveis e identidade de report.
+
+### Lacunas e débitos
+
+- a análise da v0.1 classificou **Não pronta — defeito da especificação**; os
+  oito achados foram confrontados e resolvidos na v0.2 e na v0.3;
+- `EKOM-DEBT-0004` registra a observabilidade ausente no host para capability
+  inerte por falha de ADC e para valor aproximado no modo degradado.
+
+### Próxima etapa
+
+Aceitação da `ADR-0005`, que condiciona qualquer recomendação de prontidão, e
+análise de implementabilidade da v0.3. Não há autorização de implementação.
+
+## EKOM-CHG-0005 — Adoção do EKOM 4.4 e registro de débitos técnicos
+
+**Estado:** Fechada [`Closed`]
+
+**Especificação relacionada:** Não aplicável; governança documental
+
+**Objetivo:** adotar o EKOM 4.4 nas fontes locais e instituir o registro de
+débito técnico previsto pela `ADR-0013` do modelo externo.
+
+### Decisões relacionadas
+
+- `AGENTS.md`, a diretriz local e o mapa passam a declarar EKOM 4.4;
+- débito técnico é condição conhecida cuja correção o Arquiteto postergou
+  conscientemente, com gatilho ou critério de quitação, e não se confunde com
+  lacuna de conhecimento, defeito, desvio ou risco residual;
+- o mapa recebe a seção de débitos como registro canônico, com namespace
+  `EKOM-DEBT-NNNN`;
+- nenhum agente aceita débito, quitação ou substituição por autoridade própria.
+
+### Débitos aceitos
+
+- `EKOM-DEBT-0001` — capabilities existentes recebem tipo de evento do produto e
+  a unicidade validada é do par, divergindo do modelo da ADR-0005;
+- `EKOM-DEBT-0002` — `ISSP-Configurable-Bootstrap.md` não aponta para a ADR que
+  estende sua semântica;
+- `EKOM-DEBT-0003` — a tabela de tipos de evento em código do coordenador não
+  tem guarda que a confronte com a ADR;
+- `EKOM-DEBT-0004` — o host não distingue capability ausente por falha nem valor
+  aproximado de calibrado.
+
+### Resultado
+
+As fontes locais foram reconciliadas com o EKOM 4.4 e os quatro débitos foram
+aceitos pelo Arquiteto em 14/08/2026, com condição, alcance, evidência,
+consequência, gatilho e relações registrados no mapa. A aceitação não torna
+conforme nenhuma das condições registradas nem altera evidência.
