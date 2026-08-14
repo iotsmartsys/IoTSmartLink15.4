@@ -154,6 +154,7 @@ jobs:
             Não altere arquivos, não crie branch, não implemente código, não
             faça commit e não faça push. Sua resposta é apenas a análise para
             avaliação do Arquiteto.
+
       - name: Validar relatório gerado
         env:
           REPORT_FILE: ${{ runner.temp }}/ekom-analysis.md
@@ -172,4 +173,70 @@ jobs:
             echo "- Arquivo temporário criado com sucesso"
             echo "- Tamanho: $(wc -c < "$REPORT_FILE") bytes"
             echo "- SHA-256: \`$(sha256sum "$REPORT_FILE" | cut -d ' ' -f 1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      
+      - name: Preparar relatório versionado
+        id: prepare_report
+        env:
+          SOURCE_REPORT: ${{ runner.temp }}/ekom-analysis.md
+          CHANGE_ID: ${{ inputs.change_id }}
+          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
+        run: |
+          set -euo pipefail
+
+          SPEC_NAME="$(basename "$SPECIFICATION_PATH" .md)"
+          SPEC_SLUG="$(printf '%s' "$SPEC_NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | tr '_' '-' \
+            | sed 's/[^a-z0-9-]//g')"
+
+          if [ -z "$SPEC_SLUG" ]; then
+            echo "Não foi possível derivar o domínio do relatório."
+            exit 1
+          fi
+
+          RUN_DATE="$(date -u +%F)"
+          REVISION="$(git rev-parse --short=7 HEAD)"
+          REPORT_DIR="docs/reports/$SPEC_SLUG/analysis"
+          REPORT_PATH="$REPORT_DIR/${RUN_DATE}-${REVISION}-run-${GITHUB_RUN_ID}-implementability-analysis.md"
+
+          mkdir -p "$REPORT_DIR"
+
+          {
+            printf '# Análise de implementabilidade — %s\n\n' "$CHANGE_ID"
+            printf '**Especificação:** `%s`\n\n' "$SPECIFICATION_PATH"
+            printf '**Branch analisada:** `%s`\n\n' "$WORKING_BRANCH"
+            printf '**Revisão analisada:** `%s`\n\n' "$REVISION"
+            printf '**Execução do GitHub Actions:** `%s`\n\n' "$GITHUB_RUN_ID"
+            printf '**Data da análise:** `%s`\n\n' "$RUN_DATE"
+            printf '%s\n\n' '---'
+            printf '## Relatório do Engenheiro Analista\n\n'
+            printf '%s\n' "$(cat "$SOURCE_REPORT")"
+          } > "$REPORT_PATH"
+
+          STATUS="$(git status --porcelain --untracked-files=all \
+            | grep -vE '^\?\? \.ekom-guidelines/$' || true)"
+
+          if [ "$STATUS" != "?? $REPORT_PATH" ]; then
+            echo "Foram encontradas alterações fora do relatório autorizado:"
+            printf '%s\n' "$STATUS"
+            exit 1
+          fi
+
+          if [ ! -s "$REPORT_PATH" ]; then
+            echo "O relatório versionado ficou vazio."
+            exit 1
+          fi
+
+          echo "report_path=$REPORT_PATH" >> "$GITHUB_OUTPUT"
+
+          {
+            echo
+            echo "## Relatório preparado para versionamento"
+            echo
+            echo "- Caminho: \`$REPORT_PATH\`"
+            echo "- Revisão analisada: \`$REVISION\`"
+            echo "- Tamanho: $(wc -c < "$REPORT_PATH") bytes"
+            echo "- Nenhum outro arquivo foi alterado"
           } >> "$GITHUB_STEP_SUMMARY"
