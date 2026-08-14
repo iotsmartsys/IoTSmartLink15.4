@@ -1,6 +1,6 @@
 # Instruções permanentes e roteamento EKOM
 
-**Modelo EKOM:** 3.6
+**Modelo EKOM:** 4.4
 
 **Modalidade:** capacidades referenciadas e governança proporcional
 
@@ -48,6 +48,8 @@ autorização própria.
 - ADRs: `docs/adr/`;
 - relatórios: `docs/reports/`;
 - transações e lacunas: `docs/rfc/EKOM-CHANGELOG.md`;
+- débitos técnicos aceitos: `docs/rfc/KNOWLEDGE-MAP.md`, namespace
+  `EKOM-DEBT-NNNN`;
 - mapa de conhecimento: `docs/rfc/KNOWLEDGE-MAP.md`;
 - visão e navegação: `docs/specs/SYSTEM-DOSSIER.md`;
 - diretriz local de adoção: `docs/rfc/EKOM-GUIDELINES.md`;
@@ -79,6 +81,11 @@ autorização própria.
   EKOM.
 - Somente o Arquiteto incorpora achados em fontes normativas, aceita ADRs,
   promove estados e determina conclusão ou reabertura.
+- Débito técnico é condição conhecida cuja correção o Arquiteto postergou
+  conscientemente, com gatilho ou critério de quitação. Não se confunde com
+  lacuna de conhecimento, defeito, desvio ou risco residual, e nenhum agente o
+  aceita por autoridade própria; agentes só registram fatos e o estado
+  operacional `In Remediation` quando sustentado pela atuação.
 - Nunca registre segredo, token, chave, header de autorização ou connection
   string no repositório ou em saídas de agentes.
 

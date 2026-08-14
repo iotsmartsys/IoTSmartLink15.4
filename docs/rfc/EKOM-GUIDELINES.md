@@ -1,10 +1,10 @@
-# Diretriz local de adoção do EKOM 3.6
+# Diretriz local de adoção do EKOM 4.4
 
 **Classe da fonte:** Normativa local
 
 **Estado da fonte:** Vigente
 
-O IoTSmartLink15.4 adota o EKOM 3.6 publicado em
+O IoTSmartLink15.4 adota o EKOM 4.4 publicado em
 `/Users/marcelocostamiranda/source/EKM-guidelines`. O método, a governança, os
 perfis e as ADRs do modelo externo prevalecem sobre instruções históricas do
 projeto.
@@ -14,6 +14,10 @@ Esta fonte registra somente escolhas locais:
 - o namespace `EKM-CHG-*` e `EKM-GAP-*` permanece preservado para registros
   anteriores à migração;
 - novas transações podem usar `EKOM-CHG-*`;
+- débitos técnicos aceitos usam `EKOM-DEBT-*` e são registrados na seção
+  própria de `docs/rfc/KNOWLEDGE-MAP.md`, que é seu registro canônico; débito
+  não substitui lacuna, defeito, desvio nem risco residual, e sua aceitação,
+  quitação ou substituição é exclusiva do Arquiteto;
 - especificações permanecem em `docs/specs/`;
 - decisões arquiteturais duráveis ficam em `docs/adr/`;
 - relatórios ficam em `docs/reports/<mudança>/<capacidade>/`;

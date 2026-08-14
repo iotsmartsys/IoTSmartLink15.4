@@ -125,9 +125,9 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           sandbox: read-only
           codex-args: '["--ephemeral"]'
+          output-file: ${{ runner.temp }}/ekom-analysis.md
           prompt: |
-            Atue somente na fase de análise de implementabilidade da versão
-            vigente do EKOM.
+            Atue somente na fase de autoria e análise de implementabilidadeda versão vigente do EKOM.
 
             Leia primeiro o AGENTS.md do projeto e siga todas as instruções aplicáveis. As diretrizes canônicas vigentes estão disponíveis em .ekom-guidelines/. Use esse caminho no ambiente da Action quando o AGENTS.md mencionar a instalação local externa.
 
@@ -139,28 +139,6 @@ jobs:
             Leia integralmente a especificação indicada. Não reconstrua o
             contrato a partir de dados do workflow. A especificação versionada
             na branch é a fonte normativa da demanda.
-
-            Política de leitura e economia de contexto:
-            - Leia integralmente e uma única vez, nesta ordem: `AGENTS.md`,
-              `.ekom-guidelines/roles/REGRAS-COMUNS.md`,
-              `.ekom-guidelines/roles/ENGENHEIRO-ANALISTA.md` e a especificação
-              submetida. Leia um documento completo por comando, do início ao
-              EOF; não carregue o perfil do Autor nesta atuação de Análise.
-            - Não concatene nem releia esses quatro documentos obrigatórios e
-              não repita seu conteúdo apenas para obter números de linha.
-            - Use `rg --files` para localizar arquivos, `rg -n` para buscas
-              textuais e os comandos Git somente quando necessários. Limite
-              buscas amplas e refine o padrão antes de ampliar os resultados.
-            - Use o mapa, as relações declaradas e buscas direcionadas para
-              localizar nas demais autoridades somente as seções pertinentes ao
-              recorte. Leia trechos exatos com `sed -n`. Amplie para o documento
-              completo apenas quando os trechos não bastarem para decidir uma
-              relação, conflito ou bloqueador material.
-            - Para código, localize primeiro os símbolos e depois leia somente
-              os trechos exatos necessários. Se precisar citar linhas, numere
-              apenas esses trechos; não releia o arquivo inteiro.
-            - Evite listagens completas do repositório, buscas com centenas de
-              resultados e comandos que concatenem muitos arquivos.
 
             Confronte a especificação com as autoridades, arquitetura,
             precedentes e código existentes e apresente:
@@ -176,3 +154,22 @@ jobs:
             Não altere arquivos, não crie branch, não implemente código, não
             faça commit e não faça push. Sua resposta é apenas a análise para
             avaliação do Arquiteto.
+      - name: Validar relatório gerado
+        env:
+          REPORT_FILE: ${{ runner.temp }}/ekom-analysis.md
+        run: |
+          set -euo pipefail
+
+          if [ ! -s "$REPORT_FILE" ]; then
+            echo "O Codex não produziu um relatório de análise."
+            exit 1
+          fi
+
+          {
+            echo
+            echo "## Relatório produzido"
+            echo
+            echo "- Arquivo temporário criado com sucesso"
+            echo "- Tamanho: $(wc -c < "$REPORT_FILE") bytes"
+            echo "- SHA-256: \`$(sha256sum "$REPORT_FILE" | cut -d ' ' -f 1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
