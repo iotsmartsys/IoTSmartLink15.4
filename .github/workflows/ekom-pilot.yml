@@ -271,7 +271,8 @@ jobs:
             printf '## Relatório do Engenheiro Analista\n\n'
             cat "$SOURCE_REPORT"
             printf '\n'
-          } > "$REPORT_PATH"
+          } > "$REPORT_PATH"          
+          sed -i 's/[[:blank:]]\+$//' "$REPORT_PATH"          
 
           STATUS="$(git status --porcelain --untracked-files=all \
             | grep -vE '^\?\? \.ekom-guidelines/$' || true)"
