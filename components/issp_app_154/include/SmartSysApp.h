@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "driver/gpio.h"
+#include "esp_adc/adc_oneshot.h"
 
 namespace iotsmartsys::app
 {
@@ -42,6 +43,22 @@ struct DoorSensorConfig
     std::uint8_t samplesPerWindow;
     std::uint8_t majorityThreshold;
     std::uint8_t consecutiveWindows;
+};
+
+struct BatteryLevelConfig
+{
+    adc_unit_t unit;
+    adc_channel_t channel;
+    adc_atten_t attenuation;
+    std::uint32_t rTopOhms;
+    std::uint32_t rBottomOhms;
+    std::uint32_t emptyMv;
+    std::uint32_t fullMv;
+    std::uint32_t samples;
+    std::uint32_t sampleIntervalMs;
+    std::uint32_t samplePeriodMs;
+    std::uint8_t reportDeltaPercent;
+    std::uint8_t endpointId;
 };
 
 struct PushButtonConfig
@@ -136,6 +153,15 @@ public:
 private:
     StateFn stateFn_;
     void *context_;
+};
+
+// Registration token for the read-only battery capability. Its observable
+// state is the ISSP report; no mutable operation or product-selected event type
+// is exposed through the facade.
+class BatteryLevelCapability
+{
+public:
+    BatteryLevelCapability() = default;
 };
 
 } // namespace iotsmartsys::core
@@ -243,6 +269,9 @@ public:
 
     core::DoorSensorCapability *
     addDoorSensorCapability(const app::DoorSensorConfig &config);
+
+    core::BatteryLevelCapability *
+    addBatteryLevelCapability(const app::BatteryLevelConfig &config);
 
     AppResult
     configureFactoryResetButton(const app::PushButtonConfig &config);

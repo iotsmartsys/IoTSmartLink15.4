@@ -588,8 +588,9 @@ reabertura.
 
 ## EKOM-CHG-0004 — Nível de bateria do client
 
-**Estado:** v0.4 em rascunho [`Draft`]; sem análise de implementabilidade
-aplicável
+**Estado:** v0.5 em implementação [`In Progress`]; análise **Pronta**
+[`Ready`] para `55bc730`; implementação autorizada pelo Arquiteto em
+15/08/2026
 
 **Especificação relacionada:** `docs/specs/Client-Battery-Level.md`
 (`EKOM-BATTERY-001`)
@@ -649,7 +650,18 @@ como nota naquela ADR.
 
 ### Próxima etapa
 
-Análise de implementabilidade da v0.4. Não há autorização de implementação.
+Revisão da implementação v0.5. As validações de hardware permanecem
+reservadas a etapa e autorização próprias.
+
+### Resultado da implementação v0.5
+
+A capability foi implementada no behavior reutilizável, na fachada, no product
+firmware e no board model, com evento fixo 3, endpoint 2, fallback sem
+calibração, invariantes e gatilhos contratados. Os builds canônicos ESP32-H2
+de `door_sensor_battery_h2` e da variante preservada `single_smart_plug`
+terminaram com código 0. Nenhum teste, flash, monitor ou hardware foi executado;
+o estado permanece `In Progress` e o relatório está em
+`docs/reports/client-battery-level/implementation/2026-08-15T161416Z-v0.5-implementation.md`.
 
 ## EKOM-CHG-0005 — Adoção do EKOM 4.4 e registro de débitos técnicos
 

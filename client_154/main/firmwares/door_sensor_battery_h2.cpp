@@ -10,6 +10,7 @@ namespace
 constexpr std::uint32_t kDeviceId = 0x15400001;
 constexpr std::uint8_t kDoorEndpointId = 1;
 constexpr std::uint8_t kDoorEventType = 1;
+constexpr std::uint8_t kBatteryEndpointId = 2;
 constexpr bool kReportOnStart = true;
 constexpr std::uint32_t kSamplePeriodMs = 10;
 constexpr std::uint8_t kSamplesPerWindow = 5;
@@ -24,6 +25,14 @@ constexpr std::uint32_t kMaxAwakeTimeMs = 30000;
 constexpr std::uint32_t kSleepInterval = 15;
 constexpr app::DeepSleepTimeUnit kSleepIntervalUnit = app::DeepSleepTimeUnit::Minutes;
 constexpr std::uint32_t kWakeLedOnTimeMs = 200;
+// Battery chemistry and reporting policy. ADC wiring and divider values come
+// from the selected board model below.
+constexpr std::uint32_t kBatteryEmptyMv = 3300;
+constexpr std::uint32_t kBatteryFullMv = 4150;
+constexpr std::uint32_t kBatterySamples = 8;
+constexpr std::uint32_t kBatterySampleIntervalMs = 5;
+constexpr std::uint32_t kBatterySamplePeriodMs = 0;
+constexpr std::uint8_t kBatteryReportDeltaPercent = 5;
 
 SmartSysApp smartSysApp({
     .deviceId = kDeviceId,
@@ -52,6 +61,7 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
     const DryContactInputResource &input = selectedDryContactInput();
     const UserButtonResource &button = selectedUserButton();
     const WakeLedResource &wakeLed = selectedWakeLed();
+    const BatteryMeasurementResource &battery = selectedBatteryMeasurement();
 
     smartSysApp.addDoorSensorCapability({
         .pin = input.pin,
@@ -64,6 +74,21 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
         .samplesPerWindow = kSamplesPerWindow,
         .majorityThreshold = kMajorityThreshold,
         .consecutiveWindows = kConsecutiveWindows,
+    });
+
+    smartSysApp.addBatteryLevelCapability({
+        .unit = battery.unit,
+        .channel = battery.channel,
+        .attenuation = battery.attenuation,
+        .rTopOhms = battery.rTopOhms,
+        .rBottomOhms = battery.rBottomOhms,
+        .emptyMv = kBatteryEmptyMv,
+        .fullMv = kBatteryFullMv,
+        .samples = kBatterySamples,
+        .sampleIntervalMs = kBatterySampleIntervalMs,
+        .samplePeriodMs = kBatterySamplePeriodMs,
+        .reportDeltaPercent = kBatteryReportDeltaPercent,
+        .endpointId = kBatteryEndpointId,
     });
 
     smartSysApp.configureFactoryResetButton({

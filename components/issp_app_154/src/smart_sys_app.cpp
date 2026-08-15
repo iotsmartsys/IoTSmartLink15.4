@@ -3,7 +3,7 @@
 // drivers or radio APIs directly -- every hardware-touching step goes
 // through SmartSysApp::SetupHooks, wired to the real implementations in
 // smart_sys_app_hardware.cpp or to fakes supplied by automated tests. This
-// file only needs issp_core/issp_behaviors (GPIO, no radio), so its logic is
+// file only needs issp_core/issp_behaviors (peripheral types, no radio), so its logic is
 // exercised by the fake-backed Unity app on a physical ESP32-H2 without
 // starting the radio.
 
@@ -92,6 +92,10 @@ SmartSysApp::Impl::Impl(const app::SmartSysAppConfig &config,
       doorSensorBehaviors_{},
       doorSensorCapabilities_{},
       doorSensorCount_(0),
+      batteryConfigs_{},
+      batteryBehaviors_{},
+      batteryCapabilities_{},
+      batteryCount_(0),
       factoryResetConfigured_(false),
       factoryResetConfig_{},
       deepSleepConfigured_(false),
@@ -151,6 +155,18 @@ bool SmartSysApp::Impl::hasDuplicateEndpoint(std::uint8_t endpointId,
     {
         if (endpointEventPairs_[index].endpointId == endpointId &&
             endpointEventPairs_[index].eventType == eventType)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool SmartSysApp::Impl::hasOccupiedEndpoint(std::uint8_t endpointId) const
+{
+    for (std::size_t index = 0; index < behaviorCount_; ++index)
+    {
+        if (endpointEventPairs_[index].endpointId == endpointId)
         {
             return true;
         }
@@ -271,6 +287,77 @@ SmartSysApp::Impl::addDoorSensorCapability(const app::DoorSensorConfig &config)
     return capability;
 }
 
+core::BatteryLevelCapability *
+SmartSysApp::Impl::addBatteryLevelCapability(const app::BatteryLevelConfig &config)
+{
+    if (state_ != AppState::Configuring)
+    {
+        recordConfigurationFailure(AppResult::Failed);
+        return nullptr;
+    }
+    if (config.samples == 0U || config.reportDeltaPercent == 0U ||
+        config.reportDeltaPercent > 100U || config.fullMv <= config.emptyMv ||
+        config.rBottomOhms == 0U || config.endpointId == 0U)
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return nullptr;
+    }
+    // ADR-0005 applies in the implementable direction contracted by v0.5: the
+    // new operation rejects every endpoint already occupied, regardless of
+    // event type. Existing registration operations retain their known debt.
+    if (hasOccupiedEndpoint(config.endpointId))
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return nullptr;
+    }
+    if (behaviorCount_ >= kMaxCapabilities || batteryCount_ >= kMaxCapabilities)
+    {
+        recordConfigurationFailure(AppResult::Failed);
+        return nullptr;
+    }
+
+    const issp::BatteryLevelConfig behaviorConfig = {
+        .unit = config.unit,
+        .channel = config.channel,
+        .attenuation = config.attenuation,
+        .rTopOhms = config.rTopOhms,
+        .rBottomOhms = config.rBottomOhms,
+        .emptyMv = config.emptyMv,
+        .fullMv = config.fullMv,
+        .samples = config.samples,
+        .sampleIntervalMs = config.sampleIntervalMs,
+        .samplePeriodMs = config.samplePeriodMs,
+        .reportDeltaPercent = config.reportDeltaPercent,
+        .endpointId = config.endpointId,
+    };
+
+    batteryConfigs_[batteryCount_] = config;
+    batteryBehaviors_[batteryCount_].emplace(behaviorConfig);
+    batteryCapabilities_[batteryCount_].emplace();
+    core::BatteryLevelCapability *capability =
+        &*batteryCapabilities_[batteryCount_];
+    behaviors_[behaviorCount_] = &*batteryBehaviors_[batteryCount_];
+    endpointEventPairs_[behaviorCount_] = {
+        config.endpointId, issp::BatteryLevelBehavior::kEventType};
+    ++behaviorCount_;
+    ++batteryCount_;
+    return capability;
+}
+
+AppResult SmartSysApp::Impl::validateBatterySampling() const
+{
+    const bool deepSleepEnabled = deepSleepConfigured_ && deepSleepConfig_.enabled;
+    for (std::size_t index = 0; index < batteryCount_; ++index)
+    {
+        const bool periodic = batteryConfigs_[index].samplePeriodMs != 0U;
+        if (periodic == deepSleepEnabled)
+        {
+            return AppResult::InvalidArgument;
+        }
+    }
+    return AppResult::Ok;
+}
+
 AppResult
 SmartSysApp::Impl::configureFactoryResetButton(const app::PushButtonConfig &config)
 {
@@ -329,6 +416,14 @@ SetupResult SmartSysApp::Impl::setup()
         // Nothing is touched here: no NVS, radio, RTC or GPIO, so this boot has
         // no LED, no lifecycle task and no deep sleep.
         return fail(SetupStage::ValidateConfiguration, lastConfigurationResult_);
+    }
+    // Delayed until setup() so registering the battery before or after deep
+    // sleep configuration remains equivalent while the facade is Configuring.
+    const AppResult batteryResult = validateBatterySampling();
+    if (batteryResult != AppResult::Ok)
+    {
+        recordConfigurationFailure(batteryResult);
+        return fail(SetupStage::ValidateConfiguration, batteryResult);
     }
     // Checked only here, so the order between registering the dry-contact
     // capability and configureDeepSleep() stays insignificant while Configuring.
@@ -454,6 +549,12 @@ core::DoorSensorCapability *
 SmartSysApp::addDoorSensorCapability(const app::DoorSensorConfig &config)
 {
     return impl().addDoorSensorCapability(config);
+}
+
+core::BatteryLevelCapability *
+SmartSysApp::addBatteryLevelCapability(const app::BatteryLevelConfig &config)
+{
+    return impl().addBatteryLevelCapability(config);
 }
 
 AppResult SmartSysApp::configureFactoryResetButton(const app::PushButtonConfig &config)
