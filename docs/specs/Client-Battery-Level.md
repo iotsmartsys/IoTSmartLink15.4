@@ -6,7 +6,11 @@
 
 **Versão:** 0.5
 
-**Estado do workflow:** `Draft`
+**Estado da implementação:** `Validated` — implementação `7ce6c31` revisada
+como aderente e testes em hardware executados e aceitos pelo Arquiteto
+
+**Estado do workflow:** Concluída [`Done`] por decisão do Arquiteto em
+15/08/2026
 
 **Análise de implementabilidade:** **Pronta** [`Ready`] para a v0.5, na revisão
 `55bc730`, conforme
@@ -671,7 +675,21 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - indistinguibilidade, no host, entre valor calibrado e valor aproximado no modo
   degradado.
 
-**Pendências:**
+## 10. Encerramento
+
+O Arquiteto declarou em 15/08/2026 que a implementação atendeu aos requisitos e
+que os testes executados em hardware foram aceitáveis. A decisão considera a
+implementação `7ce6c31`, a revisão aderente registrada em
+`docs/reports/client-battery-level/review/2026-08-15T163523Z-v0.5-7ce6c31-implementation-review.md`
+e a validação de encerramento em
+`docs/reports/client-battery-level/validation/2026-08-15T164510Z-v0.5-7ce6c31-hardware-validation-and-closure.md`.
+
+Com essa aceitação humana, a v0.5 está Concluída [`Done`]. Os riscos residuais
+e débitos abaixo permanecem registrados, mas não impedem o encerramento desta
+entrega. Qualquer ampliação ou remediação posterior exige uma nova decisão e
+um recorte próprio.
+
+**Pendências preservadas após o encerramento:**
 
 - os débitos `EKOM-DEBT-0001` a `EKOM-DEBT-0004`, registrados no mapa, alcançam
   esta especificação; a aceitação da postergação não torna conforme a
@@ -681,5 +699,6 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
   fora deste recorte;
 - a ausência da capability por falha de configuração do ADC é silenciosa para o
   host, consequência aceita do segundo desvio arquitetural;
-- os valores elétricos da seção 8 foram confirmados pelo Arquiteto por
-  declaração, sem medição em placa registrada nesta atuação.
+- os testes em hardware foram declarados executados e aceitáveis pelo
+  Arquiteto; esta atuação de encerramento não acrescenta medições instrumentais
+  nem uma enumeração de cenários além da evidência já registrada.
