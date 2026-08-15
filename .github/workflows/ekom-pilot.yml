@@ -634,4 +634,9 @@ jobs:
             echo "- Arquivo: \`$REPORT_PATH\`"
             echo "- Branch: \`$WORKING_BRANCH\`"
             echo "- Commit: \`$(git rev-parse --short HEAD)\`"
+            echo
+            echo "## Parecer do Engenheiro Analista"
+            echo
+            sed -n '/^## Classificação principal$/,$p' "$REPORT_PATH" \
+              | sed -e 's/^### /#### /' -e 's/^## /### /'
           } >> "$GITHUB_STEP_SUMMARY"
