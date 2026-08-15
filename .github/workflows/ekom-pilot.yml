@@ -230,7 +230,8 @@ jobs:
             palavras e exatamente estas cinco seções, nesta ordem:
 
             ## Classificação principal
-            **Classificação principal:** <uma classificação canônica do perfil>
+            **Classificação principal:** <classificação canônica exatamente como
+            nomeada no perfil; o negrito no nome é opcional>
 
             ## Problemas bloqueantes
             Para cada bloqueador use `### Bloqueador N` e os campos `- Problema:`,
@@ -308,20 +309,26 @@ jobs:
                   + " | ".join(expected_headings)
               )
 
-          classifications = {
-              "**Pronta** [`Ready`]",
-              "**Não pronta — defeito da especificação** [`Not Ready — Specification Defect`]",
-              "**Não pronta — pré-requisito arquitetural** [`Not Ready — Architectural Prerequisite`]",
-              "**Não pronta — evidência requerida** [`Not Ready — Evidence Required`]",
-              "**Não implementável — conflito de restrição** [`Not Implementable — Constraint Conflict`]",
-              "**Desconhecida — impacto não delimitado** [`Unknown — Impact Not Delimited`]",
+          canonical_classifications = {
+              "Pronta [`Ready`]",
+              "Não pronta — defeito da especificação [`Not Ready — Specification Defect`]",
+              "Não pronta — pré-requisito arquitetural [`Not Ready — Architectural Prerequisite`]",
+              "Não pronta — evidência requerida [`Not Ready — Evidence Required`]",
+              "Não implementável — conflito de restrição [`Not Implementable — Constraint Conflict`]",
+              "Desconhecida — impacto não delimitado [`Unknown — Impact Not Delimited`]",
           }
           matches = re.findall(
               r"^\*\*Classificação principal:\*\*\s*(.+?)\s*$",
               text,
               re.MULTILINE,
           )
-          if len(matches) != 1 or matches[0] not in classifications:
+          if len(matches) != 1:
+              raise SystemExit(
+                  "A análise deve declarar exatamente uma classificação principal canônica."
+              )
+
+          classification = re.sub(r"\*\*([^*\n]+)\*\*", r"\1", matches[0]).strip()
+          if classification not in canonical_classifications:
               raise SystemExit(
                   "A análise deve declarar exatamente uma classificação principal canônica."
               )
@@ -335,9 +342,9 @@ jobs:
               return match.group(1).strip() if match else ""
 
           blockers = section("Problemas bloqueantes")
-          if matches[0] == "**Pronta** [`Ready`]" and blockers != "Nenhum.":
+          if classification == "Pronta [`Ready`]" and blockers != "Nenhum.":
               raise SystemExit("Ready exige ausência explícita de bloqueadores.")
-          if matches[0] != "**Pronta** [`Ready`]" and blockers == "Nenhum.":
+          if classification != "Pronta [`Ready`]" and blockers == "Nenhum.":
               raise SystemExit("Classificação não Ready exige bloqueador explícito.")
           if blockers != "Nenhum.":
               blocker_parts = re.split(r"^###\s+Bloqueador\s+\d+\s*$", blockers, flags=re.MULTILINE)
