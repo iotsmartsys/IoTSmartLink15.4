@@ -22,7 +22,7 @@ organiza; o diagrama, como os alvos separados se conectam.
 | Dossiê do sistema | `docs/specs/SYSTEM-DOSSIER.md` | Informativo | Active |
 | Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0005 Accepted; ADR-0001 com nota de reavaliação de 14/08/2026 |
 | Relatórios | `docs/reports/` | Evidência histórica | Roteamento EKOM 4.4 vigente |
-| Débitos técnicos | Seção 7 deste mapa | Normativo | `EKOM-DEBT-0001` a `EKOM-DEBT-0004` Accepted |
+| Débitos técnicos | Seção 7 deste mapa | Normativo | `EKOM-DEBT-0001` a `EKOM-DEBT-0005` Accepted |
 | Registros EKM 1.x | `docs/history/ekom-1x/` | Histórico | Superseded para novas atuações |
 
 Os arquivos `CLAUDE.md` e `.github/copilot-instructions.md` são adaptadores e
@@ -45,6 +45,7 @@ não criam autoridade paralela.
 | Protocolo wire ISSP | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0002` | v2 implementado nos dois codecs; protocolo integral ainda aberto | `issp_protocol.cpp`; `iot154_packet.h` | Vetores dourados host-native em ambos os targets | Cobertura parcial |
 | Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 concluída; correlação exige `report_id` | Transporte, executor e coordenador | Análises, implementações e revisões v0.2/v0.3; comportamento funcional relatado validado em hardware | Implementado e validado no caminho funcional; cenários adversos da fronteira UART aceitos sem execução própria |
 | Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.5 Concluída [`Done`]; análise **Pronta** [`Ready`]; ADR-0005 `Accepted` | `components/issp_app_154`; `components/issp_behaviors`; `client_154/main/` | Análise, implementação e revisão v0.5; builds H2 concluídos; testes em hardware executados e aceitos pelo Arquiteto | Implementada, revisada e validada em hardware; riscos residuais e débitos preservados |
+| Features configuráveis do client | `docs/specs/Client-SDK-Configurable-Features.md` (`EKOM-CLIENT-CONFIG-001`); ADR-0002 | v0.1 `Draft`; análise pendente | `client_154/main/`; lifecycle periódico da bateria | Nenhuma | Rascunho aprovado pelo Arquiteto; implementação não autorizada |
 | Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001` | Modelo aceito em 14/08/2026; retrofit postergado | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client` | Nenhuma | Divergente do modelo nas capabilities existentes |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
 
@@ -62,6 +63,7 @@ IoTSmartLink15.4
 │   │   │   └── Door Sensor Battery H2
 │   │   └── SmartSysApp + componentes ISSP compartilhados
 │   │       ├── Deep sleep opt-in — timer e wakeup por contato (EXT1) implementados
+│   │       ├── Features via menuconfig — energia, bateria e GPIO de reset em Draft
 │   │       ├── Identidade de report gerada no client — v0.3 concluída
 │   │       └── Nível de bateria — v0.5 concluída; implementação e hardware aceitos
 │   └── coordinator_154 — ESP32-C6
@@ -145,6 +147,7 @@ em desconformidade nem altera evidência.
 | `EKOM-DEBT-0002` | Aceito [`Accepted`] | `ISSP-Configurable-Bootstrap` não aponta para a ADR-0005 que estende sua semântica de endpoint e evento | `docs/specs/ISSP-Configurable-Bootstrap.md` |
 | `EKOM-DEBT-0003` | Aceito [`Accepted`] | A tabela de tipos de evento existe em código do coordenador sem guarda que a confronte com a ADR-0005 | `coordinator_154/main/iot154_packet.h`; `type_from_event`; `value_from_event` |
 | `EKOM-DEBT-0004` | Aceito [`Accepted`] | O host não distingue capability de bateria ausente por falha de configuração do ADC, nem valor calibrado de valor aproximado no modo degradado | `EKOM-BATTERY-001`; coordenador; contrato host |
+| `EKOM-DEBT-0005` | Aceito [`Accepted`] | O `client_154/sdkconfig` rastreado seleciona o sensor de porta e seu board, divergindo dos defaults do Kconfig e da baseline documentada pela decisão A9 | `client_154/sdkconfig`; `docs/specs/Firmware-Variants-Menuconfig.md` |
 
 ### `EKOM-DEBT-0001` — identidade de capability nas capabilities existentes
 
@@ -214,3 +217,23 @@ em desconformidade nem altera evidência.
 - **Gatilho de reavaliação:** primeiro caso de campo em que a distinção for
   necessária, ou introdução de diagnóstico equivalente no coordenador.
 - **Relações:** `docs/specs/Client-Battery-Level.md`; ADR-0005.
+
+### `EKOM-DEBT-0005` — configuração rastreada divergente da baseline declarada
+
+- **Evidência:** `client_154/main/Kconfig.projbuild` mantém `Single smart plug`
+  e `Current client ESP32-H2 wiring` como defaults; a decisão A9 de
+  `docs/specs/Firmware-Variants-Menuconfig.md` determina a mesma baseline; o
+  `client_154/sdkconfig` rastreado seleciona `Door sensor battery H2` e `Door
+  Sensor Battery H2`.
+- **Consequência:** build que reutilize diretamente o `sdkconfig` rastreado não
+  representa a composição default declarada, o que torna ambígua a baseline de
+  entrega sem regeneração ou seleção explícita.
+- **Postergação:** aceita pelo Arquiteto em 15/08/2026. O arquivo deve permanecer
+  como está e sua correção não integra `EKOM-CLIENT-CONFIG-001`.
+- **Critério de quitação:** alinhar conscientemente o `sdkconfig` rastreado à
+  composição declarada como baseline e registrar a evidência correspondente,
+  ou emendar a fonte normativa para declarar outra baseline.
+- **Gatilho de reavaliação:** próxima alteração do `sdkconfig` rastreado, dos
+  defaults do menu ou da composição usada como baseline de entrega.
+- **Relações:** `docs/specs/Firmware-Variants-Menuconfig.md`;
+  `docs/specs/Client-SDK-Configurable-Features.md`.

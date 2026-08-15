@@ -80,6 +80,7 @@ normativa futura. Hardware real é evidência material quando solicitado.
 | Variantes | `Firmware-Variants-Menuconfig.md` | Especificado | Produto e board |
 | Targets e testes | `Repository-Test-Execution-Policy.md` | Especificado | Repositório inteiro |
 | Deep sleep do client | `Client-Deep-Sleep.md` | v0.10 e v0.11 implementadas em código; build H2 executado na v0.11; AC-012 pendente de hardware | Client a bateria |
+| Features configuráveis do client | `Client-SDK-Configurable-Features.md` | v0.1 em Draft; análise pendente | Menuconfig, energia, bateria e GPIO de reset |
 | Identidade de reports | `ISSP-Report-Identity.md`; ADR-0004 | v0.3 Concluída [`Done`]; implementação e comportamento funcional validados | Client, protocolo, coordenador e ponte UART |
 
 ## 11. Riscos, legado e preparação futura

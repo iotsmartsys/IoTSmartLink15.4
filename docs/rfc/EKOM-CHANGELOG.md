@@ -704,3 +704,44 @@ As fontes locais foram reconciliadas com o EKOM 4.4 e os quatro débitos foram
 aceitos pelo Arquiteto em 14/08/2026, com condição, alcance, evidência,
 consequência, gatilho e relações registrados no mapa. A aceitação não torna
 conforme nenhuma das condições registradas nem altera evidência.
+
+## EKOM-CHG-0006 — Features configuráveis do client no SDK Configuration Editor
+
+**Estado:** Autoria — `Draft`
+
+**Especificação relacionada:**
+`docs/specs/Client-SDK-Configurable-Features.md`
+(`EKOM-CLIENT-CONFIG-001`)
+
+**Objetivo:** tornar configuráveis no build o deep sleep, a janela acordada, o
+intervalo de despertar, a capability de bateria, seu intervalo sem deep sleep e
+o GPIO de factory reset, preservando os valores atuais como defaults.
+
+### Decisões relacionadas
+
+- deep sleep e bateria recebem checkboxes independentes para o produto
+  aplicável;
+- janela acordada e despertar periódico têm defaults de 30 segundos e 15
+  minutos e só são editáveis com deep sleep habilitado;
+- bateria sem deep sleep mede periodicamente, com default de 2 horas, somente
+  depois de um intervalo completo contado desde `Running`;
+- GPIO de factory reset passa a parametrizar o board selecionado, com default 9
+  e emenda estreita da ADR-0002;
+- `client_154/sdkconfig` permanece inalterado e sua divergência é aceita como
+  `EKOM-DEBT-0005`;
+- nenhum teste automatizado integra o recorte da versão 0.1.
+
+### Relações e limites
+
+A proposta altera de forma explícita as especificações de variantes, deep
+sleep e bateria e preserva bootstrap, arquitetura de componentes, identidade de
+capability, protocolo, coordenador e host. Símbolos da configuração permanecem
+no limite `client_154/main`.
+
+### Estado
+
+O Arquiteto aprovou o rascunho funcional em 15/08/2026. A especificação foi
+criada em `Draft`; análise de implementabilidade permanece pendente, inclusive
+para confrontar o adiamento da medição periódica com o lifecycle vigente.
+Nenhuma implementação, build, teste, flash, monitor ou hardware foi autorizado
+ou executado nesta transação de Autoria.
