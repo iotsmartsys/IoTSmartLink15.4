@@ -8,12 +8,12 @@
 
 **Estado do workflow:** `Draft`
 
-**Análise de implementabilidade:** Pendente para a v0.5. A v0.4 recebeu
-classificação **Não pronta — defeito da especificação** porque
-`BATTERY-AC-007` exigia alterar operações de capabilities existentes, remediação
-postergada em `EKOM-DEBT-0001`. A v0.5 limita o contrato desta entrega à
-direção implementável pela nova operação de registro da bateria. Nenhuma
-análise anterior se aplica a esta versão.
+**Análise de implementabilidade:** **Pronta** [`Ready`] para a v0.5, na revisão
+`55bc730`, conforme
+`docs/reports/client-battery-level/analysis/2026-08-15T155048Z-v0.5-e96064a1-implementability-analysis.md`.
+A v0.5 limitou o contrato desta entrega à direção implementável pela nova
+operação de registro da bateria e resolveu o bloqueador de `BATTERY-AC-007`
+identificado na v0.4.
 
 **Bloqueio arquitetural:** Nenhum
 
@@ -679,9 +679,6 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - a aceitação da ADR-0005 disparou o gatilho de reavaliação de
   `EKOM-DEBT-0002`; a remediação daquele débito não foi autorizada e permanece
   fora deste recorte;
-- a v0.5 ainda não foi analisada; a v0.4 concluiu **Não pronta — defeito da
-  especificação** por exigir em `BATTERY-AC-007` a direção postergada em
-  `EKOM-DEBT-0001`; nenhuma análise anterior se aplica a esta versão;
 - a ausência da capability por falha de configuração do ADC é silenciosa para o
   host, consequência aceita do segundo desvio arquitetural;
 - os valores elétricos da seção 8 foram confirmados pelo Arquiteto por
