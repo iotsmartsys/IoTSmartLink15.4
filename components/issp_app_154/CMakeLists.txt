@@ -42,6 +42,7 @@ idf_component_register(
     PRIV_INCLUDE_DIRS
         "src"
     REQUIRES
+        esp_adc
         esp_driver_gpio
     PRIV_REQUIRES
         ${priv_requires}

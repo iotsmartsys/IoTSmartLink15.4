@@ -24,6 +24,13 @@ constexpr WakeLedResource kWakeLed = {
     .pin = GPIO_NUM_13,
     .activeHigh = true,
 };
+constexpr BatteryMeasurementResource kBatteryMeasurement = {
+    .unit = ADC_UNIT_1,
+    .channel = ADC_CHANNEL_0,
+    .attenuation = ADC_ATTEN_DB_12,
+    .rTopOhms = 470000U,
+    .rBottomOhms = 220000U,
+};
 }
 
 const DryContactInputResource &selectedDryContactInput()
@@ -39,6 +46,11 @@ const UserButtonResource &selectedUserButton()
 const WakeLedResource &selectedWakeLed()
 {
     return kWakeLed;
+}
+
+const BatteryMeasurementResource &selectedBatteryMeasurement()
+{
+    return kBatteryMeasurement;
 }
 
 } // namespace client154

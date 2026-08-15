@@ -21,6 +21,7 @@
 #include <optional>
 
 #include "SmartSysApp.h"
+#include "battery_level_behavior.hpp"
 #include "digital_input_behavior.hpp"
 #include "digital_output_behavior.hpp"
 #include "esp_timer.h"
@@ -38,6 +39,8 @@ struct SmartSysApp::Impl
 
     core::SwitchPlugCapability *addSwitchPlugCapability(const app::SwitchConfig &config);
     core::DoorSensorCapability *addDoorSensorCapability(const app::DoorSensorConfig &config);
+    core::BatteryLevelCapability *addBatteryLevelCapability(
+        const app::BatteryLevelConfig &config);
     AppResult configureFactoryResetButton(const app::PushButtonConfig &config);
     AppResult configureDeepSleep(const app::DeepSleepConfig &config);
     SetupResult setup();
@@ -59,6 +62,8 @@ struct SmartSysApp::Impl
 
     void recordConfigurationFailure(AppResult result);
     bool hasDuplicateEndpoint(std::uint8_t endpointId, std::uint8_t eventType) const;
+    bool hasOccupiedEndpoint(std::uint8_t endpointId) const;
+    AppResult validateBatterySampling() const;
     SetupResult fail(SetupStage stage, AppResult result);
 
     // --- deep sleep (specification docs/specs/Client-Deep-Sleep.md) ---
@@ -175,6 +180,13 @@ struct SmartSysApp::Impl
     std::array<std::optional<core::DoorSensorCapability>, kMaxCapabilities>
         doorSensorCapabilities_;
     std::size_t doorSensorCount_;
+
+    std::array<app::BatteryLevelConfig, kMaxCapabilities> batteryConfigs_;
+    std::array<std::optional<issp::BatteryLevelBehavior>, kMaxCapabilities>
+        batteryBehaviors_;
+    std::array<std::optional<core::BatteryLevelCapability>, kMaxCapabilities>
+        batteryCapabilities_;
+    std::size_t batteryCount_;
 
     bool factoryResetConfigured_;
     app::PushButtonConfig factoryResetConfig_;

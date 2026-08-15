@@ -12,8 +12,8 @@ Este diretório contém os componentes reutilizáveis do runtime ISSP:
 - `issp_transport_154`: transporte IEEE 802.15.4, commissioning, NVS e executor
   de reports; depende de `issp_core`, `ieee802154` e `nvs_flash`;
 - `issp_behaviors`: behaviors reutilizáveis; atualmente expõe
-  `DigitalOutputBehavior` e `DigitalInputBehavior` e depende de `issp_core`,
-  `esp_driver_gpio` e `esp_timer`;
+  `DigitalOutputBehavior`, `DigitalInputBehavior` e `BatteryLevelBehavior` e
+  depende de `issp_core`, `esp_adc`, `esp_driver_gpio` e `esp_timer`;
 - `issp_app_154`: fachada pública `iotsmartsys::SmartSysApp`; compõe por
   delegação `issp_core`, `issp_behaviors` e `issp_transport_154`, além de
   possuir o factory reset local (`FactoryResetService`,
@@ -62,8 +62,8 @@ As dependências CMake são:
 |---|---|---|
 | `issp_core` | `freertos` | nenhuma |
 | `issp_transport_154` | `ieee802154`, `issp_core`, `nvs_flash` | nenhuma |
-| `issp_behaviors` | `issp_core`, `esp_driver_gpio`, `esp_timer` | nenhuma |
-| `issp_app_154` | `esp_driver_gpio` | `issp_core`, `issp_behaviors` (todo alvo); `issp_transport_154`, `nvs_flash`, `esp_timer`, `esp_hw_support` (somente `esp32h2`/`esp32c6`) |
+| `issp_behaviors` | `issp_core`, `esp_adc`, `esp_driver_gpio`, `esp_timer` | nenhuma |
+| `issp_app_154` | `esp_adc`, `esp_driver_gpio` | `issp_core`, `issp_behaviors` (todo alvo); `issp_transport_154`, `nvs_flash`, `esp_timer`, `esp_hw_support` (somente `esp32h2`/`esp32c6`) |
 
 Em `issp_core`, `issp_transport_154` e `issp_behaviors`, as dependências
 públicas listadas acima são públicas porque seus tipos ou headers aparecem
@@ -75,12 +75,13 @@ assinaturas privadas da classe; os consumidores diretos atuais são a própria
 implementação C e o wrapper C++. Os headers de frame MAC e rádio permanecem
 privados em `src/`.
 
-`issp_app_154` é diferente: `esp_driver_gpio` é a única dependência pública,
-porque `gpio_num_t` aparece nos tipos públicos `SwitchConfig` e
-`PushButtonConfig` de `SmartSysApp.h` — o mesmo precedente já usado em
-`issp_behaviors`. `issp_core` e `issp_behaviors` são privadas em todo alvo,
-porque `SmartSysApp.h` não inclui nenhum header `issp_*` ou `driver/*` além
-de `esp_driver_gpio`: o estado que os usa vive inteiramente em `Impl`,
+`issp_app_154` é diferente: `esp_driver_gpio` e `esp_adc` são dependências
+públicas, porque `gpio_num_t` aparece nos tipos públicos `SwitchConfig` e
+`PushButtonConfig` e os tipos `adc_unit_t`, `adc_channel_t` e `adc_atten_t`
+aparecem em `BatteryLevelConfig`, todos em `SmartSysApp.h`. `issp_core` e
+`issp_behaviors` são privadas em todo alvo,
+porque `SmartSysApp.h` não inclui nenhum header `issp_*` nem expõe tipos de
+protocolo, transporte ou commissioning: o estado que os usa vive inteiramente em `Impl`,
 compartilhado por `src/smart_sys_app_impl.hpp` (privado) e construído dentro
 de um buffer opaco de tamanho fixo em `SmartSysApp`
 (`SmartSysApp::kImplStorageBytes`) por placement-new — sem alocação

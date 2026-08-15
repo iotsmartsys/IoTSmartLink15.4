@@ -588,8 +588,8 @@ reabertura.
 
 ## EKOM-CHG-0004 — Nível de bateria do client
 
-**Estado:** v0.4 em rascunho [`Draft`]; sem análise de implementabilidade
-aplicável
+**Estado:** Fechada [`Closed`] — v0.5 Concluída [`Done`] por decisão do
+Arquiteto em 15/08/2026
 
 **Especificação relacionada:** `docs/specs/Client-Battery-Level.md`
 (`EKOM-BATTERY-001`)
@@ -647,9 +647,26 @@ valores; e decidiu, sob o critério de reavaliação da ADR-0001, que tipos de
 driver do ESP-IDF podem atravessar a fachada pública, com a decisão registrada
 como nota naquela ADR.
 
-### Próxima etapa
+### Encerramento
 
-Análise de implementabilidade da v0.4. Não há autorização de implementação.
+O Arquiteto declarou que a implementação atendeu aos requisitos e que os testes
+executados em hardware foram aceitáveis. A v0.5 foi encerrada como Concluída
+[`Done`]; riscos residuais e débitos permanecem registrados sem bloquear esta
+entrega. Mudança posterior exige novo recorte e decisão própria.
+
+### Resultado da implementação v0.5
+
+A capability foi implementada no behavior reutilizável, na fachada, no product
+firmware e no board model, com evento fixo 3, endpoint 2, fallback sem
+calibração, invariantes e gatilhos contratados. Os builds canônicos ESP32-H2
+de `door_sensor_battery_h2` e da variante preservada `single_smart_plug`
+terminaram com código 0. O Implementador não executou teste, flash, monitor ou
+hardware naquela atuação, conforme o relatório em
+`docs/reports/client-battery-level/implementation/2026-08-15T161416Z-v0.5-implementation.md`.
+Posteriormente, a revisão não encontrou defeito material, o Arquiteto executou
+testes em hardware e declarou seus resultados aceitáveis. O encerramento está
+registrado em
+`docs/reports/client-battery-level/validation/2026-08-15T164510Z-v0.5-7ce6c31-hardware-validation-and-closure.md`.
 
 ## EKOM-CHG-0005 — Adoção do EKOM 4.4 e registro de débitos técnicos
 

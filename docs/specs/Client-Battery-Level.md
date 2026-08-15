@@ -4,22 +4,26 @@
 
 **Classe da fonte:** Normativa
 
-**Versão:** 0.4
+**Versão:** 0.5
 
-**Estado do workflow:** `Draft`
+**Estado da implementação:** `Validated` — implementação `7ce6c31` revisada
+como aderente e testes em hardware executados e aceitos pelo Arquiteto
 
-**Análise de implementabilidade:** Pendente para a v0.4. A v0.1 e a v0.3
-receberam classificação **Não pronta — defeito da especificação**. Os defeitos
-da v0.1 foram corrigidos na v0.2; a v0.3 incorporou o modelo de identidade da
-ADR-0005; e a v0.4 resolve os três bloqueadores devolvidos pela análise da v0.3:
-ADR-0005 aceita, autoridade normativa dos valores concretos e fronteira dos
-tipos de ADC na fachada. Nenhuma análise anterior se aplica a esta versão.
+**Estado do workflow:** Concluída [`Done`] por decisão do Arquiteto em
+15/08/2026
+
+**Análise de implementabilidade:** **Pronta** [`Ready`] para a v0.5, na revisão
+`55bc730`, conforme
+`docs/reports/client-battery-level/analysis/2026-08-15T155048Z-v0.5-e96064a1-implementability-analysis.md`.
+A v0.5 limitou o contrato desta entrega à direção implementável pela nova
+operação de registro da bateria e resolveu o bloqueador de `BATTERY-AC-007`
+identificado na v0.4.
 
 **Bloqueio arquitetural:** Nenhum
 
 **Responsável arquitetural:** Marcelo Miranda
 
-**Última atualização:** 13/08/2026
+**Última atualização:** 15/08/2026
 
 **Escopo:** `client_154`, fachada `SmartSysApp`, product firmware e board model
 
@@ -124,7 +128,8 @@ com temporizador próprio; `board_model.hpp` e a composição em
   fachada não descobre pinagem;
 - a composição CMake valida produto contra board por recurso requerido;
 - capabilities são registradas antes de `setup()`; conforme a ADR-0005, o
-  endpoint identifica a capability e é único no dispositivo;
+  endpoint identifica a capability. Neste recorte, a nova operação de registro
+  da bateria rejeita um endpoint que já esteja ocupado;
 - a ordem entre registrar uma capability e configurar deep sleep permanece
   irrelevante enquanto o estado for `Configuring`;
 - client e coordenador continuam sem dependência de código entre si.
@@ -173,10 +178,11 @@ valores concretos.
 - **`BATTERY-004`:** o percentual publicado é sempre saturado no intervalo de 0
   a 100; nenhum outro valor pode alcançar o wire.
 - **`BATTERY-005`:** o percentual é publicado como report ISSP no endpoint que o
-  produto atribui à capability, único entre as capabilities do dispositivo, com
-  o tipo de evento fixado pela própria capability conforme a ADR-0005. O produto
-  não escolhe nem sobrescreve o tipo de evento, que não integra sua
-  configuração.
+  produto atribui à capability, com o tipo de evento fixado pela própria
+  capability conforme a ADR-0005. Ao registrar a bateria, sua operação rejeita
+  o endpoint se ele já estiver ocupado por outra capability, independentemente
+  do tipo de evento. O produto não escolhe nem sobrescreve o tipo de evento, que
+  não integra sua configuração.
 - **`BATTERY-006`:** a capability é somente leitura; comando dirigido ao par que
   ela ocupa é reconhecido pelo behavior e respondido com `Unsupported`.
 - **`BATTERY-007`:** em composição com deep sleep habilitado, a capability mede
@@ -190,7 +196,7 @@ valores concretos.
   estabelece a base de comparação.
 - **`BATTERY-010`:** o último percentual publicado é mantido apenas em memória
   volátil; nenhum estado da capability sobrevive a um ciclo de energia.
-- **`BATTERY-011`:** a configuração é rejeitada quando `samples` for zero,
+- **`BATTERY-011`:** o registro da bateria é rejeitado quando `samples` for zero,
   quando `reportDeltaPercent` estiver fora do intervalo de 1 a 100, quando
   `fullMv` não for maior que `emptyMv`, quando a resistência inferior do
   divisor declarada pelo board for zero, quando `endpointId` for zero, ou quando
@@ -334,9 +340,12 @@ o campo `value` de 8 bits já existente.
 
 O modelo de identidade — endpoint congelado, tipo como natureza, unicidade por
 endpoint — e o registro normativo dos tipos de evento pertencem à `ADR-0005` e
-não são redefinidos aqui. As capabilities já existentes ainda não seguem esse
-modelo; a divergência é conhecida e está registrada como `EKOM-DEBT-0001`, sem
-integrar o recorte desta especificação.
+não são redefinidos aqui. Esta especificação aplica a unicidade somente na nova
+operação de registro da bateria: se outra capability já ocupa o endpoint, a
+bateria é rejeitada. As operações das capabilities existentes ainda podem
+aceitar, depois, o endpoint da bateria quando o tipo de evento for distinto.
+Essa direção inversa permanece como divergência conhecida em
+`EKOM-DEBT-0001`; corrigi-la não integra o recorte desta especificação.
 
 ### 5.5 Gatilhos
 
@@ -477,16 +486,19 @@ introduzir valor sentinela, que manteria o domínio do evento restrito a 0–100
   incoerente;
 - **Evidência:** inspeção do delta e build canônico.
 
-### `BATTERY-AC-007` — identidade e ausência de comando
+### `BATTERY-AC-007` — registro da bateria e ausência de comando
 
 **Cobre:** `BATTERY-005`, `BATTERY-006`
 
-- **Dado que** a capability está registrada no endpoint atribuído pelo produto,
-  com o tipo de evento fixado pela própria capability;
-- **Quando** outra capability tentar registrar o mesmo endpoint, ainda que com
-  tipo de evento distinto, e quando um comando for dirigido ao par da bateria;
-- **Então** o registro é rejeitado e o comando é reconhecido pelo behavior e
-  respondido com `Unsupported`;
+- **Dado que** outra capability já ocupa um endpoint do dispositivo;
+- **Quando** a capability de bateria tentar registrar esse mesmo endpoint,
+  ainda que com tipo de evento distinto;
+- **Então** o registro da bateria é rejeitado;
+- **E dado que** a capability de bateria esteja registrada em um endpoint
+  disponível;
+- **Quando** um comando for dirigido ao par da bateria;
+- **Então** o comando é reconhecido pelo behavior e respondido com
+  `Unsupported`;
 - **Evidência:** inspeção do delta; validação em hardware reservada a etapa
   posterior.
 
@@ -647,6 +659,13 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - tipos de driver do ESP-IDF podem atravessar a fachada pública, decisão tomada
   sob o critério de reavaliação da ADR-0001 e registrada como nota naquela ADR.
 
+**Decisão acrescentada na v0.5, em resposta à análise da v0.4:**
+
+- a nova operação de registro da bateria rejeita endpoint previamente ocupado;
+  a direção inversa, na qual uma operação de capability existente é chamada
+  depois da bateria, permanece fora do recorte e postergada em
+  `EKOM-DEBT-0001`.
+
 **Riscos residuais aceitos:**
 
 - drenagem contínua do divisor permanentemente conectado, inerente ao arranjo
@@ -656,7 +675,21 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - indistinguibilidade, no host, entre valor calibrado e valor aproximado no modo
   degradado.
 
-**Pendências:**
+## 10. Encerramento
+
+O Arquiteto declarou em 15/08/2026 que a implementação atendeu aos requisitos e
+que os testes executados em hardware foram aceitáveis. A decisão considera a
+implementação `7ce6c31`, a revisão aderente registrada em
+`docs/reports/client-battery-level/review/2026-08-15T163523Z-v0.5-7ce6c31-implementation-review.md`
+e a validação de encerramento em
+`docs/reports/client-battery-level/validation/2026-08-15T164510Z-v0.5-7ce6c31-hardware-validation-and-closure.md`.
+
+Com essa aceitação humana, a v0.5 está Concluída [`Done`]. Os riscos residuais
+e débitos abaixo permanecem registrados, mas não impedem o encerramento desta
+entrega. Qualquer ampliação ou remediação posterior exige uma nova decisão e
+um recorte próprio.
+
+**Pendências preservadas após o encerramento:**
 
 - os débitos `EKOM-DEBT-0001` a `EKOM-DEBT-0004`, registrados no mapa, alcançam
   esta especificação; a aceitação da postergação não torna conforme a
@@ -664,9 +697,8 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - a aceitação da ADR-0005 disparou o gatilho de reavaliação de
   `EKOM-DEBT-0002`; a remediação daquele débito não foi autorizada e permanece
   fora deste recorte;
-- a v0.4 ainda não foi analisada; as análises da v0.1 e da v0.3 concluíram **Não
-  pronta — defeito da especificação** e não se aplicam a esta versão;
 - a ausência da capability por falha de configuração do ADC é silenciosa para o
   host, consequência aceita do segundo desvio arquitetural;
-- os valores elétricos da seção 8 foram confirmados pelo Arquiteto por
-  declaração, sem medição em placa registrada nesta atuação.
+- os testes em hardware foram declarados executados e aceitáveis pelo
+  Arquiteto; esta atuação de encerramento não acrescenta medições instrumentais
+  nem uma enumeração de cenários além da evidência já registrada.

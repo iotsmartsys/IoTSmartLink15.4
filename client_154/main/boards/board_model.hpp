@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "driver/gpio.h"
+#include "esp_adc/adc_oneshot.h"
 
 namespace client154
 {
@@ -46,6 +47,17 @@ struct WakeLedResource
     bool activeHigh;
 };
 
+// Electrical facts of a permanently connected battery divider. Chemistry,
+// sampling and report policy remain product-firmware responsibilities.
+struct BatteryMeasurementResource
+{
+    adc_unit_t unit;
+    adc_channel_t channel;
+    adc_atten_t attenuation;
+    std::uint32_t rTopOhms;
+    std::uint32_t rBottomOhms;
+};
+
 // A selected board defines only the accessors for resources it offers. CMake
 // rejects an incompatible product/board pair first; these declarations also
 // make stale resource metadata fail at link time instead of producing a board
@@ -54,5 +66,6 @@ const DigitalOutputResource &selectedDigitalOutput();
 const UserButtonResource &selectedUserButton();
 const DryContactInputResource &selectedDryContactInput();
 const WakeLedResource &selectedWakeLed();
+const BatteryMeasurementResource &selectedBatteryMeasurement();
 
 } // namespace client154
