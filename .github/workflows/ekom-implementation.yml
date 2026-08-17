@@ -110,6 +110,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Autorizar workspace para o Git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Validar versão e análise Ready
         id: validate_identity
         env:
