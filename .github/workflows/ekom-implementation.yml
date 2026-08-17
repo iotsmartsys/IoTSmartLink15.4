@@ -341,13 +341,27 @@ jobs:
         run: |
           set -euo pipefail
 
-          IDF_ENV_FILE="$RUNNER_TEMP/ekom-idf-env.sh"
-          printf 'source "%s/export.sh" >/dev/null\n' "$IDF_PATH" > "$IDF_ENV_FILE"
-          echo "BASH_ENV=$IDF_ENV_FILE" >> "$GITHUB_ENV"
+          ORIGINAL_PATH="$PATH"
+          source "$IDF_PATH/export.sh"
 
-          source "$IDF_ENV_FILE"
           idf.py --version
           python3 --version
+
+          IFS=':' read -r -a ACTIVE_PATH_ENTRIES <<< "$PATH"
+          for ((INDEX=${#ACTIVE_PATH_ENTRIES[@]} - 1; INDEX >= 0; INDEX--)); do
+            PATH_ENTRY="${ACTIVE_PATH_ENTRIES[$INDEX]}"
+            case ":$ORIGINAL_PATH:" in
+              *":$PATH_ENTRY:"*) ;;
+              *) printf '%s\n' "$PATH_ENTRY" >> "$GITHUB_PATH" ;;
+            esac
+          done
+
+          for VARIABLE_NAME in IDF_PYTHON_ENV_PATH OPENOCD_SCRIPTS ESP_ROM_ELF_DIR; do
+            VARIABLE_VALUE="${!VARIABLE_NAME:-}"
+            if [ -n "$VARIABLE_VALUE" ]; then
+              printf '%s=%s\n' "$VARIABLE_NAME" "$VARIABLE_VALUE" >> "$GITHUB_ENV"
+            fi
+          done
 
       - name: Preparar identidade da execução
         id: prepare_execution
