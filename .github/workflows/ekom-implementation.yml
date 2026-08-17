@@ -1,25 +1,10 @@
 name: EKOM Implementation
 
-run-name: "EKOM · ${{ inputs.change_id }} · implementation"
+run-name: "EKOM · ${{ inputs.working_branch }} · implementation"
 
 on:
   workflow_dispatch:
     inputs:
-      change_id:
-        description: Identificador da demanda EKOM
-        required: true
-        type: string
-
-      specification_path:
-        description: Caminho da especificação EKOM
-        required: true
-        type: string
-
-      analysis_report_path:
-        description: Relatório Ready aplicável à versão autorizada
-        required: true
-        type: string
-
       working_branch:
         description: Branch de trabalho
         required: true
@@ -63,15 +48,15 @@ jobs:
     outputs:
       baseline_head: ${{ steps.validate_identity.outputs.baseline_head }}
       analyzed_revision: ${{ steps.validate_identity.outputs.analyzed_revision }}
+      change_id: ${{ steps.validate_identity.outputs.change_id }}
+      specification_path: ${{ steps.validate_identity.outputs.specification_path }}
+      analysis_report_path: ${{ steps.validate_identity.outputs.analysis_report_path }}
       implementation_report_path: ${{ steps.prepare_execution.outputs.implementation_report_path }}
       patch_sha256: ${{ steps.prepare_patch.outputs.patch_sha256 }}
 
     steps:
       - name: Validar ordem de implementação
         env:
-          CHANGE_ID: ${{ inputs.change_id }}
-          SPECIFICATION_PATH: ${{ inputs.specification_path }}
-          ANALYSIS_REPORT_PATH: ${{ inputs.analysis_report_path }}
           WORKING_BRANCH: ${{ inputs.working_branch }}
           ARCHITECT_AUTHORIZATION: ${{ inputs.architect_authorization }}
           AUTHORIZED_BY: ${{ inputs.authorized_by }}
@@ -105,11 +90,6 @@ jobs:
             exit 1
           fi
 
-          if [[ ! "$SPECIFICATION_PATH" =~ ^docs/specs/[A-Za-z0-9._-]+\.md$ ]]; then
-            echo "A especificação deve ser um Markdown direto de docs/specs/."
-            exit 1
-          fi
-
           case "$WORKING_BRANCH" in
             spec/*) ;;
             *)
@@ -119,51 +99,6 @@ jobs:
           esac
 
           git check-ref-format --branch "$WORKING_BRANCH" >/dev/null
-
-          SPEC_NAME="$(basename "$SPECIFICATION_PATH" .md)"
-          SPEC_SLUG="$(printf '%s' "$SPEC_NAME" \
-            | tr '[:upper:]' '[:lower:]' \
-            | tr '_' '-' \
-            | sed 's/[^a-z0-9-]//g')"
-          EXPECTED_BRANCH="spec/$SPEC_SLUG"
-          EXPECTED_REPORT_PREFIX="docs/reports/$SPEC_SLUG/analysis/"
-
-          if [ "$WORKING_BRANCH" != "$EXPECTED_BRANCH" ]; then
-            echo "A branch não corresponde ao nome da especificação."
-            echo "Esperada: $EXPECTED_BRANCH"
-            echo "Recebida: $WORKING_BRANCH"
-            exit 1
-          fi
-
-          if [[ ! "$ANALYSIS_REPORT_PATH" =~ ^${EXPECTED_REPORT_PREFIX}[A-Za-z0-9._-]+-implementability-analysis\.md$ ]]; then
-            echo "O relatório Ready não pertence ao domínio da especificação."
-            exit 1
-          fi
-
-          if [[ ! "$CHANGE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-            echo "O identificador EKOM possui formato inválido."
-            exit 1
-          fi
-
-      - name: Registrar ordem recebida
-        env:
-          CHANGE_ID: ${{ inputs.change_id }}
-          SPECIFICATION_PATH: ${{ inputs.specification_path }}
-          ANALYSIS_REPORT_PATH: ${{ inputs.analysis_report_path }}
-          WORKING_BRANCH: ${{ inputs.working_branch }}
-          AUTHORIZED_BY: ${{ inputs.authorized_by }}
-        run: |
-          {
-            echo "## Ordem EKOM recebida"
-            echo
-            echo "- Change ID: \`$CHANGE_ID\`"
-            echo "- Especificação: \`$SPECIFICATION_PATH\`"
-            echo "- Análise Ready: \`$ANALYSIS_REPORT_PATH\`"
-            echo "- Branch: \`$WORKING_BRANCH\`"
-            echo "- Autorizada por: $AUTHORIZED_BY"
-            echo "- Código e build canônico: autorizados"
-            echo "- Testes, flash, monitor e hardware: não autorizados"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Baixar a branch autorizada
         uses: actions/checkout@v5
@@ -175,9 +110,6 @@ jobs:
       - name: Validar versão e análise Ready
         id: validate_identity
         env:
-          CHANGE_ID: ${{ inputs.change_id }}
-          SPECIFICATION_PATH: ${{ inputs.specification_path }}
-          ANALYSIS_REPORT_PATH: ${{ inputs.analysis_report_path }}
           WORKING_BRANCH: ${{ inputs.working_branch }}
         run: |
           set -euo pipefail
@@ -198,123 +130,196 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "$SPECIFICATION_PATH" ]; then
-            echo "A especificação não existe na branch autorizada."
-            exit 1
-          fi
-
-          if [ ! -f "$ANALYSIS_REPORT_PATH" ]; then
-            echo "O relatório Ready não existe na branch autorizada."
-            exit 1
-          fi
-
-          git ls-files --error-unmatch "$ANALYSIS_REPORT_PATH" >/dev/null
-
-          REVISION_FILE="$RUNNER_TEMP/ekom-analyzed-revision"
-          python3 - \
-            "$SPECIFICATION_PATH" \
-            "$ANALYSIS_REPORT_PATH" \
-            "$CHANGE_ID" > "$REVISION_FILE" <<'PY'
+          python3 - "$WORKING_BRANCH" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" <<'PY'
           import re
+          import subprocess
           import sys
           from pathlib import Path
 
-          specification_path, report_path, expected_id = sys.argv[1:]
-          specification = Path(specification_path).read_text(encoding="utf-8")
-          report = Path(report_path).read_text(encoding="utf-8")
+          working_branch, output_path, summary_path = sys.argv[1:]
 
-          id_match = re.search(r"^\*\*ID:\*\*\s*`([^`]+)`", specification, re.MULTILINE)
-          if not id_match or id_match.group(1) != expected_id:
-              raise SystemExit("O ID submetido não corresponde à especificação.")
+          def git(*args, check=True):
+              result = subprocess.run(
+                  ["git", *args],
+                  check=False,
+                  text=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+              )
+              if check and result.returncode != 0:
+                  message = result.stderr.strip() or result.stdout.strip()
+                  raise RuntimeError(message or f"git {' '.join(args)} falhou")
+              return result
 
-          required_fields = (
-              "**Classe da fonte:** Relatório",
-              "**Papel:** Engenheiro Analista",
-              f"**Especificação:** `{specification_path}`",
-              "**Estado:** Concluído",
-          )
-          for field in required_fields:
-              if field not in report:
-                  raise SystemExit(f"Campo obrigatório ausente no relatório Ready: {field}")
+          def slug_for(path):
+              name = path.stem.lower().replace("_", "-")
+              return re.sub(r"[^a-z0-9-]", "", name)
 
-          revision_match = re.search(
-              r"^\*\*Revisão confrontada:\*\*\s*`([0-9a-f]{40})`\s*$",
-              report,
+          specification_matches = []
+          for path in sorted(Path("docs/specs").glob("*.md")):
+              if f"spec/{slug_for(path)}" == working_branch:
+                  specification_matches.append(path)
+
+          if len(specification_matches) != 1:
+              raise SystemExit(
+                  "A branch deve corresponder a exatamente uma especificação em "
+                  f"docs/specs/. Encontradas: {len(specification_matches)}"
+              )
+
+          specification_path = specification_matches[0]
+          specification = specification_path.read_text(encoding="utf-8")
+          id_match = re.search(
+              r"^\*\*ID:\*\*\s*`([A-Za-z0-9][A-Za-z0-9._-]*)`\s*$",
+              specification,
               re.MULTILINE,
           )
-          if not revision_match:
-              raise SystemExit("O relatório Ready não identifica uma revisão Git completa.")
+          if not id_match:
+              raise SystemExit("A especificação não declara um ID EKOM válido.")
+          change_id = id_match.group(1)
 
-          classification_match = re.search(
-              r"^\*\*Classificação principal:\*\*\s*(.+?)\s*$",
-              report,
-              re.MULTILINE,
+          spec_slug = slug_for(specification_path)
+          report_dir = Path("docs/reports") / spec_slug / "analysis"
+          candidates = sorted(
+              report_dir.glob("*-implementability-analysis.md"),
+              key=lambda path: path.name,
+              reverse=True,
           )
-          if not classification_match:
-              raise SystemExit("O relatório não declara classificação principal.")
+          if not candidates:
+              raise SystemExit("Nenhum relatório de análise foi encontrado para a especificação.")
 
-          classification = re.sub(
-              r"\*\*([^*\n]+)\*\*",
-              r"\1",
-              classification_match.group(1),
-          ).strip()
-          ready_match = re.fullmatch(r"Pronta(?:\s+\[`Ready`\])?", classification)
-          if not ready_match:
-              raise SystemExit("A análise aplicável não possui classificação Ready.")
+          current_spec_blob = git("rev-parse", f"HEAD:{specification_path}").stdout.strip()
+          rejected = []
+          selected = None
 
-          print(revision_match.group(1))
+          for report_path in candidates:
+              try:
+                  if git("ls-files", "--error-unmatch", str(report_path), check=False).returncode != 0:
+                      raise ValueError("arquivo não versionado")
+
+                  report = report_path.read_text(encoding="utf-8")
+                  required_fields = (
+                      "**Classe da fonte:** Relatório",
+                      "**Papel:** Engenheiro Analista",
+                      f"**Especificação:** `{specification_path}`",
+                      "**Estado:** Concluído",
+                  )
+                  missing = [field for field in required_fields if field not in report]
+                  if missing:
+                      raise ValueError(f"campo obrigatório ausente: {missing[0]}")
+
+                  revision_match = re.search(
+                      r"^\*\*Revisão confrontada:\*\*\s*`([0-9a-f]{40})`\s*$",
+                      report,
+                      re.MULTILINE,
+                  )
+                  if not revision_match:
+                      raise ValueError("revisão Git completa ausente")
+                  analyzed_revision = revision_match.group(1)
+
+                  classification_match = re.search(
+                      r"^\*\*(?:Classificação principal|Classificação):\*\*\s*(.+?)\s*$",
+                      report,
+                      re.MULTILINE,
+                  )
+                  if not classification_match:
+                      raise ValueError("classificação ausente")
+                  classification = re.sub(
+                      r"\*\*([^*\n]+)\*\*",
+                      r"\1",
+                      classification_match.group(1),
+                  ).strip()
+                  if git("cat-file", "-e", f"{analyzed_revision}^{{commit}}", check=False).returncode != 0:
+                      raise ValueError("revisão analisada inexistente")
+                  if git(
+                      "merge-base",
+                      "--is-ancestor",
+                      analyzed_revision,
+                      "HEAD",
+                      check=False,
+                  ).returncode != 0:
+                      raise ValueError("revisão fora da linhagem atual")
+
+                  analyzed_spec_blob = git(
+                      "rev-parse",
+                      f"{analyzed_revision}:{specification_path}",
+                  ).stdout.strip()
+                  if analyzed_spec_blob != current_spec_blob:
+                      raise ValueError("especificação alterada depois da análise")
+
+                  unanalyzed = git(
+                      "diff",
+                      "--name-only",
+                      f"{analyzed_revision}..HEAD",
+                      "--",
+                      ".",
+                      f":(exclude)docs/reports/{spec_slug}/analysis/**",
+                  ).stdout.strip()
+                  if unanalyzed:
+                      raise ValueError("há alterações posteriores fora dos relatórios de análise")
+
+                  short_revision = analyzed_revision[:7]
+                  if f"-{short_revision}-" not in report_path.name:
+                      raise ValueError("nome não corresponde à revisão confrontada")
+
+                  selected = (report_path, analyzed_revision, classification)
+                  break
+              except (OSError, RuntimeError, ValueError) as error:
+                  rejected.append(f"- {report_path}: {error}")
+
+          if selected is None:
+              details = "\n".join(rejected)
+              raise SystemExit(
+                  "Nenhum relatório formal é aplicável à branch atual.\n" + details
+              )
+
+          report_path, analyzed_revision, classification = selected
+          if not re.fullmatch(r"Pronta(?:\s+\[`Ready`\])?", classification):
+              raise SystemExit(
+                  "A análise formal mais recente aplicável não possui "
+                  f"classificação Ready: {report_path} ({classification})"
+              )
+
+          baseline_head = git("rev-parse", "HEAD").stdout.strip()
+          outputs = {
+              "change_id": change_id,
+              "specification_path": str(specification_path),
+              "analysis_report_path": str(report_path),
+              "analyzed_revision": analyzed_revision,
+              "baseline_head": baseline_head,
+          }
+          with Path(output_path).open("a", encoding="utf-8") as output:
+              for key, value in outputs.items():
+                  output.write(f"{key}={value}\n")
+
+          with Path(summary_path).open("a", encoding="utf-8") as summary:
+              summary.write("\n## Gates de implementação\n\n")
+              summary.write("- Ordem explícita: confirmada\n")
+              summary.write(f"- Change ID derivado: `{change_id}`\n")
+              summary.write(f"- Especificação derivada: `{specification_path}`\n")
+              summary.write(f"- Ready aplicável: `{report_path}`\n")
+              summary.write(f"- Revisão normativa: `{analyzed_revision}`\n")
+              summary.write(f"- Baseline da branch: `{baseline_head}`\n")
+              summary.write("- Árvore inicial: limpa\n")
           PY
 
-          ANALYZED_REVISION="$(tr -d '\n' < "$REVISION_FILE")"
-
-          git cat-file -e "$ANALYZED_REVISION^{commit}"
-
-          if ! git merge-base --is-ancestor "$ANALYZED_REVISION" HEAD; then
-            echo "A revisão analisada não pertence à linhagem atual da branch."
-            exit 1
-          fi
-
-          ANALYZED_SPEC_BLOB="$(git rev-parse "$ANALYZED_REVISION:$SPECIFICATION_PATH")"
-          CURRENT_SPEC_BLOB="$(git rev-parse "HEAD:$SPECIFICATION_PATH")"
-          if [ "$ANALYZED_SPEC_BLOB" != "$CURRENT_SPEC_BLOB" ]; then
-            echo "A especificação mudou depois da análise Ready."
-            exit 1
-          fi
-
-          SPEC_SLUG="$(basename "$SPECIFICATION_PATH" .md \
-            | tr '[:upper:]' '[:lower:]' \
-            | tr '_' '-' \
-            | sed 's/[^a-z0-9-]//g')"
-          UNANALYZED_FILES="$(git diff --name-only "$ANALYZED_REVISION"..HEAD -- \
-            . ":(exclude)docs/reports/$SPEC_SLUG/analysis/**")"
-          if [ -n "$UNANALYZED_FILES" ]; then
-            echo "Há alterações posteriores ao Ready fora dos relatórios de análise:"
-            printf '%s\n' "$UNANALYZED_FILES"
-            exit 1
-          fi
-
-          SHORT_REVISION="$(git rev-parse --short=7 "$ANALYZED_REVISION")"
-          case "$(basename "$ANALYSIS_REPORT_PATH")" in
-            *-"$SHORT_REVISION"-*-implementability-analysis.md) ;;
-            *)
-              echo "O nome do relatório não corresponde à revisão confrontada."
-              exit 1
-              ;;
-          esac
-
-          BASELINE_HEAD="$(git rev-parse HEAD)"
-          echo "analyzed_revision=$ANALYZED_REVISION" >> "$GITHUB_OUTPUT"
-          echo "baseline_head=$BASELINE_HEAD" >> "$GITHUB_OUTPUT"
-
+      - name: Registrar ordem recebida
+        env:
+          CHANGE_ID: ${{ steps.validate_identity.outputs.change_id }}
+          SPECIFICATION_PATH: ${{ steps.validate_identity.outputs.specification_path }}
+          ANALYSIS_REPORT_PATH: ${{ steps.validate_identity.outputs.analysis_report_path }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
+          AUTHORIZED_BY: ${{ inputs.authorized_by }}
+        run: |
           {
+            echo "## Ordem EKOM recebida"
             echo
-            echo "## Gates de implementação"
-            echo
-            echo "- Ordem explícita: confirmada"
-            echo "- Ready aplicável: confirmado"
-            echo "- Revisão normativa: \`$ANALYZED_REVISION\`"
-            echo "- Baseline da branch: \`$BASELINE_HEAD\`"
-            echo "- Árvore inicial: limpa"
+            echo "- Change ID: \`$CHANGE_ID\`"
+            echo "- Especificação: \`$SPECIFICATION_PATH\`"
+            echo "- Análise Ready: \`$ANALYSIS_REPORT_PATH\`"
+            echo "- Branch: \`$WORKING_BRANCH\`"
+            echo "- Autorizada por: $AUTHORIZED_BY"
+            echo "- Código e build canônico: autorizados"
+            echo "- Testes, flash, monitor e hardware: não autorizados"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Baixar diretrizes EKOM vigentes
@@ -335,7 +340,7 @@ jobs:
       - name: Preparar identidade da execução
         id: prepare_execution
         env:
-          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          SPECIFICATION_PATH: ${{ steps.validate_identity.outputs.specification_path }}
           BASELINE_HEAD: ${{ steps.validate_identity.outputs.baseline_head }}
         run: |
           set -euo pipefail
@@ -381,10 +386,10 @@ jobs:
             qualquer gate material é falso.
 
             Ordem explícita:
-            - ID: ${{ inputs.change_id }}
-            - Especificação: ${{ inputs.specification_path }}
+            - ID: ${{ steps.validate_identity.outputs.change_id }}
+            - Especificação: ${{ steps.validate_identity.outputs.specification_path }}
             - Revisão normativa autorizada: ${{ steps.validate_identity.outputs.analyzed_revision }}
-            - Relatório Ready: ${{ inputs.analysis_report_path }}
+            - Relatório Ready: ${{ steps.validate_identity.outputs.analysis_report_path }}
             - Branch: ${{ inputs.working_branch }}
             - Autorizada por: ${{ inputs.authorized_by }}
 
@@ -441,10 +446,10 @@ jobs:
         env:
           SOURCE_REPORT: ${{ runner.temp }}/ekom-implementation-handoff.md
           IMPLEMENTATION_REPORT_PATH: ${{ steps.prepare_execution.outputs.implementation_report_path }}
-          CHANGE_ID: ${{ inputs.change_id }}
-          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          CHANGE_ID: ${{ steps.validate_identity.outputs.change_id }}
+          SPECIFICATION_PATH: ${{ steps.validate_identity.outputs.specification_path }}
           ANALYZED_REVISION: ${{ steps.validate_identity.outputs.analyzed_revision }}
-          ANALYSIS_REPORT_PATH: ${{ inputs.analysis_report_path }}
+          ANALYSIS_REPORT_PATH: ${{ steps.validate_identity.outputs.analysis_report_path }}
           WORKING_BRANCH: ${{ inputs.working_branch }}
           AUTHORIZED_BY: ${{ inputs.authorized_by }}
         run: |
@@ -489,7 +494,7 @@ jobs:
         env:
           BASELINE_HEAD: ${{ steps.validate_identity.outputs.baseline_head }}
           ANALYZED_REVISION: ${{ steps.validate_identity.outputs.analyzed_revision }}
-          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          SPECIFICATION_PATH: ${{ steps.validate_identity.outputs.specification_path }}
           IMPLEMENTATION_REPORT_PATH: ${{ steps.prepare_execution.outputs.implementation_report_path }}
         run: |
           set -euo pipefail
@@ -721,7 +726,7 @@ jobs:
           ANALYZED_REVISION: ${{ needs.implement.outputs.analyzed_revision }}
           IMPLEMENTATION_REPORT_PATH: ${{ needs.implement.outputs.implementation_report_path }}
           WORKING_BRANCH: ${{ inputs.working_branch }}
-          CHANGE_ID: ${{ inputs.change_id }}
+          CHANGE_ID: ${{ needs.implement.outputs.change_id }}
           AUTHORIZED_BY: ${{ inputs.authorized_by }}
         run: |
           set -euo pipefail

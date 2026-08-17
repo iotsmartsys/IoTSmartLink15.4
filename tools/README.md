@@ -54,7 +54,9 @@ evento `submit_for_implementation` com:
 - `allow_tests=false`;
 - `allow_hardware=false`.
 
-O n8n deve resolver na branch a especificação e a análise `Ready` aplicável e
-disparar `.github/workflows/ekom-implementation.yml` com `ref=main`, completando
-os demais inputs exigidos pelo workflow. O workflow não autoriza testes, flash,
-monitor ou hardware neste piloto.
+O n8n valida o evento autenticado e dispara
+`.github/workflows/ekom-implementation.yml` com `ref=main`, a branch e a ordem
+explícita do Arquiteto. O próprio workflow localiza na branch a única
+especificação correspondente, lê seu ID e seleciona a análise `Ready` aplicável
+à mesma revisão e baseline. O workflow não autoriza testes, flash, monitor ou
+hardware neste piloto.
