@@ -1,6 +1,6 @@
 # Instruções permanentes e roteamento EKOM
 
-**Modelo EKOM:** 4.4
+**Modelo EKOM:** 4.5
 
 **Modalidade:** capacidades referenciadas e governança proporcional
 

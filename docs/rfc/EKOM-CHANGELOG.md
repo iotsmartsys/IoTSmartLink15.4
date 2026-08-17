@@ -745,3 +745,30 @@ criada em `Draft`; análise de implementabilidade permanece pendente, inclusive
 para confrontar o adiamento da medição periódica com o lifecycle vigente.
 Nenhuma implementação, build, teste, flash, monitor ou hardware foi autorizado
 ou executado nesta transação de Autoria.
+
+## EKOM-CHG-0007 — Adoção do EKOM 4.5
+
+**Estado:** Fechada [`Closed`]
+
+**Especificação relacionada:** Não aplicável; governança documental
+
+**Objetivo:** adotar o EKOM 4.5 nas fontes locais e promover a branch corrente
+para `main` por ordem explícita do Arquiteto.
+
+### Decisões relacionadas
+
+- `AGENTS.md`, a diretriz local e o mapa passam a declarar EKOM 4.5;
+- prontidão de implementação usa suficiência, autoridade normativa limitada e
+  controles contra omissão conforme a ADR-0014 do modelo externo;
+- relatórios históricos permanecem vinculados à versão usada em sua execução e
+  não são reescritos;
+- a Action de implementação deriva da branch a especificação, o ID e a análise
+  formal mais recente aplicável, bloqueando `Not Ready` posterior e `Ready`
+  obsoleto.
+
+### Resultado
+
+As fontes locais foram reconciliadas com o EKOM 4.5 em 16/08/2026. A branch
+`spec/client-sdk-configurable-features` foi autorizada pelo Arquiteto para
+integração em `main`, sem executar Actions, builds, testes, flash, monitor ou
+hardware nesta atuação.
