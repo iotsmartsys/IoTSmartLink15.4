@@ -52,7 +52,7 @@ set -a
 . "$ENV_FILE"
 set +a
 
-: "${SUBMMITION_URL:?Defina SUBMMITION_URL no arquivo .env}"
+: "${SUBMMITION_IMPLEMENTATION_URL:?Defina SUBMMITION_IMPLEMENTATION_URL no arquivo .env}"
 : "${TOKEN_EKOM:?Defina TOKEN_EKOM no arquivo .env}"
 : "${SUBMITTED_BY:?Defina SUBMITTED_BY no arquivo .env}"
 
@@ -251,7 +251,7 @@ printf 'Autorizada por: %s\n' "$SUBMITTED_BY"
 
 curl --fail-with-body --silent --show-error \
     --request POST \
-    "$SUBMMITION_URL" \
+    "$SUBMMITION_IMPLEMENTATION_URL" \
     --header 'Content-Type: application/json' \
     --header "X-EKOM-Token: $TOKEN_EKOM" \
     --data-binary "$PAYLOAD"
