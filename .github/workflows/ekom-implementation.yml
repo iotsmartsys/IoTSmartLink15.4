@@ -340,6 +340,12 @@ jobs:
       - name: Verificar ambiente canônico de build
         run: |
           set -euo pipefail
+
+          IDF_ENV_FILE="$RUNNER_TEMP/ekom-idf-env.sh"
+          printf 'source "%s/export.sh" >/dev/null\n' "$IDF_PATH" > "$IDF_ENV_FILE"
+          echo "BASH_ENV=$IDF_ENV_FILE" >> "$GITHUB_ENV"
+
+          source "$IDF_ENV_FILE"
           idf.py --version
           python3 --version
 
