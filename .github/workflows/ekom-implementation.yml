@@ -365,6 +365,7 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          model: gpt-5.6-luna
           sandbox: workspace-write
           codex-args: '["--ephemeral"]'
           output-file: ${{ runner.temp }}/ekom-implementation-handoff.md
