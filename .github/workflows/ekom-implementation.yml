@@ -1,0 +1,806 @@
+name: EKOM Implementation
+
+run-name: "EKOM · ${{ inputs.change_id }} · implementation"
+
+on:
+  workflow_dispatch:
+    inputs:
+      change_id:
+        description: Identificador da demanda EKOM
+        required: true
+        type: string
+
+      specification_path:
+        description: Caminho da especificação EKOM
+        required: true
+        type: string
+
+      analysis_report_path:
+        description: Relatório Ready aplicável à versão autorizada
+        required: true
+        type: string
+
+      working_branch:
+        description: Branch de trabalho
+        required: true
+        type: string
+
+      architect_authorization:
+        description: Ordem explícita do Arquiteto para implementar esta versão
+        required: true
+        type: boolean
+        default: false
+
+      authorized_by:
+        description: Identidade do Arquiteto que emitiu a ordem
+        required: true
+        type: string
+
+      allow_tests:
+        description: Autoriza coleta ou execução de testes
+        required: true
+        type: boolean
+        default: false
+
+      allow_hardware:
+        description: Autoriza flash, monitor ou hardware
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "ekom-implementation-${{ inputs.working_branch }}"
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    name: Implementar especificação EKOM
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.1
+    outputs:
+      baseline_head: ${{ steps.validate_identity.outputs.baseline_head }}
+      analyzed_revision: ${{ steps.validate_identity.outputs.analyzed_revision }}
+      implementation_report_path: ${{ steps.prepare_execution.outputs.implementation_report_path }}
+      patch_sha256: ${{ steps.prepare_patch.outputs.patch_sha256 }}
+
+    steps:
+      - name: Validar ordem de implementação
+        env:
+          CHANGE_ID: ${{ inputs.change_id }}
+          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          ANALYSIS_REPORT_PATH: ${{ inputs.analysis_report_path }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
+          ARCHITECT_AUTHORIZATION: ${{ inputs.architect_authorization }}
+          AUTHORIZED_BY: ${{ inputs.authorized_by }}
+          ALLOW_TESTS: ${{ inputs.allow_tests }}
+          ALLOW_HARDWARE: ${{ inputs.allow_hardware }}
+        run: |
+          set -euo pipefail
+
+          if [ "$ARCHITECT_AUTHORIZATION" != "true" ]; then
+            echo "Implementação não iniciada: falta ordem explícita do Arquiteto."
+            exit 1
+          fi
+
+          if [ -z "${AUTHORIZED_BY//[[:space:]]/}" ]; then
+            echo "A ordem deve identificar o Arquiteto responsável."
+            exit 1
+          fi
+
+          if [[ "$AUTHORIZED_BY" == *$'\n'* || "$AUTHORIZED_BY" == *$'\r'* ]]; then
+            echo "A identidade do Arquiteto deve ocupar uma única linha."
+            exit 1
+          fi
+
+          if [ "$ALLOW_TESTS" != "false" ]; then
+            echo "Este piloto não autoriza coleta nem execução de testes."
+            exit 1
+          fi
+
+          if [ "$ALLOW_HARDWARE" != "false" ]; then
+            echo "Este piloto não autoriza flash, monitor nem hardware."
+            exit 1
+          fi
+
+          if [[ ! "$SPECIFICATION_PATH" =~ ^docs/specs/[A-Za-z0-9._-]+\.md$ ]]; then
+            echo "A especificação deve ser um Markdown direto de docs/specs/."
+            exit 1
+          fi
+
+          case "$WORKING_BRANCH" in
+            spec/*) ;;
+            *)
+              echo "A implementação deve usar uma branch spec/*."
+              exit 1
+              ;;
+          esac
+
+          git check-ref-format --branch "$WORKING_BRANCH" >/dev/null
+
+          SPEC_NAME="$(basename "$SPECIFICATION_PATH" .md)"
+          SPEC_SLUG="$(printf '%s' "$SPEC_NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | tr '_' '-' \
+            | sed 's/[^a-z0-9-]//g')"
+          EXPECTED_BRANCH="spec/$SPEC_SLUG"
+          EXPECTED_REPORT_PREFIX="docs/reports/$SPEC_SLUG/analysis/"
+
+          if [ "$WORKING_BRANCH" != "$EXPECTED_BRANCH" ]; then
+            echo "A branch não corresponde ao nome da especificação."
+            echo "Esperada: $EXPECTED_BRANCH"
+            echo "Recebida: $WORKING_BRANCH"
+            exit 1
+          fi
+
+          if [[ ! "$ANALYSIS_REPORT_PATH" =~ ^${EXPECTED_REPORT_PREFIX}[A-Za-z0-9._-]+-implementability-analysis\.md$ ]]; then
+            echo "O relatório Ready não pertence ao domínio da especificação."
+            exit 1
+          fi
+
+          if [[ ! "$CHANGE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "O identificador EKOM possui formato inválido."
+            exit 1
+          fi
+
+      - name: Registrar ordem recebida
+        env:
+          CHANGE_ID: ${{ inputs.change_id }}
+          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          ANALYSIS_REPORT_PATH: ${{ inputs.analysis_report_path }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
+          AUTHORIZED_BY: ${{ inputs.authorized_by }}
+        run: |
+          {
+            echo "## Ordem EKOM recebida"
+            echo
+            echo "- Change ID: \`$CHANGE_ID\`"
+            echo "- Especificação: \`$SPECIFICATION_PATH\`"
+            echo "- Análise Ready: \`$ANALYSIS_REPORT_PATH\`"
+            echo "- Branch: \`$WORKING_BRANCH\`"
+            echo "- Autorizada por: $AUTHORIZED_BY"
+            echo "- Código e build canônico: autorizados"
+            echo "- Testes, flash, monitor e hardware: não autorizados"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Baixar a branch autorizada
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.working_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validar versão e análise Ready
+        id: validate_identity
+        env:
+          CHANGE_ID: ${{ inputs.change_id }}
+          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          ANALYSIS_REPORT_PATH: ${{ inputs.analysis_report_path }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
+        run: |
+          set -euo pipefail
+
+          if [ "$(git branch --show-current)" != "$WORKING_BRANCH" ]; then
+            echo "A branch baixada não corresponde à ordem."
+            exit 1
+          fi
+
+          if ! git merge-base origin/main HEAD >/dev/null; then
+            echo "A branch não possui ancestral comum com a main."
+            exit 1
+          fi
+
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "A implementação exige árvore de trabalho limpa."
+            git status --short --untracked-files=all
+            exit 1
+          fi
+
+          if [ ! -f "$SPECIFICATION_PATH" ]; then
+            echo "A especificação não existe na branch autorizada."
+            exit 1
+          fi
+
+          if [ ! -f "$ANALYSIS_REPORT_PATH" ]; then
+            echo "O relatório Ready não existe na branch autorizada."
+            exit 1
+          fi
+
+          git ls-files --error-unmatch "$ANALYSIS_REPORT_PATH" >/dev/null
+
+          REVISION_FILE="$RUNNER_TEMP/ekom-analyzed-revision"
+          python3 - \
+            "$SPECIFICATION_PATH" \
+            "$ANALYSIS_REPORT_PATH" \
+            "$CHANGE_ID" > "$REVISION_FILE" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          specification_path, report_path, expected_id = sys.argv[1:]
+          specification = Path(specification_path).read_text(encoding="utf-8")
+          report = Path(report_path).read_text(encoding="utf-8")
+
+          id_match = re.search(r"^\*\*ID:\*\*\s*`([^`]+)`", specification, re.MULTILINE)
+          if not id_match or id_match.group(1) != expected_id:
+              raise SystemExit("O ID submetido não corresponde à especificação.")
+
+          required_fields = (
+              "**Classe da fonte:** Relatório",
+              "**Papel:** Engenheiro Analista",
+              f"**Especificação:** `{specification_path}`",
+              "**Estado:** Concluído",
+          )
+          for field in required_fields:
+              if field not in report:
+                  raise SystemExit(f"Campo obrigatório ausente no relatório Ready: {field}")
+
+          revision_match = re.search(
+              r"^\*\*Revisão confrontada:\*\*\s*`([0-9a-f]{40})`\s*$",
+              report,
+              re.MULTILINE,
+          )
+          if not revision_match:
+              raise SystemExit("O relatório Ready não identifica uma revisão Git completa.")
+
+          classification_match = re.search(
+              r"^\*\*Classificação principal:\*\*\s*(.+?)\s*$",
+              report,
+              re.MULTILINE,
+          )
+          if not classification_match:
+              raise SystemExit("O relatório não declara classificação principal.")
+
+          classification = re.sub(
+              r"\*\*([^*\n]+)\*\*",
+              r"\1",
+              classification_match.group(1),
+          ).strip()
+          ready_match = re.fullmatch(r"Pronta(?:\s+\[`Ready`\])?", classification)
+          if not ready_match:
+              raise SystemExit("A análise aplicável não possui classificação Ready.")
+
+          print(revision_match.group(1))
+          PY
+
+          ANALYZED_REVISION="$(tr -d '\n' < "$REVISION_FILE")"
+
+          git cat-file -e "$ANALYZED_REVISION^{commit}"
+
+          if ! git merge-base --is-ancestor "$ANALYZED_REVISION" HEAD; then
+            echo "A revisão analisada não pertence à linhagem atual da branch."
+            exit 1
+          fi
+
+          ANALYZED_SPEC_BLOB="$(git rev-parse "$ANALYZED_REVISION:$SPECIFICATION_PATH")"
+          CURRENT_SPEC_BLOB="$(git rev-parse "HEAD:$SPECIFICATION_PATH")"
+          if [ "$ANALYZED_SPEC_BLOB" != "$CURRENT_SPEC_BLOB" ]; then
+            echo "A especificação mudou depois da análise Ready."
+            exit 1
+          fi
+
+          SPEC_SLUG="$(basename "$SPECIFICATION_PATH" .md \
+            | tr '[:upper:]' '[:lower:]' \
+            | tr '_' '-' \
+            | sed 's/[^a-z0-9-]//g')"
+          UNANALYZED_FILES="$(git diff --name-only "$ANALYZED_REVISION"..HEAD -- \
+            . ":(exclude)docs/reports/$SPEC_SLUG/analysis/**")"
+          if [ -n "$UNANALYZED_FILES" ]; then
+            echo "Há alterações posteriores ao Ready fora dos relatórios de análise:"
+            printf '%s\n' "$UNANALYZED_FILES"
+            exit 1
+          fi
+
+          SHORT_REVISION="$(git rev-parse --short=7 "$ANALYZED_REVISION")"
+          case "$(basename "$ANALYSIS_REPORT_PATH")" in
+            *-"$SHORT_REVISION"-*-implementability-analysis.md) ;;
+            *)
+              echo "O nome do relatório não corresponde à revisão confrontada."
+              exit 1
+              ;;
+          esac
+
+          BASELINE_HEAD="$(git rev-parse HEAD)"
+          echo "analyzed_revision=$ANALYZED_REVISION" >> "$GITHUB_OUTPUT"
+          echo "baseline_head=$BASELINE_HEAD" >> "$GITHUB_OUTPUT"
+
+          {
+            echo
+            echo "## Gates de implementação"
+            echo
+            echo "- Ordem explícita: confirmada"
+            echo "- Ready aplicável: confirmado"
+            echo "- Revisão normativa: \`$ANALYZED_REVISION\`"
+            echo "- Baseline da branch: \`$BASELINE_HEAD\`"
+            echo "- Árvore inicial: limpa"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Baixar diretrizes EKOM vigentes
+        uses: actions/checkout@v5
+        with:
+          repository: iotsmartsys/EKM-guidelines
+          ref: main
+          path: .ekom-guidelines
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verificar ambiente canônico de build
+        run: |
+          set -euo pipefail
+          idf.py --version
+          python3 --version
+
+      - name: Preparar identidade da execução
+        id: prepare_execution
+        env:
+          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          BASELINE_HEAD: ${{ steps.validate_identity.outputs.baseline_head }}
+        run: |
+          set -euo pipefail
+
+          SPEC_SLUG="$(basename "$SPECIFICATION_PATH" .md \
+            | tr '[:upper:]' '[:lower:]' \
+            | tr '_' '-' \
+            | sed 's/[^a-z0-9-]//g')"
+          RUN_TIMESTAMP="$(date -u +%Y-%m-%dT%H%M%SZ)"
+          BASELINE_SHORT="$(git rev-parse --short=7 "$BASELINE_HEAD")"
+          REPORT_PATH="docs/reports/$SPEC_SLUG/implementation/${RUN_TIMESTAMP}-${BASELINE_SHORT}-${GITHUB_RUN_ID}-implementation.md"
+
+          if [ -e "$REPORT_PATH" ]; then
+            echo "O relatório de implementação já existe e não será sobrescrito."
+            exit 1
+          fi
+
+          echo "implementation_report_path=$REPORT_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Executar implementação EKOM
+        id: codex_implementation
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: workspace-write
+          codex-args: '["--ephemeral"]'
+          output-file: ${{ runner.temp }}/ekom-implementation-handoff.md
+          prompt: |
+            Assuma exclusivamente o papel EKOM de Engenheiro Implementador e
+            implemente integralmente a versão autorizada abaixo.
+
+            Leia integralmente, nesta ordem:
+            1. AGENTS.md;
+            2. .ekom-guidelines/roles/REGRAS-COMUNS.md;
+            3. .ekom-guidelines/roles/ENGENHEIRO-IMPLEMENTADOR.md;
+            4. a especificação autorizada;
+            5. o relatório Ready aplicável;
+            6. somente as fontes técnicas e normativas pertinentes.
+
+            Os perfis canônicos governam a atuação. O pipeline já confirmou a
+            identidade, a árvore limpa, a correspondência do Ready e a ordem
+            explícita do Arquiteto, mas você deve interromper se descobrir que
+            qualquer gate material é falso.
+
+            Ordem explícita:
+            - ID: ${{ inputs.change_id }}
+            - Especificação: ${{ inputs.specification_path }}
+            - Revisão normativa autorizada: ${{ steps.validate_identity.outputs.analyzed_revision }}
+            - Relatório Ready: ${{ inputs.analysis_report_path }}
+            - Branch: ${{ inputs.working_branch }}
+            - Autorizada por: ${{ inputs.authorized_by }}
+
+            Operações autorizadas:
+            - alterar código, configuração e conhecimento dentro do recorte;
+            - inspecionar o delta;
+            - executar os builds canônicos e proporcionais dos entregáveis
+              construíveis materialmente afetados.
+
+            Operações não autorizadas:
+            - criar, alterar, coletar ou executar testes;
+            - flash, monitor ou hardware;
+            - deploy, release, merge, tag ou integração;
+            - instalar toolchain ou dependência persistente;
+            - alterar qualquer arquivo em .github/ ou .ekom-guidelines/;
+            - criar commit ou fazer push. O pipeline executará mecanicamente a
+              entrega após validar e transferir exatamente o seu delta.
+
+            O ESP-IDF 6.0.1 já está disponível. Não instale outra toolchain.
+            Use variantes somente de build e nunca execute testes como efeito
+            colateral. Registre comando, ambiente, target/configuração, resultado
+            terminal e código de saída de cada build iniciado.
+
+            Como primeiro efeito material, registre mecanicamente In Progress nas
+            fontes operacionais previstas pelo projeto, sem alterar comportamento
+            normativo. Implemente todos os requisitos da versão, preserve as
+            restrições do Ready e não absorva decisão ausente ou pré-requisito
+            arquitetural como escolha local.
+
+            Produza como resposta final somente o corpo técnico do relatório,
+            com exatamente estas seções, nesta ordem: `Gates`, `Escopo
+            realizado`, `Decisões locais`, `Builds canônicos`, `Operações não
+            executadas`, `Limitações e desvios` e `Handoff para revisão`.
+            Cada seção deve usar um heading Markdown `##` sem numeração. Não
+            inclua título nem metadados: o pipeline os acrescentará de forma
+            determinística e registrará o relatório novo em:
+            ${{ steps.prepare_execution.outputs.implementation_report_path }}
+
+            Em `Builds canônicos`, cada build usa `### Build N` e registra
+            `- Comando:`, `- Ambiente:`, `- Target/configuração:`, `- Resultado
+            terminal:` e `- Código de saída:`. Em `Operações não executadas`,
+            registre testes, flash, monitor e hardware como `Not Executed`.
+            Se implementação ou build obrigatório permanecer incompleto, mantenha
+            o estado In Progress e registre a limitação; não converta ausência de
+            evidência em sucesso.
+
+            Preserve relatórios existentes. Não promova a especificação, não
+            declare Done e não inicie Revisão. Termine com o delta coerente no
+            workspace, o corpo técnico entregue como resposta final e todas as
+            operações iniciadas em estado terminal. Não crie manualmente o
+            relatório no workspace.
+
+      - name: Preparar relatório versionado
+        env:
+          SOURCE_REPORT: ${{ runner.temp }}/ekom-implementation-handoff.md
+          IMPLEMENTATION_REPORT_PATH: ${{ steps.prepare_execution.outputs.implementation_report_path }}
+          CHANGE_ID: ${{ inputs.change_id }}
+          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          ANALYZED_REVISION: ${{ steps.validate_identity.outputs.analyzed_revision }}
+          ANALYSIS_REPORT_PATH: ${{ inputs.analysis_report_path }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
+          AUTHORIZED_BY: ${{ inputs.authorized_by }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -s "$SOURCE_REPORT" ]; then
+            echo "O Implementador não entregou o corpo técnico do relatório."
+            exit 1
+          fi
+
+          REPORT_DIR="$(dirname "$IMPLEMENTATION_REPORT_PATH")"
+          mkdir -p "$REPORT_DIR"
+          RUN_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          {
+            printf '# Relatório de implementação — %s\n\n' "$CHANGE_ID"
+            printf '**Classe da fonte:** Relatório\n\n'
+            printf '**Papel:** Engenheiro Implementador\n\n'
+            printf '**Especificação:** `%s`\n\n' "$SPECIFICATION_PATH"
+            printf '**Revisão confrontada:** `%s`\n\n' "$ANALYZED_REVISION"
+            printf '**Análise de entrada:** `%s`\n\n' "$ANALYSIS_REPORT_PATH"
+            printf '**Estado:** Em andamento [`In Progress`]\n\n'
+            printf '**Branch:** `%s`\n\n' "$WORKING_BRANCH"
+            printf '**Ordem do Arquiteto:** %s\n\n' "$AUTHORIZED_BY"
+            printf '**Execução do GitHub Actions:** `%s`\n\n' "$GITHUB_RUN_ID"
+            printf '**Data da implementação:** `%s`\n\n' "$RUN_TIMESTAMP"
+            printf '%s\n\n' '---'
+            cat "$SOURCE_REPORT"
+            printf '\n'
+          } > "$IMPLEMENTATION_REPORT_PATH"
+
+          python3 - "$IMPLEMENTATION_REPORT_PATH" <<'PY'
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          lines = [line.rstrip(" \t") for line in path.read_text(encoding="utf-8").splitlines()]
+          path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+          PY
+
+      - name: Validar delta do Implementador
+        env:
+          BASELINE_HEAD: ${{ steps.validate_identity.outputs.baseline_head }}
+          ANALYZED_REVISION: ${{ steps.validate_identity.outputs.analyzed_revision }}
+          SPECIFICATION_PATH: ${{ inputs.specification_path }}
+          IMPLEMENTATION_REPORT_PATH: ${{ steps.prepare_execution.outputs.implementation_report_path }}
+        run: |
+          set -euo pipefail
+
+          if [ "$(git rev-parse HEAD)" != "$BASELINE_HEAD" ]; then
+            echo "O Implementador criou commit, operação reservada ao pipeline."
+            exit 1
+          fi
+
+          if [ ! -s "$IMPLEMENTATION_REPORT_PATH" ]; then
+            echo "O Implementador não criou o relatório obrigatório."
+            exit 1
+          fi
+
+          STATUS="$(git status --porcelain --untracked-files=all \
+            | grep -vE '^\?\? \.ekom-guidelines/$' || true)"
+          if [ -z "$STATUS" ]; then
+            echo "O Implementador não produziu delta versionável."
+            exit 1
+          fi
+
+          CHANGED_FILES_FILE="$RUNNER_TEMP/ekom-changed-files.txt"
+          {
+            git diff --name-only --diff-filter=ACDMRTUXB
+            git diff --cached --name-only --diff-filter=ACDMRTUXB
+            git ls-files --others --exclude-standard
+          } | sort -u > "$CHANGED_FILES_FILE"
+
+          while IFS= read -r path; do
+            case "$path" in
+              .ekom-guidelines/*) continue ;;
+              .github/*|.env|.env.*|*.pem|*.key)
+                echo "Delta contém arquivo proibido: $path"
+                exit 1
+                ;;
+              docs/reports/*)
+                if [ "$path" != "$IMPLEMENTATION_REPORT_PATH" ]; then
+                  echo "Somente o novo relatório de implementação pode ser alterado: $path"
+                  exit 1
+                fi
+                ;;
+            esac
+
+            case "$path" in
+              */test/*|*/tests/*|*/test_apps/*|*/test_*|*_test.*)
+                echo "Testes não estão autorizados nesta execução: $path"
+                exit 1
+                ;;
+            esac
+          done < "$CHANGED_FILES_FILE"
+
+          if git show "HEAD:$SPECIFICATION_PATH" | grep -Eq \
+            '^\*\*Estado da implementação:\*\*.*`?Not Started`?'; then
+            if grep -Eq '^\*\*Estado da implementação:\*\*.*`?Not Started`?' \
+              "$SPECIFICATION_PATH"; then
+              echo "O primeiro efeito operacional In Progress não foi registrado."
+              exit 1
+            fi
+          fi
+
+          python3 tools/validate_ekom_documents.py . "$IMPLEMENTATION_REPORT_PATH"
+
+          python3 - \
+            "$IMPLEMENTATION_REPORT_PATH" \
+            "$SPECIFICATION_PATH" \
+            "$ANALYZED_REVISION" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          report_path, specification_path, analyzed_revision = sys.argv[1:]
+          report = Path(report_path).read_text(encoding="utf-8")
+
+          required_fields = (
+              "**Classe da fonte:** Relatório",
+              "**Papel:** Engenheiro Implementador",
+              f"**Especificação:** `{specification_path}`",
+              "**Revisão confrontada:**",
+              "**Estado:**",
+              "**Execução do GitHub Actions:**",
+              "**Branch:**",
+              "**Ordem do Arquiteto:**",
+          )
+          for field in required_fields:
+              if field not in report:
+                  raise SystemExit(f"Campo obrigatório ausente: {field}")
+
+          if analyzed_revision not in report:
+              raise SystemExit("O relatório não referencia a revisão normativa autorizada.")
+
+          required_headings = (
+              "Gates",
+              "Escopo realizado",
+              "Decisões locais",
+              "Builds canônicos",
+              "Operações não executadas",
+              "Limitações e desvios",
+              "Handoff para revisão",
+          )
+          headings = re.findall(r"^##\s+(.+?)\s*$", report, re.MULTILINE)
+          if headings != list(required_headings):
+              raise SystemExit("A estrutura do relatório de implementação está inválida.")
+
+          builds_match = re.search(
+              r"^##\s+Builds canônicos\s*$\n(.*?)(?=^##\s+|\Z)",
+              report,
+              re.MULTILINE | re.DOTALL,
+          )
+          builds = builds_match.group(1) if builds_match else ""
+          build_entries = re.split(r"^###\s+Build\s+\d+\s*$", builds, flags=re.MULTILINE)
+          build_entries = [entry.strip() for entry in build_entries if entry.strip()]
+          declared_builds = re.findall(r"^###\s+Build\s+\d+\s*$", builds, re.MULTILINE)
+          if not declared_builds or len(build_entries) != len(declared_builds):
+              raise SystemExit("O relatório deve registrar ao menos um build canônico.")
+
+          build_fields = (
+              "Comando",
+              "Ambiente",
+              "Target/configuração",
+              "Resultado terminal",
+              "Código de saída",
+          )
+          for entry in build_entries:
+              for field in build_fields:
+                  if not re.search(rf"^-\s+{re.escape(field)}:\s*\S", entry, re.MULTILINE):
+                      raise SystemExit(f"Build sem campo obrigatório: {field}")
+
+          operations_match = re.search(
+              r"^##\s+Operações não executadas\s*$\n(.*?)(?=^##\s+|\Z)",
+              report,
+              re.MULTILINE | re.DOTALL,
+          )
+          operations = operations_match.group(1) if operations_match else ""
+          for operation in ("testes", "flash", "monitor", "hardware"):
+              if not re.search(
+                  rf"{operation}[^\n]*Not Executed",
+                  operations,
+                  re.IGNORECASE,
+              ):
+                  raise SystemExit(f"Operação sem estado Not Executed: {operation}")
+          PY
+
+          while IFS= read -r path; do
+            case "$path" in
+              *.md) python3 tools/validate_ekom_documents.py . "$path" ;;
+            esac
+          done < "$CHANGED_FILES_FILE"
+
+          git diff --check
+
+      - name: Preparar patch imutável da implementação
+        id: prepare_patch
+        env:
+          IMPLEMENTATION_REPORT_PATH: ${{ steps.prepare_execution.outputs.implementation_report_path }}
+        run: |
+          set -euo pipefail
+
+          git add -A -- . ':(exclude).ekom-guidelines'
+
+          if [ "$(git diff --cached --name-status -- "$IMPLEMENTATION_REPORT_PATH")" != \
+            "A	$IMPLEMENTATION_REPORT_PATH" ]; then
+            echo "O relatório da execução deve ser um arquivo novo."
+            exit 1
+          fi
+
+          if git diff --cached --name-status \
+            | awk '$2 ~ /^docs\/reports\// && ($1 != "A") { found=1 } END { exit found ? 0 : 1 }'; then
+            echo "Relatório histórico foi alterado ou removido."
+            exit 1
+          fi
+
+          git diff --cached --check
+
+          PATCH_FILE="$RUNNER_TEMP/ekom-implementation.patch"
+          git diff --cached --binary --full-index > "$PATCH_FILE"
+
+          if [ ! -s "$PATCH_FILE" ]; then
+            echo "O patch de implementação ficou vazio."
+            exit 1
+          fi
+
+          PATCH_SHA256="$(sha256sum "$PATCH_FILE" | cut -d ' ' -f 1)"
+          CHANGED_FILE_COUNT="$(git diff --cached --name-only | wc -l | tr -d ' ')"
+          echo "patch_sha256=$PATCH_SHA256" >> "$GITHUB_OUTPUT"
+
+          {
+            echo
+            echo "## Delta preparado"
+            echo
+            echo "- Arquivos: $CHANGED_FILE_COUNT"
+            echo "- SHA-256 do patch: \`$PATCH_SHA256\`"
+            echo "- Relatório: \`$IMPLEMENTATION_REPORT_PATH\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Transferir implementação para persistência
+        uses: actions/upload-artifact@v7
+        with:
+          name: ekom-implementation-${{ github.run_id }}
+          path: ${{ runner.temp }}/ekom-implementation.patch
+          if-no-files-found: error
+          retention-days: 1
+
+  persist-implementation:
+    name: Persistir implementação EKOM
+    needs: implement
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Baixar a branch autorizada
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.working_branch }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Baixar patch validado
+        uses: actions/download-artifact@v8
+        with:
+          name: ekom-implementation-${{ github.run_id }}
+          path: ${{ runner.temp }}/ekom-implementation
+
+      - name: Registrar implementação na branch
+        env:
+          ARTIFACT_DIR: ${{ runner.temp }}/ekom-implementation
+          EXPECTED_PATCH_SHA256: ${{ needs.implement.outputs.patch_sha256 }}
+          BASELINE_HEAD: ${{ needs.implement.outputs.baseline_head }}
+          ANALYZED_REVISION: ${{ needs.implement.outputs.analyzed_revision }}
+          IMPLEMENTATION_REPORT_PATH: ${{ needs.implement.outputs.implementation_report_path }}
+          WORKING_BRANCH: ${{ inputs.working_branch }}
+          CHANGE_ID: ${{ inputs.change_id }}
+          AUTHORIZED_BY: ${{ inputs.authorized_by }}
+        run: |
+          set -euo pipefail
+
+          if [ "$(git branch --show-current)" != "$WORKING_BRANCH" ]; then
+            echo "A branch de persistência não corresponde à ordem."
+            exit 1
+          fi
+
+          if [ "$(git rev-parse HEAD)" != "$BASELINE_HEAD" ]; then
+            echo "A branch avançou depois da baseline implementada."
+            echo "Esperada: $BASELINE_HEAD"
+            echo "Atual: $(git rev-parse HEAD)"
+            exit 1
+          fi
+
+          if [[ ! "$EXPECTED_PATCH_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "O job de implementação não informou SHA-256 válido."
+            exit 1
+          fi
+
+          ARTIFACT_COUNT="$(find "$ARTIFACT_DIR" -type f -print | wc -l | tr -d ' ')"
+          if [ "$ARTIFACT_COUNT" -ne 1 ]; then
+            echo "O artefato deve conter exatamente um patch."
+            exit 1
+          fi
+
+          PATCH_FILE="$(find "$ARTIFACT_DIR" -type f -print -quit)"
+          if [ "$(basename "$PATCH_FILE")" != "ekom-implementation.patch" ]; then
+            echo "O artefato não contém o patch esperado."
+            exit 1
+          fi
+
+          ACTUAL_PATCH_SHA256="$(sha256sum "$PATCH_FILE" | cut -d ' ' -f 1)"
+          if [ "$ACTUAL_PATCH_SHA256" != "$EXPECTED_PATCH_SHA256" ]; then
+            echo "O patch transferido não corresponde ao delta validado."
+            exit 1
+          fi
+
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "A branch de persistência não iniciou limpa."
+            exit 1
+          fi
+
+          git apply --check --binary "$PATCH_FILE"
+          git apply --index --binary "$PATCH_FILE"
+
+          if [ "$(git diff --cached --name-status -- "$IMPLEMENTATION_REPORT_PATH")" != \
+            "A	$IMPLEMENTATION_REPORT_PATH" ]; then
+            echo "O relatório de implementação não foi transferido como arquivo novo."
+            exit 1
+          fi
+
+          git diff --cached --check
+
+          git config user.name "EKOM Automation"
+          git config user.email "ekom-automation@users.noreply.github.com"
+          git commit -m "impl: implementa $CHANGE_ID"
+
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "A árvore não ficou limpa após o commit."
+            git status --short --untracked-files=all
+            exit 1
+          fi
+
+          git push origin "HEAD:refs/heads/$WORKING_BRANCH"
+
+          {
+            echo
+            echo "## Implementação registrada"
+            echo
+            echo "- Branch: \`$WORKING_BRANCH\`"
+            echo "- Commit: \`$(git rev-parse --short HEAD)\`"
+            echo "- Revisão normativa: \`$ANALYZED_REVISION\`"
+            echo "- Relatório: \`$IMPLEMENTATION_REPORT_PATH\`"
+            echo "- Ordem do Arquiteto: $AUTHORIZED_BY"
+            echo
+            echo "## Parecer do Engenheiro Implementador"
+            echo
+            sed -n '/^## Gates$/,$p' "$IMPLEMENTATION_REPORT_PATH" \
+              | sed -e 's/^### /#### /' -e 's/^## /### /'
+          } >> "$GITHUB_STEP_SUMMARY"
