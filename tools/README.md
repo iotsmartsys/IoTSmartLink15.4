@@ -29,9 +29,10 @@ pontos permanecem sob julgamento humano.
 
 ## Submissões EKOM pelo n8n
 
-Os comandos de submissão usam `SUBMMITION_URL`, `TOKEN_EKOM` e `SUBMITTED_BY`
-do `.env` ignorado pelo Git. O token é enviado somente no header
-`X-EKOM-Token` e nunca integra o payload ou os relatórios.
+O comando de análise usa `SUBMMITION_URL`; o de implementação usa
+`SUBMMITION_IMPLEMENTATION_URL`. Ambos leem `TOKEN_EKOM` do `.env` ignorado
+pelo Git. O token é enviado somente no header `X-EKOM-Token` e nunca integra o
+payload ou os relatórios.
 
 Para solicitar análise na branch `spec/*` corrente:
 
@@ -45,18 +46,15 @@ Para emitir uma ordem explícita de implementação da versão corrente:
 ./tools/submit_ekom_implementation.sh
 ```
 
-O segundo comando exige árvore limpa e branch sincronizada, localiza o relatório
-formal `Ready` aplicável e envia ao n8n o evento `submit_for_implementation` com:
+O segundo comando exige árvore limpa e branch sincronizada e envia ao n8n o
+evento `submit_for_implementation` com:
 
-- `change_id`;
-- `specification_path`;
-- `analysis_report_path`;
-- `working_branch`;
-- `architect_authorization=true`;
-- `authorized_by` recebido de `SUBMITTED_BY`;
+- `working_branch`, recuperada da branch Git corrente;
+- `authorized_by`, recuperado de `git config user.name`;
 - `allow_tests=false`;
 - `allow_hardware=false`.
 
-O n8n deve disparar `.github/workflows/ekom-implementation.yml` com `ref=main`
-e mapear esses campos diretamente para os inputs homônimos. O workflow não
-autoriza testes, flash, monitor ou hardware neste piloto.
+O n8n deve resolver na branch a especificação e a análise `Ready` aplicável e
+disparar `.github/workflows/ekom-implementation.yml` com `ref=main`, completando
+os demais inputs exigidos pelo workflow. O workflow não autoriza testes, flash,
+monitor ou hardware neste piloto.
