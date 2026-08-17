@@ -45,6 +45,9 @@ jobs:
     name: Implementar especificação EKOM
     runs-on: ubuntu-latest
     container: espressif/idf:v6.0.1
+    defaults:
+      run:
+        shell: bash
     outputs:
       baseline_head: ${{ steps.validate_identity.outputs.baseline_head }}
       analyzed_revision: ${{ steps.validate_identity.outputs.analyzed_revision }}
