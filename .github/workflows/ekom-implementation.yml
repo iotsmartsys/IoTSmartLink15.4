@@ -43,8 +43,9 @@ concurrency:
 jobs:
   implement:
     name: Implementar especificação EKOM
-    runs-on: ubuntu-latest
-    container: espressif/idf:v6.0.1
+    runs-on:
+      group: codex-trusted-runners
+      labels: codex-runner
     defaults:
       run:
         shell: bash
@@ -388,14 +389,8 @@ jobs:
 
       - name: Executar implementação EKOM
         id: codex_implementation
-        uses: openai/codex-action@v1
-        with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          model: gpt-5.6-luna
-          sandbox: workspace-write
-          codex-args: '["--ephemeral"]'
-          output-file: ${{ runner.temp }}/ekom-implementation-handoff.md
-          prompt: |
+        env:
+          CODEX_PROMPT: |
             Assuma exclusivamente o papel EKOM de Engenheiro Implementador e
             implemente integralmente a versão autorizada abaixo.
 
@@ -468,6 +463,15 @@ jobs:
             workspace, o corpo técnico entregue como resposta final e todas as
             operações iniciadas em estado terminal. Não crie manualmente o
             relatório no workspace.
+        run: |
+          set -euo pipefail
+
+          printf '%s\n' "$CODEX_PROMPT" | codex exec \
+            --ephemeral \
+            --model gpt-5.6-luna \
+            --sandbox workspace-write \
+            --output-last-message "$RUNNER_TEMP/ekom-implementation-handoff.md" \
+            -
 
       - name: Preparar relatório versionado
         env:

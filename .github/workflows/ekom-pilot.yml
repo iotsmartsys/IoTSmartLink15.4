@@ -43,7 +43,9 @@ permissions:
 jobs:
   validate-request:
     name: Validar solicitação EKOM
-    runs-on: ubuntu-latest
+    runs-on:
+      group: codex-trusted-runners
+      labels: codex-runner
     outputs:
       report_path: ${{ steps.prepare_report.outputs.report_path }}
       report_sha256: ${{ steps.prepare_report.outputs.report_sha256 }}
@@ -188,14 +190,8 @@ jobs:
 
       - name: Executar análise EKOM
         id: codex_analysis
-        uses: openai/codex-action@v1
-        with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          model: gpt-5.6-terra
-          sandbox: read-only
-          codex-args: '["--ephemeral"]'
-          output-file: ${{ runner.temp }}/ekom-analysis.md
-          prompt: |
+        env:
+          CODEX_PROMPT: |
             Assuma exclusivamente o papel EKOM de Engenheiro Analista e execute
             uma análise formal de implementabilidade da versão submetida.
 
@@ -269,6 +265,15 @@ jobs:
             pipeline a persistir exatamente o corpo validado como novo relatório
             em docs/reports/. A análise informa o Arquiteto e não promove estado,
             não autoriza implementação e não declara aprovação final.
+        run: |
+          set -euo pipefail
+
+          printf '%s\n' "$CODEX_PROMPT" | codex exec \
+            --ephemeral \
+            --model gpt-5.6-terra \
+            --sandbox read-only \
+            --output-last-message "$RUNNER_TEMP/ekom-analysis.md" \
+            -
 
       - name: Validar decisão do Engenheiro Analista
         env:
