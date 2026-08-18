@@ -191,7 +191,7 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          sandbox: read-only
+          sandbox: danger-full-access
           codex-args: '["--ephemeral"]'
           output-file: ${{ runner.temp }}/ekom-analysis.md
           prompt: |
@@ -262,12 +262,30 @@ jobs:
             não exponha raciocínio exploratório, não antecipe desenho de solução
             e não recomende correções, próximos passos, promoção ou implementação.
 
-            Seu sandbox é somente leitura: não altere arquivos, não crie branch,
-            não implemente código, não faça commit e não faça push. Essa limitação
-            é mecânica e não torna o parecer consultivo: esta ordem autoriza o
-            pipeline a persistir exatamente o corpo validado como novo relatório
-            em docs/reports/. A análise informa o Arquiteto e não promove estado,
+            O Codex executa dentro de um container dedicado, sem sandbox interno.
+            Ainda assim, esta atuação é estritamente analítica: não altere
+            arquivos, não crie branch, não implemente código, não faça commit e
+            não faça push. O pipeline reprovará mecanicamente qualquer alteração
+            da árvore de trabalho. Esta ordem autoriza somente o pipeline a
+            persistir exatamente o corpo validado como novo relatório em
+            docs/reports/. A análise informa o Arquiteto e não promove estado,
             não autoriza implementação e não declara aprovação final.
+
+      - name: Confirmar imutabilidade da análise
+        run: |
+          set -euo pipefail
+
+          REPOSITORY_CHANGES="$(
+            git status --porcelain --untracked-files=all \
+              | grep -vE '^\?\? \.ekom-guidelines/' \
+              || true
+          )"
+
+          if [ -n "$REPOSITORY_CHANGES" ]; then
+            echo "A análise modificou a árvore de trabalho e foi rejeitada."
+            printf '%s\n' "$REPOSITORY_CHANGES"
+            exit 1
+          fi
 
       - name: Validar decisão do Engenheiro Analista
         env:
