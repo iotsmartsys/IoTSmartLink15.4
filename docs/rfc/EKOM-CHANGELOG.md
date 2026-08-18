@@ -707,7 +707,8 @@ conforme nenhuma das condições registradas nem altera evidência.
 
 ## EKOM-CHG-0006 — Features configuráveis do client no SDK Configuration Editor
 
-**Estado:** Autoria — `Draft`
+**Estado:** Fechada [`Closed`] — v0.1 Concluída [`Done`] por decisão do
+Arquiteto em 18/08/2026
 
 **Especificação relacionada:**
 `docs/specs/Client-SDK-Configurable-Features.md`
@@ -721,6 +722,8 @@ o GPIO de factory reset, preservando os valores atuais como defaults.
 
 - deep sleep e bateria recebem checkboxes independentes para o produto
   aplicável;
+- o menu do projeto recebe o rótulo `App Client`, com as escolhas de produto e
+  board seguidas pelos grupos `Firmware features` e `Board configuration`;
 - janela acordada e despertar periódico têm defaults de 30 segundos e 15
   minutos e só são editáveis com deep sleep habilitado;
 - bateria sem deep sleep mede periodicamente, com default de 2 horas, somente
@@ -740,11 +743,28 @@ no limite `client_154/main`.
 
 ### Estado
 
-O Arquiteto aprovou o rascunho funcional em 15/08/2026. A especificação foi
-criada em `Draft`; análise de implementabilidade permanece pendente, inclusive
-para confrontar o adiamento da medição periódica com o lifecycle vigente.
-Nenhuma implementação, build, teste, flash, monitor ou hardware foi autorizado
-ou executado nesta transação de Autoria.
+O Arquiteto aprovou o rascunho funcional em 15/08/2026. A análise de
+implementabilidade da revisão `401c5f9f865d3ee093fe8e79529ad975690a73d2` foi
+classificada como `Ready`, e o Arquiteto autorizou a implementação de
+`EKOM-CLIENT-CONFIG-001` na branch `spec/client-sdk-configurable-features`.
+A implementação foi recuperada da execução `32091116616`, corrigida após
+revisão e validada de forma proporcional; testes, flash, monitor e hardware
+permanecem não executados.
+
+O build H2 da composição versionada concluiu com `Project build complete` e
+código 0 usando ESP-IDF 6.0.1. Também concluíram builds das variantes sem deep
+sleep, sem bateria e com tempos e GPIO alternativos. Colisões do GPIO de
+factory reset com contato seco, wake LED e medição de bateria foram rejeitadas
+no build antes da geração do binário.
+
+### Encerramento
+
+Em 18/08/2026, o Arquiteto confirmou que a hierarquia `App Client` apareceu no
+SDK Configuration Editor no local esperado, considerou suficientes as
+evidências registradas e determinou o encerramento da v0.1 como Concluída
+[`Done`]. Testes, flash, monitor e hardware permanecem `Not Executed` e não são
+representados como evidência de sucesso. Nova necessidade ou evidência material
+exige decisão de reabertura.
 
 ## EKOM-CHG-0007 — Adoção do EKOM 4.5
 

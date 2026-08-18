@@ -6,22 +6,26 @@
 
 **Versão:** 0.1
 
-**Estado normativo:** `Draft`
+**Estado normativo:** `Active`
 
-**Estado da implementação:** `Not Started`
+**Estado da implementação:** `Validated` — configuração, código e builds
+confrontados; hierarquia do SDK Configuration Editor validada pelo Arquiteto
 
-**Estado do workflow:** Autoria
+**Estado do workflow:** Concluída [`Done`] por decisão do Arquiteto em
+18/08/2026
 
-**Análise de implementabilidade:** Pendente
+**Análise de implementabilidade:** **Pronta** [`Ready`] para a v0.1, na revisão
+`401c5f9f865d3ee093fe8e79529ad975690a73d2`, conforme
+`docs/reports/client-sdk-configurable-features/analysis/2026-08-18T004649Z-401c5f9-32085660711-implementability-analysis.md`
 
 **Responsável arquitetural:** Marcelo Miranda
 
-**Última atualização:** 15/08/2026
+**Última atualização:** 18/08/2026
 
 **Escopo:** `client_154`, SDK Configuration Editor, product firmware, board
 model e lifecycle periódico da capability de bateria
 
-**Relações normativas propostas:**
+**Relações normativas:**
 
 - Altera [`Amends`] `docs/specs/Firmware-Variants-Menuconfig.md` — amplia a
   seleção estática para configurar features da composição no limite da
@@ -95,7 +99,7 @@ uma única composição, sem seleção de feature em runtime.
 Para `Door sensor battery H2`, o SDK Configuration Editor apresenta:
 
 ```text
-IoTSmartLink15.4
+App Client
 ├── Product firmware
 ├── Board model
 ├── Firmware features
@@ -312,7 +316,7 @@ capability e o factory reset em GPIO alternativo. Build não comprova esses
 comportamentos. Testes, flash, monitor e hardware não são autorizados por esta
 especificação.
 
-## 9. Decisões confirmadas e pendências
+## 9. Decisões confirmadas
 
 **Decisões confirmadas pelo Arquiteto em 15/08/2026:**
 
@@ -326,17 +330,24 @@ especificação.
 - `client_154/sdkconfig` permanece como está e sua divergência é aceita como
   `EKOM-DEBT-0005`.
 
-**Pendências para análise de implementabilidade:**
+As pendências submetidas à análise foram resolvidas na revisão `Ready` e na
+implementação: a amostragem periódica é iniciada somente depois de `Running`,
+as conversões possuem faixas Kconfig delimitadas, os recursos físicos são
+condicionais à composição e colisões do GPIO configurável são rejeitadas no
+build do board selecionado.
 
-- confrontar o adiamento periódico com o lifecycle vigente, no qual
-  `BatteryLevelBehavior::begin()` mede durante `StartDevice`, antes de
-  `Running`, e determinar se existe implementação local dentro da baseline ou
-  pré-requisito arquitetural independente;
-- confirmar o mecanismo mínimo para iniciar a contagem após `Running` sem criar
-  estado público, retry de setup ou regra de produto em componente compartilhado;
-- confirmar a faixa e os diagnósticos Kconfig necessários às conversões;
-- identificar consumidores materiais afetados pela parametrização do botão e
-  pela capability opcional.
+## 10. Encerramento
 
-Enquanto essas pendências não forem analisadas, a especificação permanece em
-`Draft` e não autoriza implementação.
+Em 18/08/2026, o Arquiteto confirmou que a hierarquia `App Client` no SDK
+Configuration Editor funcionou como esperado e determinou o encerramento da
+v0.1. A decisão considera a análise `Ready`, o relatório de implementação da
+execução `32091116616` e a validação de encerramento registrada em
+`docs/reports/client-sdk-configurable-features/validation/2026-08-18-architect-menu-validation-and-closure.md`.
+
+Foram concluídos builds ESP32-H2 das composições default, sem deep sleep, sem
+bateria e com tempos e GPIO alternativos. Configurações em que o GPIO de
+factory reset colide com contato seco, wake LED ou medição de bateria foram
+rejeitadas antes da geração do binário. Testes, flash, monitor e hardware
+permanecem `Not Executed`; o Arquiteto considerou essa evidência suficiente
+para declarar a v0.1 Concluída [`Done`]. Nova necessidade ou evidência material
+exige decisão de reabertura.

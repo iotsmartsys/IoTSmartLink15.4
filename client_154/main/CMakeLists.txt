@@ -1,4 +1,4 @@
-# The "IoTSmartLink15.4" menu (Kconfig.projbuild) chooses exactly one product
+# The "App Client" menu (Kconfig.projbuild) chooses exactly one product
 # firmware and one board model; this file is the only place that translates
 # that choice into sources. Nothing else in the project reads these symbols,
 # and no variant is compiled to be selected at runtime.
@@ -15,12 +15,17 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     elseif(CONFIG_IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2)
         list(APPEND srcs "firmwares/door_sensor_battery_h2.cpp")
         set(selected_product "Door sensor battery H2")
-        set(required_resources dry_contact_input user_button wake_led
-                               dry_contact_wakeup battery_measurement)
+        set(required_resources dry_contact_input user_button)
+        if(CONFIG_IOTSMARTLINK154_ENABLE_DEEP_SLEEP)
+            list(APPEND required_resources wake_led dry_contact_wakeup)
+        endif()
+        if(CONFIG_IOTSMARTLINK154_ENABLE_BATTERY_LEVEL)
+            list(APPEND required_resources battery_measurement)
+        endif()
     else()
         message(FATAL_ERROR
-            "No product firmware selected in the IoTSmartLink15.4 menu. "
-            "Choose one under 'IoTSmartLink15.4 > Product firmware'.")
+            "No product firmware selected in the App Client menu. "
+            "Choose one under 'App Client > Product firmware'.")
     endif()
 
     if(CONFIG_IOTSMARTLINK154_BOARD_CURRENT_CLIENT_ESP32H2_WIRING)
@@ -36,7 +41,7 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
                               dry_contact_wakeup battery_measurement)
     else()
         message(FATAL_ERROR
-            "No board model selected in the IoTSmartLink15.4 menu for "
+            "No board model selected in the App Client menu for "
             "IDF_TARGET=${IDF_TARGET}. 'Current client ESP32-H2 wiring' and "
             "'Door Sensor Battery H2' are compatible with "
             "esp32h2 only; run 'idf.py set-target esp32h2' or add a board "
@@ -46,7 +51,7 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     foreach(required_resource IN LISTS required_resources)
         if(NOT required_resource IN_LIST offered_resources)
             message(FATAL_ERROR
-                "Incompatible IoTSmartLink15.4 composition: product "
+                "Incompatible App Client composition: product "
                 "'${selected_product}' with board '${selected_board}' is "
                 "missing physical resource '${required_resource}'.")
         endif()

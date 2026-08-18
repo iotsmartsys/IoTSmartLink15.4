@@ -39,6 +39,7 @@ public:
     BatteryLevelBehavior &operator=(BatteryLevelBehavior &&) = delete;
 
     IsspResult begin(IBehaviorStatePublisher &publisher) override;
+    IsspResult startDeferredSampling();
     bool accepts(const IsspCommand &command) const override;
     IsspCommandResult handle(const IsspCommand &command) override;
     IsspResult quiesce() override;
