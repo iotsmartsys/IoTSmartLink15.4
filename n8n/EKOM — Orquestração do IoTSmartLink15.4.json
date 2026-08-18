@@ -1,0 +1,199 @@
+{
+  "name": "EKOM — Orquestração do IoTSmartLink15.4",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ekom/iotsmartlink154/submission",
+        "authentication": "headerAuth",
+        "options": {
+          "responseCode": {
+            "values": {
+              "responseCode": "customCode",
+              "customCode": 202
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        16,
+        208
+      ],
+      "id": "d440c9b8-4388-40f2-8efb-ec9958001f8b",
+      "name": "Receber submissão EKOM",
+      "webhookId": "8bf4442f-284b-4764-b820-e3d147e2b74b",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CSrX0mjmhuyNsRCQ",
+          "name": "Autenticação — Submissão EKOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body ?? input;\n\nconst requiredFields = [\n  'change_id',\n  'specification_path',\n];\n\nconst missingFields = requiredFields.filter(field => {\n  const value = body[field];\n\n  return (\n    typeof value !== 'string' ||\n    value.trim() === ''\n  );\n});\n\nif (missingFields.length > 0) {\n  throw new Error(\n    `Campos obrigatórios ausentes: ${missingFields.join(', ')}`\n  );\n}\n\nconst event = body.event ?? 'submit_for_analysis';\n\nif (event !== 'submit_for_analysis') {\n  throw new Error(`Evento não suportado: ${event}`);\n}\n\nconst specificationPath = body.specification_path.trim();\n\nconst specificationMatch = specificationPath.match(\n  /^docs\\/specs\\/([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)\\.md$/\n);\n\nif (!specificationMatch) {\n  throw new Error(\n    'O caminho deve seguir docs/specs/<Nome>.md, ' +\n    'com segmentos alfanuméricos separados por hífen.'\n  );\n}\n\nconst specificationName = specificationMatch[1];\nconst branchSlug = specificationName.toLowerCase();\nconst workingBranch = `spec/${branchSlug}`;\n\nreturn [\n  {\n    json: {\n      event,\n      source: body.source ?? 'repository_command',\n\n      change_id: body.change_id.trim(),\n      specification_path: specificationPath,\n\n      repository_owner: 'iotsmartsys',\n      repository_name: 'IoTSmartLink15.4',\n\n      working_branch: workingBranch,\n      branch_source: 'specification_path',\n\n      revision:\n        typeof body.revision === 'string' &&\n        body.revision.trim() !== ''\n          ? body.revision.trim()\n          : null,\n\n      submitted_by:\n        typeof body.submitted_by === 'string' &&\n        body.submitted_by.trim() !== ''\n          ? body.submitted_by.trim()\n          : 'not_informed',\n\n      received_at: new Date().toISOString(),\n\n      phase: 'analysis',\n      allow_code_changes: false,\n      allow_main_changes: false,\n      require_architect_approval: true,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        208
+      ],
+      "id": "f97df0f4-e5e2-4d91-8395-e516ac6b0eee",
+      "name": "Normalizar submissão EKOM"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/iotsmartsys/IoTSmartLink15.4/actions/workflows/ekom-pilot.yml/dispatches",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={   \"ref\": \"main\",   \"inputs\": {     \"change_id\": \"{{ $json.change_id }}\",     \"specification_path\": \"{{ $json.specification_path }}\",     \"phase\": \"{{ $json.phase }}\",     \"working_branch\": \"{{ $json.working_branch }}\",     \"allow_code_changes\": {{ $json.allow_code_changes }},     \"require_architect_approval\": {{ $json.require_architect_approval }}   } }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        464,
+        208
+      ],
+      "id": "d120bb98-ad23-4260-9d95-e422bc51ba2c",
+      "name": "Submeter especificação para análise",
+      "credentials": {
+        "githubApi": {
+          "id": "nE4FU104M8JKgVbL",
+          "name": "GitHub — EKOM IoTSmartLink15.4 — Actions"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ekom/iotsmartlink154/implementation",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        16,
+        480
+      ],
+      "id": "b3d40657-44c1-42bc-bea8-167241aec50b",
+      "name": "Receber ordem de implementação EKOM",
+      "webhookId": "eceb1034-b0d6-4c7c-ba5d-49f47bc70e1a",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CSrX0mjmhuyNsRCQ",
+          "name": "Autenticação — Submissão EKOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body ?? input;\n\nfunction requiredString(value, field) {\n  if (typeof value !== 'string' || !value.trim()) {\n    throw new Error(`Campo obrigatório inválido: ${field}`);\n  }\n\n  if (/[\\r\\n]/.test(value)) {\n    throw new Error(`O campo ${field} deve ocupar uma única linha`);\n  }\n\n  return value.trim();\n}\n\nconst event = requiredString(body.event, 'event');\nconst source = requiredString(body.source, 'source');\nconst workingBranch = requiredString(\n  body.working_branch,\n  'working_branch'\n);\nconst authorizedBy = requiredString(\n  body.authorized_by,\n  'authorized_by'\n);\n\nif (event !== 'submit_for_implementation') {\n  throw new Error(`Evento não suportado: ${event}`);\n}\n\nif (source !== 'repository_command') {\n  throw new Error(`Origem não suportada: ${source}`);\n}\n\nif (!/^spec\\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(workingBranch)) {\n  throw new Error(\n    `Branch incompatível com a convenção EKOM: ${workingBranch}`\n  );\n}\n\nif (body.allow_tests !== false) {\n  throw new Error('Este piloto não autoriza testes');\n}\n\nif (body.allow_hardware !== false) {\n  throw new Error('Este piloto não autoriza hardware');\n}\n\nreturn [\n  {\n    json: {\n      event,\n      source,\n      working_branch: workingBranch,\n      architect_authorization: true,\n      authorized_by: authorizedBy,\n      allow_tests: false,\n      allow_hardware: false,\n      received_at: new Date().toISOString(),\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        480
+      ],
+      "id": "765d0b5a-31ad-4801-be9a-c311a067c22f",
+      "name": "Normalizar ordem de implementação EKOM"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/iotsmartsys/IoTSmartLink15.4/actions/workflows/ekom-implementation.yml/dispatches",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={   \"ref\": \"main\",   \"inputs\": {     \"working_branch\": \"{{ $json.working_branch }}\",     \"architect_authorization\": {{ $json.architect_authorization }},     \"authorized_by\": \"{{ $json.authorized_by }}\",     \"allow_tests\": {{ $json.allow_tests }},     \"allow_hardware\": {{ $json.allow_hardware }}   } }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        464,
+        480
+      ],
+      "id": "81c8e9c6-f983-49a4-b530-b5d7aa9b5034",
+      "name": "Submeter implementação ao GitHub Actions",
+      "credentials": {
+        "githubApi": {
+          "id": "nE4FU104M8JKgVbL",
+          "name": "GitHub — EKOM IoTSmartLink15.4 — Actions"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receber submissão EKOM": {
+      "main": [
+        [
+          {
+            "node": "Normalizar submissão EKOM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar submissão EKOM": {
+      "main": [
+        [
+          {
+            "node": "Submeter especificação para análise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receber ordem de implementação EKOM": {
+      "main": [
+        [
+          {
+            "node": "Normalizar ordem de implementação EKOM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar ordem de implementação EKOM": {
+      "main": [
+        [
+          {
+            "node": "Submeter implementação ao GitHub Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ba692399-6f7a-423a-8922-c14dd1d85358",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b03c2b843e59e5a663caea9908c84cb0bad06790c6380d38cb5e73c02ace954d"
+  },
+  "nodeGroups": [],
+  "id": "13wMfHovK6uARoat",
+  "tags": []
+}
