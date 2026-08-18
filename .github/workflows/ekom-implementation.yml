@@ -701,7 +701,22 @@ jobs:
         run: |
           set -euo pipefail
 
-          git add -A -- . ':(exclude).ekom-guidelines'
+          CHANGED_FILES_FILE="$RUNNER_TEMP/ekom-changed-files.txt"
+
+          if [ ! -s "$CHANGED_FILES_FILE" ]; then
+            echo "A lista de arquivos validados está ausente ou vazia."
+            exit 1
+          fi
+
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+
+            case "$path" in
+              .ekom-guidelines|.ekom-guidelines/*) continue ;;
+            esac
+
+            git add -A -- "$path"
+          done < "$CHANGED_FILES_FILE"
 
           if [ "$(git diff --cached --name-status -- "$IMPLEMENTATION_REPORT_PATH")" != \
             "A	$IMPLEMENTATION_REPORT_PATH" ]; then
