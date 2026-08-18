@@ -45,7 +45,7 @@ não criam autoridade paralela.
 | Protocolo wire ISSP | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0002` | v2 implementado nos dois codecs; protocolo integral ainda aberto | `issp_protocol.cpp`; `iot154_packet.h` | Vetores dourados host-native em ambos os targets | Cobertura parcial |
 | Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 concluída; correlação exige `report_id` | Transporte, executor e coordenador | Análises, implementações e revisões v0.2/v0.3; comportamento funcional relatado validado em hardware | Implementado e validado no caminho funcional; cenários adversos da fronteira UART aceitos sem execução própria |
 | Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.5 Concluída [`Done`]; análise **Pronta** [`Ready`]; ADR-0005 `Accepted` | `components/issp_app_154`; `components/issp_behaviors`; `client_154/main/` | Análise, implementação e revisão v0.5; builds H2 concluídos; testes em hardware executados e aceitos pelo Arquiteto | Implementada, revisada e validada em hardware; riscos residuais e débitos preservados |
-| Features configuráveis do client | `docs/specs/Client-SDK-Configurable-Features.md` (`EKOM-CLIENT-CONFIG-001`); ADR-0002 | v0.1 `Draft`; análise pendente | `client_154/main/`; lifecycle periódico da bateria | Nenhuma | Rascunho aprovado pelo Arquiteto; implementação não autorizada |
+| Features configuráveis do client | `docs/specs/Client-SDK-Configurable-Features.md` (`EKOM-CLIENT-CONFIG-001`); ADR-0002 | v0.1 Concluída [`Done`] por decisão do Arquiteto | `client_154/main/`; lifecycle periódico da bateria | Análise `Ready`; implementação recuperada da execução `32091116616`; hierarquia `App Client` validada pelo Arquiteto; builds H2 default, sem deep sleep, sem bateria e alternativo concluídos | Implementada e aceita pelo Arquiteto; testes, flash, monitor e hardware `Not Executed` |
 | Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001` | Modelo aceito em 14/08/2026; retrofit postergado | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client` | Nenhuma | Divergente do modelo nas capabilities existentes |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
 
@@ -63,7 +63,7 @@ IoTSmartLink15.4
 │   │   │   └── Door Sensor Battery H2
 │   │   └── SmartSysApp + componentes ISSP compartilhados
 │   │       ├── Deep sleep opt-in — timer e wakeup por contato (EXT1) implementados
-│   │       ├── Features via menuconfig — energia, bateria e GPIO de reset em Draft
+│   │       ├── Features via menu `App Client` — energia, bateria e GPIO de reset; v0.1 concluída
 │   │       ├── Identidade de report gerada no client — v0.3 concluída
 │   │       └── Nível de bateria — v0.5 concluída; implementação e hardware aceitos
 │   └── coordinator_154 — ESP32-C6

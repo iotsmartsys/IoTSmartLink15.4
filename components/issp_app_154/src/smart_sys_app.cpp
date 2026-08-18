@@ -511,8 +511,23 @@ SetupResult SmartSysApp::Impl::setup()
     currentStage_ = SetupStage::Completed;
     state_ = AppState::Running;
     lastSetupResult_ = {AppState::Running, SetupStage::Completed, AppResult::Ok};
+    startDeferredBatterySampling();
     ESP_LOGI(kTag, "app_setup completed state=running");
     return lastSetupResult_;
+}
+
+void SmartSysApp::Impl::startDeferredBatterySampling()
+{
+    for (std::size_t index = 0; index < batteryCount_; ++index)
+    {
+        const issp::IsspResult result =
+            batteryBehaviors_[index]->startDeferredSampling();
+        if (result != issp::IsspResult::Ok)
+        {
+            ESP_LOGE(kTag, "battery_periodic_start failed index=%u result=%u",
+                     static_cast<unsigned>(index), static_cast<unsigned>(result));
+        }
+    }
 }
 
 SmartSysApp::SmartSysApp(const app::SmartSysAppConfig &config, const SetupHooks &hooks)

@@ -21,8 +21,15 @@ constexpr std::uint32_t kFactoryResetPollIntervalMs = 20;
 // Battery policy of this product: how long the device may stay awake, how long
 // it sleeps and how the indicator behaves. The board owns only the LED GPIO and
 // its electrical polarity.
-constexpr std::uint32_t kMaxAwakeTimeMs = 30000;
-constexpr std::uint32_t kSleepInterval = 15;
+constexpr std::uint32_t kMaxAwakeTimeMs =
+#if CONFIG_IOTSMARTLINK154_ENABLE_DEEP_SLEEP
+    static_cast<std::uint32_t>(CONFIG_IOTSMARTLINK154_MAX_AWAKE_TIME_SECONDS) * 1000U;
+constexpr std::uint32_t kSleepInterval =
+    static_cast<std::uint32_t>(CONFIG_IOTSMARTLINK154_WAKEUP_INTERVAL_MINUTES);
+#else
+    0U;
+constexpr std::uint32_t kSleepInterval = 0U;
+#endif
 constexpr app::DeepSleepTimeUnit kSleepIntervalUnit = app::DeepSleepTimeUnit::Minutes;
 constexpr std::uint32_t kWakeLedOnTimeMs = 200;
 // Battery chemistry and reporting policy. ADC wiring and divider values come
@@ -31,7 +38,13 @@ constexpr std::uint32_t kBatteryEmptyMv = 3300;
 constexpr std::uint32_t kBatteryFullMv = 4150;
 constexpr std::uint32_t kBatterySamples = 8;
 constexpr std::uint32_t kBatterySampleIntervalMs = 5;
-constexpr std::uint32_t kBatterySamplePeriodMs = 0;
+constexpr std::uint32_t kBatterySamplePeriodMs =
+#if CONFIG_IOTSMARTLINK154_ENABLE_BATTERY_LEVEL && !CONFIG_IOTSMARTLINK154_ENABLE_DEEP_SLEEP
+    static_cast<std::uint32_t>(CONFIG_IOTSMARTLINK154_BATTERY_READING_INTERVAL_MINUTES) *
+        60000U;
+#else
+    0U;
+#endif
 constexpr std::uint8_t kBatteryReportDeltaPercent = 5;
 
 SmartSysApp smartSysApp({
@@ -60,8 +73,12 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
 {
     const DryContactInputResource &input = selectedDryContactInput();
     const UserButtonResource &button = selectedUserButton();
+#if CONFIG_IOTSMARTLINK154_ENABLE_DEEP_SLEEP
     const WakeLedResource &wakeLed = selectedWakeLed();
+#endif
+#if CONFIG_IOTSMARTLINK154_ENABLE_BATTERY_LEVEL
     const BatteryMeasurementResource &battery = selectedBatteryMeasurement();
+#endif
 
     smartSysApp.addDoorSensorCapability({
         .pin = input.pin,
@@ -76,6 +93,7 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
         .consecutiveWindows = kConsecutiveWindows,
     });
 
+#if CONFIG_IOTSMARTLINK154_ENABLE_BATTERY_LEVEL
     smartSysApp.addBatteryLevelCapability({
         .unit = battery.unit,
         .channel = battery.channel,
@@ -90,6 +108,7 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
         .reportDeltaPercent = kBatteryReportDeltaPercent,
         .endpointId = kBatteryEndpointId,
     });
+#endif
 
     smartSysApp.configureFactoryResetButton({
         .pin = button.pin,
@@ -98,6 +117,7 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
         .pollIntervalMs = kFactoryResetPollIntervalMs,
     });
 
+#if CONFIG_IOTSMARTLINK154_ENABLE_DEEP_SLEEP
     smartSysApp.configureDeepSleep({
         .enabled = true,
         .maxAwakeTimeMs = kMaxAwakeTimeMs,
@@ -122,6 +142,7 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
             .pin = input.pin,
         },
     });
+#endif
 
     return smartSysApp.setup();
 }

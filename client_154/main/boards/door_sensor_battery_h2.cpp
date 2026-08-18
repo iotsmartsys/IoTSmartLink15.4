@@ -1,5 +1,6 @@
 #include "boards/board_model.hpp"
 #include "sdkconfig.h"
+#include "soc/adc_channel.h"
 
 #ifndef CONFIG_IDF_TARGET_ESP32H2
 #error "Board model 'Door Sensor Battery H2' supports only IDF_TARGET=esp32h2."
@@ -17,7 +18,7 @@ constexpr DryContactInputResource kDryContactInput = {
     .pull = InputPull::PullUp,
 };
 constexpr UserButtonResource kUserButton = {
-    .pin = GPIO_NUM_9,
+    .pin = static_cast<gpio_num_t>(CONFIG_IOTSMARTLINK154_FACTORY_RESET_GPIO),
     .activeLow = true,
 };
 constexpr WakeLedResource kWakeLed = {
@@ -31,6 +32,20 @@ constexpr BatteryMeasurementResource kBatteryMeasurement = {
     .rTopOhms = 470000U,
     .rBottomOhms = 220000U,
 };
+static_assert(kUserButton.pin != kDryContactInput.pin,
+              "App Client composition rejected: factory reset GPIO collides "
+              "with dry_contact_input");
+#if CONFIG_IOTSMARTLINK154_ENABLE_DEEP_SLEEP
+static_assert(kUserButton.pin != kWakeLed.pin,
+              "App Client composition rejected: factory reset GPIO collides "
+              "with wake_led");
+#endif
+#if CONFIG_IOTSMARTLINK154_ENABLE_BATTERY_LEVEL
+static_assert(kUserButton.pin !=
+                  static_cast<gpio_num_t>(ADC1_CHANNEL_0_GPIO_NUM),
+              "App Client composition rejected: factory reset GPIO collides "
+              "with battery_measurement");
+#endif
 }
 
 const DryContactInputResource &selectedDryContactInput()

@@ -44,6 +44,7 @@ struct SmartSysApp::Impl
     AppResult configureFactoryResetButton(const app::PushButtonConfig &config);
     AppResult configureDeepSleep(const app::DeepSleepConfig &config);
     SetupResult setup();
+    void startDeferredBatterySampling();
 
     AppState state() const { return state_; }
     SetupResult lastSetupResult() const { return lastSetupResult_; }

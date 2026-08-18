@@ -190,25 +190,29 @@ IsspResult BatteryLevelBehavior::begin(IBehaviorStatePublisher &publisher)
         return IsspResult::Ok;
     }
 
-    const IsspResult initialResult = measureAndMaybePublish();
-    if (initialResult != IsspResult::Ok)
+    if (config_.samplePeriodMs == 0U)
     {
-        releaseAdc();
-        publisher_ = nullptr;
-        return initialResult;
-    }
-
-    if (config_.samplePeriodMs != 0U)
-    {
-        const IsspResult timerResult = createAndStartTimer();
-        if (timerResult != IsspResult::Ok)
+        const IsspResult initialResult = measureAndMaybePublish();
+        if (initialResult != IsspResult::Ok)
         {
             releaseAdc();
             publisher_ = nullptr;
+            return initialResult;
         }
-        return timerResult;
+        return IsspResult::Ok;
     }
+
     return IsspResult::Ok;
+}
+
+IsspResult BatteryLevelBehavior::startDeferredSampling()
+{
+    if (config_.samplePeriodMs == 0U || publisher_ == nullptr || inert_ ||
+        adcUnit_ == nullptr || timer_ != nullptr)
+    {
+        return IsspResult::Ok;
+    }
+    return createAndStartTimer();
 }
 
 void BatteryLevelBehavior::timerCallback(void *context)

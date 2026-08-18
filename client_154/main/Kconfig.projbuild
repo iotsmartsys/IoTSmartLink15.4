@@ -1,4 +1,4 @@
-menu "IoTSmartLink15.4"
+menu "App Client"
 
 choice IOTSMARTLINK154_PRODUCT_FIRMWARE
     prompt "Product firmware"
@@ -49,5 +49,50 @@ config IOTSMARTLINK154_BOARD_DOOR_SENSOR_BATTERY_H2
         exclusively to the selected board source.
 
 endchoice
+
+menu "Firmware features"
+    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2
+
+config IOTSMARTLINK154_ENABLE_DEEP_SLEEP
+    bool "Enable deep sleep"
+    default y
+    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2
+    help
+        Enables the product's periodic timer, dry-contact wakeup and wake LED.
+
+config IOTSMARTLINK154_MAX_AWAKE_TIME_SECONDS
+    int "Maximum awake time (seconds)"
+    default 30
+    range 1 4294967
+    depends on IOTSMARTLINK154_ENABLE_DEEP_SLEEP
+
+config IOTSMARTLINK154_WAKEUP_INTERVAL_MINUTES
+    int "Periodic wake-up interval (minutes)"
+    default 15
+    range 1 2147483647
+    depends on IOTSMARTLINK154_ENABLE_DEEP_SLEEP
+
+config IOTSMARTLINK154_ENABLE_BATTERY_LEVEL
+    bool "Enable battery level capability"
+    default y
+    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2
+
+config IOTSMARTLINK154_BATTERY_READING_INTERVAL_MINUTES
+    int "Battery reading interval (minutes)"
+    default 120
+    range 1 71582
+    depends on IOTSMARTLINK154_ENABLE_BATTERY_LEVEL && !IOTSMARTLINK154_ENABLE_DEEP_SLEEP
+
+endmenu
+
+menu "Board configuration"
+
+config IOTSMARTLINK154_FACTORY_RESET_GPIO
+    int "Factory reset GPIO"
+    default 9
+    range 0 27
+    depends on IOTSMARTLINK154_PRODUCT_SINGLE_SMART_PLUG || IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2
+
+endmenu
 
 endmenu
