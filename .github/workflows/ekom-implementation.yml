@@ -338,6 +338,19 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Isolar checkout auxiliar do delta
+        run: |
+          set -euo pipefail
+
+          printf '%s\n' '/.ekom-guidelines/' >> .git/info/exclude
+
+          STATUS="$(git status --porcelain --untracked-files=all)"
+          if [ -n "$STATUS" ]; then
+            echo "A árvore deixou de estar limpa após o checkout das diretrizes."
+            printf '%s\n' "$STATUS"
+            exit 1
+          fi
+
       - name: Verificar ambiente canônico de build
         run: |
           set -euo pipefail
@@ -406,6 +419,11 @@ jobs:
             identidade, a árvore limpa, a correspondência do Ready e a ordem
             explícita do Arquiteto, mas você deve interromper se descobrir que
             qualquer gate material é falso.
+
+            O diretório `.ekom-guidelines/` é um checkout auxiliar somente para
+            leitura, gerenciado pelo pipeline e excluído localmente do status do
+            repositório principal. A presença dele não constitui delta nem árvore
+            suja.
 
             Ordem explícita:
             - ID: ${{ steps.validate_identity.outputs.change_id }}
