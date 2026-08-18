@@ -1,0 +1,892 @@
+{
+  "name": "EKOM — Orquestração do IoTSmartLink15.4",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ekom/iotsmartlink154/submission",
+        "authentication": "headerAuth",
+        "options": {
+          "responseCode": {
+            "values": {
+              "responseCode": "customCode",
+              "customCode": 202
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -32,
+        32
+      ],
+      "id": "d440c9b8-4388-40f2-8efb-ec9958001f8b",
+      "name": "Receber submissão EKOM",
+      "webhookId": "8bf4442f-284b-4764-b820-e3d147e2b74b",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CSrX0mjmhuyNsRCQ",
+          "name": "Autenticação — Submissão EKOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body ?? input;\n\nconst requiredFields = [\n  'change_id',\n  'specification_path',\n];\n\nconst missingFields = requiredFields.filter(field => {\n  const value = body[field];\n\n  return (\n    typeof value !== 'string' ||\n    value.trim() === ''\n  );\n});\n\nif (missingFields.length > 0) {\n  throw new Error(\n    `Campos obrigatórios ausentes: ${missingFields.join(', ')}`\n  );\n}\n\nconst event = body.event ?? 'submit_for_analysis';\n\nif (event !== 'submit_for_analysis') {\n  throw new Error(`Evento não suportado: ${event}`);\n}\n\nconst specificationPath = body.specification_path.trim();\n\nconst specificationMatch = specificationPath.match(\n  /^docs\\/specs\\/([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)\\.md$/\n);\n\nif (!specificationMatch) {\n  throw new Error(\n    'O caminho deve seguir docs/specs/<Nome>.md, ' +\n    'com segmentos alfanuméricos separados por hífen.'\n  );\n}\n\nconst specificationName = specificationMatch[1];\nconst branchSlug = specificationName.toLowerCase();\nconst workingBranch = `spec/${branchSlug}`;\n\nreturn [\n  {\n    json: {\n      event,\n      source: body.source ?? 'repository_command',\n\n      change_id: body.change_id.trim(),\n      specification_path: specificationPath,\n\n      repository_owner: 'iotsmartsys',\n      repository_name: 'IoTSmartLink15.4',\n\n      working_branch: workingBranch,\n      branch_source: 'specification_path',\n\n      revision:\n        typeof body.revision === 'string' &&\n        body.revision.trim() !== ''\n          ? body.revision.trim()\n          : null,\n\n      submitted_by:\n        typeof body.submitted_by === 'string' &&\n        body.submitted_by.trim() !== ''\n          ? body.submitted_by.trim()\n          : 'not_informed',\n\n      received_at: new Date().toISOString(),\n\n      phase: 'analysis',\n      allow_code_changes: false,\n      allow_main_changes: false,\n      require_architect_approval: true,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        32
+      ],
+      "id": "f97df0f4-e5e2-4d91-8395-e516ac6b0eee",
+      "name": "Normalizar submissão EKOM"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/iotsmartsys/IoTSmartLink15.4/actions/workflows/ekom-pilot.yml/dispatches",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2026-03-10"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={   \"ref\": \"main\",   \"inputs\": {     \"change_id\": \"{{ $json.change_id }}\",     \"specification_path\": \"{{ $json.specification_path }}\",     \"phase\": \"{{ $json.phase }}\",     \"working_branch\": \"{{ $json.working_branch }}\",     \"allow_code_changes\": {{ $json.allow_code_changes }},     \"require_architect_approval\": {{ $json.require_architect_approval }}   } }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        416,
+        32
+      ],
+      "id": "d120bb98-ad23-4260-9d95-e422bc51ba2c",
+      "name": "Submeter especificação para análise",
+      "credentials": {
+        "githubApi": {
+          "id": "nE4FU104M8JKgVbL",
+          "name": "GitHub — EKOM IoTSmartLink15.4 — Actions"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ekom/iotsmartlink154/implementation",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1184,
+        -480
+      ],
+      "id": "b3d40657-44c1-42bc-bea8-167241aec50b",
+      "name": "Receber ordem de implementação EKOM",
+      "webhookId": "eceb1034-b0d6-4c7c-ba5d-49f47bc70e1a",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CSrX0mjmhuyNsRCQ",
+          "name": "Autenticação — Submissão EKOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body ?? input;\n\nfunction requiredString(value, field) {\n  if (typeof value !== 'string' || !value.trim()) {\n    throw new Error(`Campo obrigatório inválido: ${field}`);\n  }\n\n  if (/[\\r\\n]/.test(value)) {\n    throw new Error(`O campo ${field} deve ocupar uma única linha`);\n  }\n\n  return value.trim();\n}\n\nconst event = requiredString(body.event, 'event');\nconst source = requiredString(body.source, 'source');\nconst workingBranch = requiredString(\n  body.working_branch,\n  'working_branch'\n);\nconst authorizedBy = requiredString(\n  body.authorized_by,\n  'authorized_by'\n);\n\nif (event !== 'submit_for_implementation') {\n  throw new Error(`Evento não suportado: ${event}`);\n}\n\nif (source !== 'repository_command') {\n  throw new Error(`Origem não suportada: ${source}`);\n}\n\nif (!/^spec\\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(workingBranch)) {\n  throw new Error(\n    `Branch incompatível com a convenção EKOM: ${workingBranch}`\n  );\n}\n\nif (body.allow_tests !== false) {\n  throw new Error('Este piloto não autoriza testes');\n}\n\nif (body.allow_hardware !== false) {\n  throw new Error('Este piloto não autoriza hardware');\n}\n\nreturn [\n  {\n    json: {\n      event,\n      source,\n      working_branch: workingBranch,\n      architect_authorization: true,\n      authorized_by: authorizedBy,\n      allow_tests: false,\n      allow_hardware: false,\n      received_at: new Date().toISOString(),\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        -480
+      ],
+      "id": "765d0b5a-31ad-4801-be9a-c311a067c22f",
+      "name": "Normalizar ordem de implementação EKOM"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/iotsmartsys/IoTSmartLink15.4/actions/workflows/ekom-implementation.yml/dispatches",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2026-03-10"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={   \"ref\": \"main\",   \"inputs\": {     \"working_branch\": \"{{ $json.working_branch }}\",     \"architect_authorization\": {{ $json.architect_authorization }},     \"authorized_by\": \"{{ $json.authorized_by }}\",     \"allow_tests\": {{ $json.allow_tests }},     \"allow_hardware\": {{ $json.allow_hardware }}   } }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1936,
+        -480
+      ],
+      "id": "81c8e9c6-f983-49a4-b530-b5d7aa9b5034",
+      "name": "Submeter implementação ao GitHub Actions",
+      "credentials": {
+        "githubApi": {
+          "id": "nE4FU104M8JKgVbL",
+          "name": "GitHub — EKOM IoTSmartLink15.4 — Actions"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Submeter especificação para análise').first().json.run_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2026-03-10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        416,
+        304
+      ],
+      "id": "b55aa38c-8a61-466b-b5cb-d89dc324c66d",
+      "name": "Consultar execução da análise",
+      "credentials": {
+        "githubApi": {
+          "id": "nE4FU104M8JKgVbL",
+          "name": "GitHub — EKOM IoTSmartLink15.4 — Actions"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 75
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        192,
+        304
+      ],
+      "id": "3a9beed0-10ee-4f72-9c35-49bcab093924",
+      "name": "Aguardar conclusão da análise",
+      "webhookId": "30d4af8e-647b-481e-833c-d01e6dbe5204"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c21bf069-4e17-4cf3-8043-8e6782ab04d7",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        640,
+        304
+      ],
+      "id": "9ae1f47d-b2c3-456c-9cb3-1f7627b2cc89",
+      "name": "Análise concluída?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d2b1502b-f995-49ce-85d3-b579a9836470",
+              "leftValue": "={{ Date.now() - new Date($json.created_at).getTime() >= 90 * 60 * 1000 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        576,
+        560
+      ],
+      "id": "d094b333-70d1-4f51-91bd-7405fe815cae",
+      "name": "Tempo limite excedido?"
+    },
+    {
+      "parameters": {
+        "sendTo": "marceloc312@gmail.com",
+        "subject": "={{  $json.conclusion === 'success'    ? `✅ [EKOM] Análise concluída — ${$('Normalizar submissão EKOM').first().json.change_id}`    : `❌ [EKOM] Análise ${$json.conclusion} — ${$('Normalizar submissão EKOM').first().json.change_id}`}}",
+        "emailType": "text",
+        "message": "={{[  'Análise de implementação EKOM concluída.',  '',  `Resultado: ${({    success: 'SUCESSO',    failure: 'FALHA',    cancelled: 'CANCELADA',    timed_out: 'TEMPO ESGOTADO',    action_required: 'AÇÃO NECESSÁRIA',    neutral: 'NEUTRA',    skipped: 'IGNORADA',    stale: 'OBSOLETA'  })[$json.conclusion] ?? $json.conclusion}`,  `Change ID: ${$('Normalizar submissão EKOM').first().json.change_id}`,  `Especificação: ${$('Normalizar submissão EKOM').first().json.specification_path}`,  `Branch: ${$('Normalizar submissão EKOM').first().json.working_branch}`,  `Execução: #${$json.run_number}`,  `Início: ${new Date($json.run_started_at).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`,  `Término: ${new Date($json.updated_at).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`,  `Duração aproximada: ${Math.round((new Date($json.updated_at) - new Date($json.run_started_at)) / 60000)} minuto(s)`,  '',  `GitHub Actions: ${$json.html_url}`].join('\\n')}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1152,
+        176
+      ],
+      "id": "3e866934-d014-4866-94b2-2b04a211e359",
+      "name": "Enviar notificação por e-mail",
+      "webhookId": "3aed179b-442b-4dd1-b4fc-bc6d93807643",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TnMdFEm8gU9uM4ka",
+          "name": "Gmail — Notificações EKOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "marceloc312@gmail.com",
+        "subject": "={{\n  `⚠️ [EKOM] Tempo limite de acompanhamento — ${$('Normalizar submissão EKOM').first().json.change_id}`\n}}",
+        "emailType": "text",
+        "message": "={{\n[\n  'O n8n encerrou o acompanhamento da análise EKOM após 90 minutos.',\n  '',\n  'Isso não significa que o GitHub Actions foi cancelado.',\n  `Estado atual no GitHub: ${$json.status}`,\n  `Change ID: ${$('Normalizar submissão EKOM').first().json.change_id}`,\n  `Especificação: ${$('Normalizar submissão EKOM').first().json.specification_path}`,\n  `Branch: ${$('Normalizar submissão EKOM').first().json.working_branch}`,\n  `Execução: #${$json.run_number}`,\n  '',\n  `GitHub Actions: ${$json.html_url}`\n].join('\\n')\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        848,
+        544
+      ],
+      "id": "7d270347-ca53-4c84-96a5-c078a014df02",
+      "name": "Enviar notificação de timeout",
+      "webhookId": "3aed179b-442b-4dd1-b4fc-bc6d93807643",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TnMdFEm8gU9uM4ka",
+          "name": "Gmail — Notificações EKOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "da522a9e-aedd-4735-83d1-7d6e35daa5f0",
+              "leftValue": "={{ $json.conclusion }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        864,
+        160
+      ],
+      "id": "8a066ae0-0394-4f93-84a7-5accefcaae10",
+      "name": "Análise executada com sucesso?"
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "marceloc312@gmail.com",
+        "subject": "={{ `✅ [EKOM] Aprovação de implementação — ${$('Normalizar submissão EKOM').first().json.change_id}` }}",
+        "message": "={{\n[\n  'A análise EKOM terminou com sucesso.',\n  '',\n  'Revise o resultado antes de autorizar a implementação.',\n  `Change ID: ${$('Normalizar submissão EKOM').first().json.change_id}`,\n  `Especificação: ${$('Normalizar submissão EKOM').first().json.specification_path}`,\n  `Branch: ${$('Normalizar submissão EKOM').first().json.working_branch}`,\n  `Execução da análise: #${$json.run_number}`,\n  '',\n  `GitHub Actions: ${$json.html_url}`,\n  '',\n  'Ao selecionar “Aprovar implementação”, o n8n submeterá imediatamente a especificação ao workflow de implementação.',\n  'A ordem não autoriza testes nem acesso a hardware.',\n  'Depois do disparo, um eventual cancelamento deverá ser feito no GitHub Actions.'\n].join('\\n')\n}}",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Aprovar implementação",
+            "disapproveLabel": "Rejeitar"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1152,
+        -48
+      ],
+      "id": "9b7f0ad2-70f0-42ac-b6bd-1f0d045358c8",
+      "name": "Solicitar aprovação do Arquiteto",
+      "webhookId": "ab184ecb-24a6-4f87-a839-667a4d0a3cfb",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TnMdFEm8gU9uM4ka",
+          "name": "Gmail — Notificações EKOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "29c181d4-eeae-4906-ad96-76c98ec680cf",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1440,
+        -48
+      ],
+      "id": "a3750917-f936-4a14-a421-81e06ef9b049",
+      "name": "Implementação aprovada pelo Arquiteto?"
+    },
+    {
+      "parameters": {
+        "sendTo": "marceloc312@gmail.com",
+        "subject": "={{ `⛔ [EKOM] Implementação rejeitada — ${$('Normalizar submissão EKOM').first().json.change_id}` }}",
+        "emailType": "text",
+        "message": "={{\n[\n  'A implementação não foi autorizada pelo Arquiteto.',\n  '',\n  `Change ID: ${$('Normalizar submissão EKOM').first().json.change_id}`,\n  `Especificação: ${$('Normalizar submissão EKOM').first().json.specification_path}`,\n  `Branch: ${$('Normalizar submissão EKOM').first().json.working_branch}`,\n  `Decisão registrada em: ${new Date($json.data.respondedAt).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`,\n  `Execução da análise: #${$('Consultar execução da análise').first().json.run_number}`,\n  '',\n  'Nenhuma implementação foi submetida.',\n  `GitHub Actions: ${$('Consultar execução da análise').first().json.html_url}`\n].join('\\n')\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1712,
+        128
+      ],
+      "id": "fabca0ff-eec7-4ab3-998f-c8f408be1020",
+      "name": "Enviar confirmação de rejeição",
+      "webhookId": "3aed179b-442b-4dd1-b4fc-bc6d93807643",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TnMdFEm8gU9uM4ka",
+          "name": "Gmail — Notificações EKOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $('Normalizar submissão EKOM').first().json;\nconst analysis = $('Consultar execução da análise').first().json;\nconst decision = $input.first().json.data;\n\nif (decision?.approved !== true) {\n  throw new Error('A implementação não foi aprovada pelo Arquiteto.');\n}\n\nif (\n  analysis.status !== 'completed' ||\n  analysis.conclusion !== 'success'\n) {\n  throw new Error(\n    'A implementação exige uma análise concluída com sucesso.'\n  );\n}\n\nif (\n  typeof decision.respondedAt !== 'string' ||\n  !decision.respondedAt\n) {\n  throw new Error('A decisão não possui horário de aprovação.');\n}\n\nreturn [\n  {\n    json: {\n      event: 'submit_for_implementation',\n      source: 'n8n_architect_approval',\n\n      change_id: request.change_id,\n      specification_path: request.specification_path,\n      working_branch: request.working_branch,\n\n      architect_authorization: true,\n      authorized_by: 'Marcelo Costa Miranda',\n      authorized_at: decision.respondedAt,\n\n      analysis_run_id: analysis.id,\n      analysis_url: analysis.html_url,\n      analysis_conclusion: analysis.conclusion,\n\n      allow_tests: false,\n      allow_hardware: false,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1696,
+        -272
+      ],
+      "id": "29d88d6e-1432-41f0-96cf-e5ef43a47c55",
+      "name": "Preparar ordem aprovada pelo Arquiteto"
+    },
+    {
+      "parameters": {
+        "amount": 75
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2128,
+        -160
+      ],
+      "id": "43cb430e-6bcd-4dd8-8d87-f82c89b0c3a2",
+      "name": "Aguardar conclusão da implementação",
+      "webhookId": "a6fc2b33-b2aa-4f0a-a049-9d796e7b5942"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Submeter implementação ao GitHub Actions').first().json.run_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2026-03-10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2432,
+        -160
+      ],
+      "id": "1ca2b426-280c-4d0a-85c8-f8f5b1b00af2",
+      "name": "Consultar execução da implementação",
+      "credentials": {
+        "githubApi": {
+          "id": "nE4FU104M8JKgVbL",
+          "name": "GitHub — EKOM IoTSmartLink15.4 — Actions"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "88974e39-7148-4468-bea2-4c4a5352d22f",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2736,
+        -16
+      ],
+      "id": "e69813d7-e2ea-47d6-8ea8-fa182d483256",
+      "name": "Implementação concluída?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "045bf0d9-a5a1-4ba0-a1a3-f912ba48b731",
+              "leftValue": "={{ Date.now() - new Date($json.created_at).getTime() >= 90 * 60 * 1000 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2368,
+        256
+      ],
+      "id": "0c987fd3-a09d-49b1-9669-fd955ecb2c89",
+      "name": "Tempo limite da implementação excedido?"
+    },
+    {
+      "parameters": {
+        "sendTo": "marceloc312@gmail.com",
+        "subject": "={{   $json.conclusion === 'success'     ? `✅ [EKOM] Implementação concluída — ${$json.name}`     : `❌ [EKOM] Implementação ${$json.conclusion} — ${$json.name}` }}",
+        "emailType": "text",
+        "message": "={{ [   'A execução da implementação EKOM foi concluída.',   '',   `Resultado: ${({     success: 'SUCESSO',     failure: 'FALHA',     cancelled: 'CANCELADA',     timed_out: 'TEMPO ESGOTADO',     action_required: 'AÇÃO NECESSÁRIA',     neutral: 'NEUTRA',     skipped: 'IGNORADA',     stale: 'OBSOLETA'   })[$json.conclusion] ?? $json.conclusion}`,   `Workflow: ${$json.name}`,   `Execução: #${$json.run_number}`,   `Início: ${new Date($json.run_started_at).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`,   `Término: ${new Date($json.updated_at).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}`,   `Duração aproximada: ${Math.round((new Date($json.updated_at) - new Date($json.run_started_at)) / 60000)} minuto(s)`,   '',   `GitHub Actions: ${$json.html_url}` ].join('\\n') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2944,
+        -224
+      ],
+      "id": "392bbc10-8f0a-4894-8040-602339a41254",
+      "name": "Enviar resultado da implementação",
+      "webhookId": "60ef1126-af6c-4d7a-b1e8-685e32433da0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TnMdFEm8gU9uM4ka",
+          "name": "Gmail — Notificações EKOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "marceloc312@gmail.com",
+        "subject": "={{ `⚠️ [EKOM] Tempo limite da implementação — ${$json.name}` }}",
+        "emailType": "text",
+        "message": "={{\n[\n  'O n8n encerrou o acompanhamento da implementação após 90 minutos.',\n  '',\n  'Isso não significa que o GitHub Actions foi cancelado.',\n  `Estado atual: ${$json.status}`,\n  `Workflow: ${$json.name}`,\n  `Execução: #${$json.run_number}`,\n  '',\n  `GitHub Actions: ${$json.html_url}`\n].join('\\n')\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2704,
+        240
+      ],
+      "id": "c5d5d8cf-b09c-400e-9fcb-3489b31e2888",
+      "name": "Enviar timeout da implementação",
+      "webhookId": "60ef1126-af6c-4d7a-b1e8-685e32433da0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TnMdFEm8gU9uM4ka",
+          "name": "Gmail — Notificações EKOM"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receber submissão EKOM": {
+      "main": [
+        [
+          {
+            "node": "Normalizar submissão EKOM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar submissão EKOM": {
+      "main": [
+        [
+          {
+            "node": "Submeter especificação para análise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receber ordem de implementação EKOM": {
+      "main": [
+        [
+          {
+            "node": "Normalizar ordem de implementação EKOM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar ordem de implementação EKOM": {
+      "main": [
+        [
+          {
+            "node": "Submeter implementação ao GitHub Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar execução da análise": {
+      "main": [
+        [
+          {
+            "node": "Análise concluída?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submeter especificação para análise": {
+      "main": [
+        [
+          {
+            "node": "Aguardar conclusão da análise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar conclusão da análise": {
+      "main": [
+        [
+          {
+            "node": "Consultar execução da análise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Análise concluída?": {
+      "main": [
+        [
+          {
+            "node": "Análise executada com sucesso?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tempo limite excedido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tempo limite excedido?": {
+      "main": [
+        [
+          {
+            "node": "Enviar notificação de timeout",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aguardar conclusão da análise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Análise executada com sucesso?": {
+      "main": [
+        [
+          {
+            "node": "Solicitar aprovação do Arquiteto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar notificação por e-mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar notificação por e-mail": {
+      "main": [
+        []
+      ]
+    },
+    "Solicitar aprovação do Arquiteto": {
+      "main": [
+        [
+          {
+            "node": "Implementação aprovada pelo Arquiteto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Implementação aprovada pelo Arquiteto?": {
+      "main": [
+        [
+          {
+            "node": "Preparar ordem aprovada pelo Arquiteto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar confirmação de rejeição",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar ordem aprovada pelo Arquiteto": {
+      "main": [
+        [
+          {
+            "node": "Submeter implementação ao GitHub Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar conclusão da implementação": {
+      "main": [
+        [
+          {
+            "node": "Consultar execução da implementação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submeter implementação ao GitHub Actions": {
+      "main": [
+        [
+          {
+            "node": "Aguardar conclusão da implementação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar execução da implementação": {
+      "main": [
+        [
+          {
+            "node": "Implementação concluída?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Implementação concluída?": {
+      "main": [
+        [
+          {
+            "node": "Enviar resultado da implementação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tempo limite da implementação excedido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tempo limite da implementação excedido?": {
+      "main": [
+        [
+          {
+            "node": "Enviar timeout da implementação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aguardar conclusão da implementação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "033ed463-6a1c-4358-a241-80a8ee50062a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b03c2b843e59e5a663caea9908c84cb0bad06790c6380d38cb5e73c02ace954d"
+  },
+  "nodeGroups": [],
+  "id": "13wMfHovK6uARoat",
+  "tags": []
+}
