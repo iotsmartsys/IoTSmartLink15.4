@@ -33,17 +33,48 @@ if(NOT packet_type_count EQUAL 4)
         "found ${packet_type_count} IOT154_EVENT definitions: ${packet_types}")
 endif()
 
-foreach(entry IN ITEMS "1|IOT154_EVENT_DOOR" "2|IOT154_EVENT_POWER"
-                       "3|IOT154_EVENT_BATTERY_LEVEL_PERCENT"
-                       "4|IOT154_EVENT_BATTERY_TELEMETRY_STATE")
-    string(REPLACE "|" ";" parts "${entry}")
-    list(GET parts 0 type)
-    list(GET parts 1 macro)
-    if(NOT registry MATCHES "\\|[ \\t]*${type}[ \\t]*\\|")
-        message(FATAL_ERROR "event registry mismatch: ADR-0005 has no type ${type}")
+set(expected_types 1 2 3 4)
+set(registry_capabilities
+    "Sensor de porta"
+    "Plug comutável"
+    "Nível de bateria em percentual"
+    "Estado da telemetria de bateria")
+set(packet_macros
+    IOT154_EVENT_DOOR
+    IOT154_EVENT_POWER
+    IOT154_EVENT_BATTERY_LEVEL_PERCENT
+    IOT154_EVENT_BATTERY_TELEMETRY_STATE)
+
+foreach(index RANGE 0 3)
+    list(GET expected_types ${index} expected_type)
+    list(GET registry_capabilities ${index} capability)
+    list(GET packet_macros ${index} macro)
+
+    string(REGEX MATCH
+           "\n\\|[ \\t]*([0-9]+)[ \\t]*\\|[ \\t]*${capability}[ \\t]*\\|"
+           capability_row "${registry}")
+    if(capability_row STREQUAL "")
+        message(FATAL_ERROR
+            "event registry mismatch: ADR-0005 has no allocation for '${capability}'")
     endif()
-    string(FIND "${packet}" "#define ${macro} ${type}" definition_offset)
-    if(definition_offset EQUAL -1)
-        message(FATAL_ERROR "event registry mismatch: ${macro} must be ${type}")
+    set(registry_type "${CMAKE_MATCH_1}")
+    if(NOT registry_type STREQUAL expected_type)
+        message(FATAL_ERROR
+            "event registry mismatch: ADR-0005 allocates '${capability}' as type "
+            "${registry_type}; expected ${expected_type}")
+    endif()
+
+    string(REGEX MATCH
+           "#define[ \\t]+${macro}[ \\t]+([0-9]+)"
+           packet_definition "${packet_registry}")
+    if(packet_definition STREQUAL "")
+        message(FATAL_ERROR
+            "event registry mismatch: coordinator has no definition for ${macro}")
+    endif()
+    set(packet_type "${CMAKE_MATCH_1}")
+    if(NOT packet_type STREQUAL registry_type)
+        message(FATAL_ERROR
+            "event registry mismatch: ADR-0005 allocates '${capability}' as type "
+            "${registry_type}, but ${macro} is ${packet_type}")
     endif()
 endforeach()

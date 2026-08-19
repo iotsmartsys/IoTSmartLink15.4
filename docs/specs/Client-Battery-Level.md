@@ -531,8 +531,9 @@ introduzir valor sentinela, que manteria o domínio do evento restrito a 0–100
   do canal do ADC falha;
 - **Quando** `setup()` é executado;
 - **Então** o dispositivo alcança `Running`, as demais capabilities operam
-  normalmente, a capability de bateria permanece inerte sem publicar, e a
-  condição fica registrada em log local;
+  normalmente, a capability de nível de bateria permanece inerte sem publicar
+  evento 3, a capability separada de estado publica o evento 4 com valor `2`, e
+  a condição também fica registrada em log local;
 - **Evidência:** inspeção do delta; validação em hardware reservada a etapa
   posterior.
 
