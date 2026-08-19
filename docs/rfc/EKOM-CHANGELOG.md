@@ -822,7 +822,8 @@ executado. O encerramento da transação permanece reservado ao Arquiteto.
 
 ## EKOM-CHG-0009 — Remediação dos débitos técnicos aceitos
 
-**Estado:** Em andamento [`In Progress`]
+**Estado:** Fechada [`Closed`] — v0.2 Concluída [`Done`] por decisão do
+Arquiteto em 19/08/2026
 
 **Especificação relacionada:** `docs/specs/Technical-Debt-Remediation.md`
 (`EKOM-DEBT-REMEDIATION-001`)
@@ -867,6 +868,12 @@ alocação normativa então pendente. O Arquiteto determinou a inclusão no reco
 
 Especificação v0.2 registrada em Rascunho [`Draft`] em 18/08/2026. A análise da
 v0.2 concluiu `Ready` e a implementação foi autorizada pelo Arquiteto em
-19/08/2026. A revisão da implementação devolveu os achados materiais ao estágio
-de Implementação, e a correção permanece `In Progress`; nenhum débito foi
-quitado e a quitação permanece reservada ao Arquiteto.
+19/08/2026. Duas revisões devolveram achados materiais ao estágio de
+Implementação, e a correção final foi registrada em `7eb191f`.
+
+O Arquiteto declarou em 19/08/2026 que executou as validações em hardware,
+validou a implementação e considerou a especificação integralmente atendida.
+Com essa decisão, a v0.2 foi encerrada como Concluída [`Done`] e
+`EKOM-DEBT-0001` a `EKOM-DEBT-0005` foram quitados. O registro de encerramento
+está em
+`docs/reports/technical-debt-remediation/validation/2026-08-19T184122Z-v0.2-7eb191f-hardware-validation-and-closure.md`.

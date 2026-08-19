@@ -352,10 +352,11 @@ O modelo de identidade — endpoint congelado, tipo como natureza, unicidade por
 endpoint — e o registro normativo dos tipos de evento pertencem à `ADR-0005` e
 não são redefinidos aqui. Esta especificação aplica a unicidade somente na nova
 operação de registro da bateria: se outra capability já ocupa o endpoint, a
-bateria é rejeitada. As operações das capabilities existentes ainda podem
-aceitar, depois, o endpoint da bateria quando o tipo de evento for distinto.
-Essa direção inversa permanece como divergência conhecida em
-`EKOM-DEBT-0001`; corrigi-la não integra o recorte desta especificação.
+bateria é rejeitada. Na baseline da v0.5, as operações das capabilities
+existentes ainda podiam aceitar, depois, o endpoint da bateria quando o tipo de
+evento fosse distinto. Essa direção inversa ficou fora deste recorte como
+`EKOM-DEBT-0001` e foi posteriormente remediada por
+`Technical-Debt-Remediation.md@v0.2`.
 
 ### 5.5 Gatilhos
 
@@ -658,8 +659,9 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - a unicidade exigida no registro passa a ser do **endpoint**, e não do par;
 - a categoria "endpoint de telemetria" foi abandonada: ser somente leitura é
   propriedade da capability, não do número que a identifica;
-- a divergência das capabilities existentes permanece fora deste recorte e está
-  registrada como `EKOM-DEBT-0001`.
+- a divergência então existente ficou fora deste recorte e foi registrada como
+  `EKOM-DEBT-0001`, posteriormente remediado por
+  `Technical-Debt-Remediation.md@v0.2`.
 
 **Decisões acrescentadas na v0.4, em resposta à análise da v0.3:**
 
@@ -675,8 +677,9 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 
 - a nova operação de registro da bateria rejeita endpoint previamente ocupado;
   a direção inversa, na qual uma operação de capability existente é chamada
-  depois da bateria, permanece fora do recorte e postergada em
-  `EKOM-DEBT-0001`.
+  depois da bateria, ficou fora deste recorte e foi postergada em
+  `EKOM-DEBT-0001`, depois remediado por
+  `Technical-Debt-Remediation.md@v0.2`.
 
 **Riscos residuais aceitos:**
 
@@ -696,22 +699,20 @@ e a validação de encerramento em
 `docs/reports/client-battery-level/validation/2026-08-15T164510Z-v0.5-7ce6c31-hardware-validation-and-closure.md`.
 
 Com essa aceitação humana, a v0.5 está Concluída [`Done`]. Os riscos residuais
-e débitos abaixo permanecem registrados, mas não impedem o encerramento desta
-entrega. Qualquer ampliação ou remediação posterior exige uma nova decisão e
-um recorte próprio.
+então aceitos não impediram o encerramento desta entrega. Os débitos relacionados
+foram posteriormente tratados em recorte próprio.
 
-**Pendências preservadas após o encerramento:**
+**Evoluções posteriores ao encerramento:**
 
-- os débitos `EKOM-DEBT-0001` a `EKOM-DEBT-0004`, registrados no mapa, alcançam
-  esta especificação; a aceitação da postergação não torna conforme a
-  divergência das capabilities existentes;
-- a aceitação da ADR-0005 disparou o gatilho de reavaliação de
-  `EKOM-DEBT-0002`; a remediação daquele débito não foi autorizada e permanece
-  fora deste recorte;
+- os débitos `EKOM-DEBT-0001` a `EKOM-DEBT-0004`, que alcançavam esta
+  especificação, foram remediados por `Technical-Debt-Remediation.md@v0.2` e
+  quitados pelo Arquiteto em 19/08/2026;
+- a relação normativa antes ausente em `EKOM-DEBT-0002` foi acrescentada ao
+  bootstrap no recorte daquela remediação;
 - a observabilidade pelo host da falha de configuração do ADC e do modo sem
-  calibração foi posteriormente contratada por
-  `Technical-Debt-Remediation.md@v0.2`, preservando o segundo desvio
-  arquitetural e o domínio do evento de nível;
+  calibração foi contratada, implementada e validada por
+  `Technical-Debt-Remediation.md@v0.2`, preservando o domínio do evento de
+  nível;
 - os testes em hardware foram declarados executados e aceitáveis pelo
   Arquiteto; esta atuação de encerramento não acrescenta medições instrumentais
   nem uma enumeração de cenários além da evidência já registrada.

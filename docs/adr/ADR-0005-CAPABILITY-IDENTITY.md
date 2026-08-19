@@ -123,20 +123,17 @@ genericamente pelo coordenador e não deve ser usado.
 **Endpoint não é conceito Zigbee.** Nenhuma semântica de cluster, perfil ou
 binding é importada, agora ou por analogia futura.
 
-## Estado atual divergente
+## Estado atual reconciliado
 
-As capabilities existentes ainda recebem `eventType` do product firmware, e a
-fachada ainda valida unicidade do par em vez do endpoint. Essa divergência é
-real e permanece **não conforme** com esta decisão enquanto não for corrigida.
-O Arquiteto aceitou postergar a correção, registrada como `EKOM-DEBT-0001`; a
-aceitação do débito não torna a condição conforme.
+A implementação de `Technical-Debt-Remediation.md@v0.2` removeu `eventType` das
+configurações públicas das capabilities existentes, transferiu a injeção do
+tipo para a fachada e tornou a unicidade exclusiva do endpoint. A capability de
+estado da telemetria e sua tradução no coordenador também foram implementadas
+para o tipo 4.
 
-Capabilities novas nascem já conforme: a de nível de bateria não expõe
-`eventType` em sua configuração.
-
-O tipo 4 já está normativamente alocado, mas a capability de estado da
-telemetria e sua tradução no coordenador ainda não estão implementadas. Essa
-divergência integra `EKOM-DEBT-0004` e permanece não conforme até a remediação.
+O Arquiteto validou a implementação em hardware e determinou, em 19/08/2026, a
+quitação de `EKOM-DEBT-0001` e `EKOM-DEBT-0004`. O registro histórico da
+postergação e de seus critérios permanece no mapa de conhecimento.
 
 ## Consequências
 

@@ -8,9 +8,11 @@
 
 **Estado normativo:** `Active`
 
-**Estado da implementação:** Em andamento [`In Progress`]
+**Estado da implementação:** `Validated` — implementação `7eb191f` e validações
+em hardware aceitas pelo Arquiteto
 
-**Estado do workflow:** Implementação [`In Progress`]
+**Estado do workflow:** Concluída [`Done`] por decisão do Arquiteto em
+19/08/2026
 
 **Análise de implementabilidade:** Pronta [`Ready`] para v0.2 na revisão
 `e040fc21792cfc632779b703cd77f524162c7841`, conforme
@@ -55,14 +57,15 @@ rastreada do `client_154`
 
 ## 1. Objetivo e contexto
 
-A seção 7 do `docs/rfc/KNOWLEDGE-MAP.md` registra cinco débitos aceitos. Cada um
-tem critério de quitação declarado, e nenhum foi remediado. Três deles
+A seção 7 do `docs/rfc/KNOWLEDGE-MAP.md` registrava cinco débitos aceitos quando
+esta remediação foi proposta. Cada um possuía critério de quitação declarado.
+Três deles
 (`EKOM-DEBT-0001`, `EKOM-DEBT-0002` e `EKOM-DEBT-0003`) originam-se da ADR-0005:
 o modelo de identidade de capability foi aceito em 14/08/2026, mas o código, a
 navegabilidade normativa e a tabela de tipos de evento do coordenador
-permanecem divergentes. `EKOM-DEBT-0004` mantém a telemetria de bateria sem
+permaneciam divergentes. `EKOM-DEBT-0004` mantinha a telemetria de bateria sem
 distinção observável entre ausência, defeito e aproximação. `EKOM-DEBT-0005`
-mantém a configuração rastreada divergente da baseline declarada pela decisão
+mantinha a configuração rastreada divergente da baseline declarada pela decisão
 A9.
 
 Esta especificação define o comportamento que, uma vez implementado e
@@ -414,23 +417,24 @@ Demais evidências:
 - builds do `client_154` com a capability de bateria habilitada e desabilitada;
 - inspeção documental do bootstrap e do `sdkconfig` rastreado.
 
-Criar teste não autoriza executá-lo. A execução do `smart_sys_app_test`, flash,
-monitor e validação em hardware do estado da telemetria permanecem
-`Not Executed` até autorização própria do Arquiteto.
+Criar teste não autoriza executá-lo. O `smart_sys_app_test` permaneceu
+`Not Executed`. As validações em hardware foram posteriormente executadas e
+aceitas pelo Arquiteto no encerramento, sem transformar a suíte automatizada em
+evidência executada.
 
 ## 8. Conhecimento afetado
 
 - `docs/adr/ADR-0005-CAPABILITY-IDENTITY.md`: emendada e aceita pelo Arquiteto
-  para alocar globalmente o tipo de evento 4; sua seção de estado divergente é
-  atualizada novamente quando a remediação for concluída;
+  para alocar globalmente o tipo de evento 4; sua seção de estado foi
+  reconciliada no encerramento;
 - `docs/specs/ISSP-Configurable-Bootstrap.md`: emendado conforme `DEBTREM-008` e
   `DEBTREM-009`;
 - `docs/specs/Client-Battery-Level.md`: emendado quanto à observabilidade de
   `BATTERY-015` e `BATTERY-016`, preservando o domínio do evento 3;
 - `docs/specs/Client-SDK-Configurable-Features.md`: a exclusão do `sdkconfig` do
   recorte deixa de valer;
-- `docs/rfc/KNOWLEDGE-MAP.md`: índice, árvore e seção 7 reconciliados; a
-  quitação dos débitos é ato do Arquiteto;
+- `docs/rfc/KNOWLEDGE-MAP.md`: índice, árvore e seção 7 reconciliados com a
+  quitação determinada pelo Arquiteto;
 - `docs/specs/SYSTEM-DOSSIER.md` e `docs/rfc/EKOM-CHANGELOG.md`: navegação e
   estado resumido;
 - preservados: `ISSP-Architecture.md`, `ISSP-Reusable-Components.md`,
@@ -440,7 +444,7 @@ monitor e validação em hardware do estado da telemetria permanecem
 
 ## 9. Relações, decisões, lacunas e débitos
 
-**Fatos observados:**
+**Fatos que originaram a remediação na baseline anterior:**
 
 - `SwitchConfig.eventType` e `DoorSensorConfig.eventType` em
   `components/issp_app_154/include/SmartSysApp.h`; `BatteryLevelConfig` já nasce
@@ -475,14 +479,27 @@ monitor e validação em hardware do estado da telemetria permanecem
 - `EKOM-DEBT-0005` quitado por alinhamento do `sdkconfig` à baseline da decisão
   A9.
 
-**Solução proposta:** conforme as seções 4 a 7. A emenda aceita da ADR-0005
-remove a dependência normativa que bloqueou a análise da v0.1.
+**Solução implementada:** conforme as seções 4 a 7. A emenda aceita da ADR-0005
+removeu a dependência normativa que bloqueou a análise da v0.1.
 
-**Decisão pendente:** momento da quitação de cada débito no
-`KNOWLEDGE-MAP.md`, após implementação e evidência.
+**Decisão de quitação:** em 19/08/2026, após validar a implementação em
+hardware, o Arquiteto determinou a quitação de `EKOM-DEBT-0001` a
+`EKOM-DEBT-0005` e o encerramento integral desta especificação.
 
 **Relações:** `EKOM-DEBT-0001` a `EKOM-DEBT-0005`; ADR-0005; ADR-0001;
 `EKM-GAP-0002`; `docs/specs/Client-Battery-Level.md`;
 `docs/specs/ISSP-Configurable-Bootstrap.md`;
 `docs/specs/Client-SDK-Configurable-Features.md`;
 `docs/specs/Firmware-Variants-Menuconfig.md`.
+
+## 10. Encerramento
+
+O Arquiteto declarou em 19/08/2026 que executou as validações em hardware,
+validou a implementação `7eb191f` e considerou a especificação integralmente
+atendida. A decisão está registrada em
+`docs/reports/technical-debt-remediation/validation/2026-08-19T184122Z-v0.2-7eb191f-hardware-validation-and-closure.md`.
+
+Com essa decisão humana, a v0.2 está Concluída [`Done`] e os cinco débitos
+abrangidos estão quitados. O encerramento não amplia o recorte, não encerra
+`EKM-GAP-0002` e não presume medições, cenários ou logs além das validações que
+o Arquiteto declarou executadas e suficientes.
