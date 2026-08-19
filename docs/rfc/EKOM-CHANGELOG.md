@@ -792,3 +792,30 @@ As fontes locais foram reconciliadas com o EKOM 4.5 em 16/08/2026. A branch
 `spec/client-sdk-configurable-features` foi autorizada pelo Arquiteto para
 integração em `main`, sem executar Actions, builds, testes, flash, monitor ou
 hardware nesta atuação.
+
+## EKOM-CHG-0008 — Adoção do EKOM 4.6
+
+**Estado:** Em andamento [`In Progress`]
+
+**Especificação relacionada:** Não aplicável; governança documental
+
+**Objetivo:** adotar o EKOM 4.6 nas fontes locais de governança.
+
+### Decisões relacionadas
+
+- `AGENTS.md`, a diretriz local e o mapa passam a declarar EKOM 4.6;
+- a Autoria de especificação nova ou revisão material passa a usar
+  investigação dirigida, rascunho funcional reconciliado com o Arquiteto e
+  ordem explícita antes da escrita normativa, conforme o perfil externo do
+  Autor da Especificação 3.3 e a DD-045;
+- as regras de implementabilidade, implementação e revisão herdadas da 4.5
+  permanecem vigentes;
+- relatórios e transações históricos permanecem vinculados à versão usada em
+  sua execução e não são reescritos.
+
+### Resultado
+
+As fontes locais de governança foram reconciliadas com o EKOM 4.6 em
+18/08/2026. A alteração é exclusivamente documental; nenhum código, teste,
+dependência, build, Action, flash, monitor ou hardware foi alterado ou
+executado. O encerramento da transação permanece reservado ao Arquiteto.

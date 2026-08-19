@@ -1,10 +1,10 @@
-# Diretriz local de adoção do EKOM 4.5
+# Diretriz local de adoção do EKOM 4.6
 
 **Classe da fonte:** Normativa local
 
 **Estado da fonte:** Vigente
 
-O IoTSmartLink15.4 adota o EKOM 4.5 publicado em
+O IoTSmartLink15.4 adota o EKOM 4.6 publicado em
 `/Users/marcelocostamiranda/source/EKM-guidelines`. O método, a governança, os
 perfis e as ADRs do modelo externo prevalecem sobre instruções históricas do
 projeto.
