@@ -40,6 +40,9 @@ Para solicitar análise na branch `spec/*` corrente:
 ./tools/submit_ekom_analysis.sh
 ```
 
+O n8n encaminha essa submissão ao workflow de análise
+`.github/workflows/ekom-analysis.yml`.
+
 Para emitir uma ordem explícita de implementação da versão corrente:
 
 ```sh
@@ -58,5 +61,6 @@ O n8n valida o evento autenticado e dispara
 `.github/workflows/ekom-implementation.yml` com `ref=main`, a branch e a ordem
 explícita do Arquiteto. O próprio workflow localiza na branch a única
 especificação correspondente, lê seu ID e seleciona a análise `Ready` aplicável
-à mesma revisão e baseline. O workflow não autoriza testes, flash, monitor ou
-hardware neste piloto.
+à mesma revisão e baseline. O workflow permite criar ou alterar testes quando a
+especificação corrente os exige explicitamente, mas não autoriza coletá-los ou
+executá-los, nem usar flash, monitor ou hardware.

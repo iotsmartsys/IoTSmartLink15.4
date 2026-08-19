@@ -85,12 +85,12 @@ jobs:
           fi
 
           if [ "$ALLOW_TESTS" != "false" ]; then
-            echo "Este piloto não autoriza coleta nem execução de testes."
+            echo "O workflow de implementação não autoriza coleta nem execução de testes."
             exit 1
           fi
 
           if [ "$ALLOW_HARDWARE" != "false" ]; then
-            echo "Este piloto não autoriza flash, monitor nem hardware."
+            echo "O workflow de implementação não autoriza flash, monitor nem hardware."
             exit 1
           fi
 
@@ -326,7 +326,7 @@ jobs:
             echo "- Branch: \`$WORKING_BRANCH\`"
             echo "- Autorizada por: $AUTHORIZED_BY"
             echo "- Código e build canônico: autorizados"
-            echo "- Testes, flash, monitor e hardware: não autorizados"
+            echo "- Coleta/execução de testes, flash, monitor e hardware: não autorizados"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Baixar diretrizes EKOM vigentes
@@ -435,12 +435,15 @@ jobs:
 
             Operações autorizadas:
             - alterar código, configuração e conhecimento dentro do recorte;
+            - criar, ampliar, reestruturar ou corrigir testes somente quando a
+              especificação corrente os exigir explicitamente e os vincular a
+              requisito ou critério de aceite;
             - inspecionar o delta;
             - executar os builds canônicos e proporcionais dos entregáveis
               construíveis materialmente afetados.
 
             Operações não autorizadas:
-            - criar, alterar, coletar ou executar testes;
+            - coletar ou executar testes;
             - flash, monitor ou hardware;
             - deploy, release, merge, tag ou integração;
             - instalar toolchain ou dependência persistente;
@@ -471,7 +474,8 @@ jobs:
             Em `Builds canônicos`, cada build usa `### Build N` e registra
             `- Comando:`, `- Ambiente:`, `- Target/configuração:`, `- Resultado
             terminal:` e `- Código de saída:`. Em `Operações não executadas`,
-            registre testes, flash, monitor e hardware como `Not Executed`.
+            registre coleta/execução de testes, flash, monitor e hardware como
+            `Not Executed`.
             Se implementação ou build obrigatório permanecer incompleto, mantenha
             o estado In Progress e registre a limitação; não converta ausência de
             evidência em sucesso.
@@ -588,12 +592,6 @@ jobs:
                 ;;
             esac
 
-            case "$path" in
-              */test/*|*/tests/*|*/test_apps/*|*/test_*|*_test.*)
-                echo "Testes não estão autorizados nesta execução: $path"
-                exit 1
-                ;;
-            esac
           done < "$CHANGED_FILES_FILE"
 
           if git show "HEAD:$SPECIFICATION_PATH" | grep -Eq \

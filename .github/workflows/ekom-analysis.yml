@@ -1,4 +1,4 @@
-name: EKOM Pilot
+name: EKOM Analysis
 
 run-name: "EKOM · ${{ inputs.change_id }} · ${{ inputs.phase }}"
 
@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
 
           if [ "$PHASE" != "analysis" ]; then
-            echo "Esta versão do piloto aceita somente a fase analysis."
+            echo "O workflow de análise aceita somente a fase analysis."
             exit 1
           fi
 
