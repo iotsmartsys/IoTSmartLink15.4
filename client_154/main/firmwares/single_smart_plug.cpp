@@ -12,7 +12,6 @@ namespace
 {
 constexpr std::uint32_t kDeviceId = 0x15400001;
 constexpr std::uint8_t kRelayEndpointId = 1;
-constexpr std::uint8_t kPowerEventType = 2;
 constexpr bool kRelayInitialState = false;
 constexpr bool kRelayReportOnStart = true;
 constexpr std::uint32_t kFactoryResetHoldTimeMs = 10000;
@@ -37,7 +36,6 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
         .initialState = kRelayInitialState,
         .reportOnStart = kRelayReportOnStart,
         .endpointId = kRelayEndpointId,
-        .eventType = kPowerEventType,
     });
 
     smartSysApp.configureFactoryResetButton({

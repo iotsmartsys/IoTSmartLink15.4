@@ -9,7 +9,6 @@ namespace
 {
 constexpr std::uint32_t kDeviceId = 0x15400001;
 constexpr std::uint8_t kDoorEndpointId = 1;
-constexpr std::uint8_t kDoorEventType = 1;
 constexpr std::uint8_t kBatteryEndpointId = 2;
 constexpr bool kReportOnStart = true;
 constexpr std::uint32_t kSamplePeriodMs = 10;
@@ -86,7 +85,6 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
         .pull = mapPull(input.pull),
         .reportOnStart = kReportOnStart,
         .endpointId = kDoorEndpointId,
-        .eventType = kDoorEventType,
         .samplePeriodMs = kSamplePeriodMs,
         .samplesPerWindow = kSamplesPerWindow,
         .majorityThreshold = kMajorityThreshold,

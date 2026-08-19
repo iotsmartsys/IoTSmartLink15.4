@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS
         "src/battery_level_behavior.cpp"
+        "src/battery_telemetry_state_behavior.cpp"
         "src/digital_input_behavior.cpp"
         "src/digital_output_behavior.cpp"
     INCLUDE_DIRS

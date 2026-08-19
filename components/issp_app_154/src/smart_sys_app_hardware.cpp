@@ -188,8 +188,12 @@ AppResult SmartSysApp::Impl::realInitializeNetwork(void *context)
     return mapIsspResult(hardwareOf(self).networkManager->initializeNetwork());
 }
 
-AppResult SmartSysApp::Impl::realRegisterCapability(void *context, std::size_t index)
+AppResult SmartSysApp::Impl::realRegisterCapability(void *context, std::size_t index,
+                                                    std::uint8_t endpointId,
+                                                    std::uint8_t eventType)
 {
+    (void)endpointId;
+    (void)eventType;
     auto *self = static_cast<Impl *>(context);
     return mapIsspResult(
         hardwareOf(self).device->addBehavior(*self->behaviors_[index]));

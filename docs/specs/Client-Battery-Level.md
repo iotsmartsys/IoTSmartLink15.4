@@ -23,7 +23,7 @@ identificado na v0.4.
 
 **Responsável arquitetural:** Marcelo Miranda
 
-**Última atualização:** 15/08/2026
+**Última atualização:** 19/08/2026
 
 **Escopo:** `client_154`, fachada `SmartSysApp`, product firmware e board model
 
@@ -59,6 +59,10 @@ identificado na v0.4.
   `docs/specs/ISSP-Reusable-Components.md` e
   `docs/specs/ISSP-Report-Identity.md` — nenhuma mudança de wire, de versão de
   protocolo, de checksum, de sequência ou de identidade de report.
+- Alterada por [`Amended By`] `docs/specs/Technical-Debt-Remediation.md@v0.2`
+  — `BATTERY-015` e `BATTERY-016` passam a ser observáveis pelo host pela
+  capability separada de estado da telemetria, sem ampliar o domínio do evento
+  de nível de bateria.
 
 Esta especificação **não** emenda `Client-Deep-Sleep.md`. A configuração da
 capability vive fora de `DeepSleepConfig`, de modo que nenhuma versão em
@@ -108,7 +112,8 @@ concreto. Alterar a seção 8 não exige emendar as seções 4 a 7.
 - carga, proteção, balanceamento ou gestão de bateria;
 - alteração do protocolo ISSP, do wire, do ACK, do retry ou da identidade de
   report;
-- alteração do coordenador ou do host;
+- alteração do coordenador ou do host além da observabilidade estreita
+  acrescentada por `Technical-Debt-Remediation.md@v0.2`;
 - light sleep, fontes de wakeup e política de energia, que pertencem a
   `Client-Deep-Sleep.md`;
 - qualquer decisão sobre o projeto ESP-IDF da raiz, que permanece não
@@ -147,8 +152,10 @@ com temporizador próprio; `board_model.hpp` e a composição em
    alcançar `Running` prova que todos tiveram sucesso. A capability de bateria é
    exceção: telemetria não deve impedir a função principal do produto, e um
    sensor de porta com medição defeituosa continua reportando porta. O custo
-   aceito é que a ausência da capability é silenciosa para o host e observável
-   apenas em log local.
+   originalmente aceito de observabilidade apenas em log local foi substituído
+   pela capability separada de estado contratada em
+   `Technical-Debt-Remediation.md@v0.2`; a função principal continua sem ser
+   bloqueada.
 
 ### 3.2 Limite de escopo funcional
 
@@ -214,11 +221,14 @@ valores concretos.
 - **`BATTERY-015`:** calibração de ADC indisponível não impede a operação; a
   capability converte a leitura bruta linearmente entre zero e a tensão de fundo
   de escala correspondente à atenuação declarada pelo board, registra a
-  degradação e continua publicando.
+  degradação, publica o estado aproximado pela capability separada definida em
+  `Technical-Debt-Remediation.md@v0.2` e continua publicando o nível.
 - **`BATTERY-016`:** falha ao configurar a unidade ou o canal do ADC no início
   da capability não impede o dispositivo de alcançar `Running`. A capability
-  permanece inerte, sem publicar, e a condição é registrada em log local;
-  nenhuma outra capability e nenhum estágio de `setup()` é afetado.
+  de nível permanece inerte, sem publicar evento 3; a condição é registrada em
+  log local e publicada como estado inerte pela capability separada definida em
+  `Technical-Debt-Remediation.md@v0.2`. Nenhuma outra capability e nenhum
+  estágio de `setup()` é afetado.
 - **`BATTERY-017`:** o report de bateria não integra a evidência de admissão de
   deep sleep. Sua publicação segue as regras de drenagem de reports pendentes já
   contratadas em `Client-Deep-Sleep.md`, mas o ciclo acordado nunca aguarda por
@@ -342,10 +352,11 @@ O modelo de identidade — endpoint congelado, tipo como natureza, unicidade por
 endpoint — e o registro normativo dos tipos de evento pertencem à `ADR-0005` e
 não são redefinidos aqui. Esta especificação aplica a unicidade somente na nova
 operação de registro da bateria: se outra capability já ocupa o endpoint, a
-bateria é rejeitada. As operações das capabilities existentes ainda podem
-aceitar, depois, o endpoint da bateria quando o tipo de evento for distinto.
-Essa direção inversa permanece como divergência conhecida em
-`EKOM-DEBT-0001`; corrigi-la não integra o recorte desta especificação.
+bateria é rejeitada. Na baseline da v0.5, as operações das capabilities
+existentes ainda podiam aceitar, depois, o endpoint da bateria quando o tipo de
+evento fosse distinto. Essa direção inversa ficou fora deste recorte como
+`EKOM-DEBT-0001` e foi posteriormente remediada por
+`Technical-Debt-Remediation.md@v0.2`.
 
 ### 5.5 Gatilhos
 
@@ -392,15 +403,16 @@ o host como 0%, e não como silêncio.
 linearmente entre zero e a tensão de fundo de escala correspondente à atenuação
 que o board declara, obtida da fonte do alvo; nenhum valor literal de fundo de
 escala pertence a esta especificação, porque ele varia com a atenuação e com o
-alvo. A degradação é registrada em log e a publicação continua. O host não
-distingue valor calibrado de aproximado; isso é risco residual declarado na
-seção 9.
+alvo. A degradação é registrada em log, a publicação de nível continua e a
+capability separada de estado definida em `Technical-Debt-Remediation.md@v0.2`
+torna o modo aproximado distinguível pelo host.
 
 **Falha na configuração do ADC.** Distinta das três classes acima, porque ocorre
 antes de qualquer medição. A unidade ou o canal não puderam ser configurados no
 início da capability. Conforme `BATTERY-016` e o segundo desvio da seção 3.1, o
 dispositivo alcança `Running` normalmente, a capability permanece inerte e a
-condição é registrada em log local.
+condição é registrada em log local. A capability separada de estado publica a
+condição inerte sem reativar medições nem produzir report de nível.
 
 **Retentativa.** Nova tentativa de medição dentro do mesmo ciclo, após falha,
 não pertence a este contrato: o resultado observável já é a ausência do report,
@@ -520,8 +532,9 @@ introduzir valor sentinela, que manteria o domínio do evento restrito a 0–100
   do canal do ADC falha;
 - **Quando** `setup()` é executado;
 - **Então** o dispositivo alcança `Running`, as demais capabilities operam
-  normalmente, a capability de bateria permanece inerte sem publicar, e a
-  condição fica registrada em log local;
+  normalmente, a capability de nível de bateria permanece inerte sem publicar
+  evento 3, a capability separada de estado publica o evento 4 com valor `2`, e
+  a condição também fica registrada em log local;
 - **Evidência:** inspeção do delta; validação em hardware reservada a etapa
   posterior.
 
@@ -646,8 +659,9 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - a unicidade exigida no registro passa a ser do **endpoint**, e não do par;
 - a categoria "endpoint de telemetria" foi abandonada: ser somente leitura é
   propriedade da capability, não do número que a identifica;
-- a divergência das capabilities existentes permanece fora deste recorte e está
-  registrada como `EKOM-DEBT-0001`.
+- a divergência então existente ficou fora deste recorte e foi registrada como
+  `EKOM-DEBT-0001`, posteriormente remediado por
+  `Technical-Debt-Remediation.md@v0.2`.
 
 **Decisões acrescentadas na v0.4, em resposta à análise da v0.3:**
 
@@ -663,17 +677,17 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 
 - a nova operação de registro da bateria rejeita endpoint previamente ocupado;
   a direção inversa, na qual uma operação de capability existente é chamada
-  depois da bateria, permanece fora do recorte e postergada em
-  `EKOM-DEBT-0001`.
+  depois da bateria, ficou fora deste recorte e foi postergada em
+  `EKOM-DEBT-0001`, depois remediado por
+  `Technical-Debt-Remediation.md@v0.2`.
 
 **Riscos residuais aceitos:**
 
 - drenagem contínua do divisor permanentemente conectado, inerente ao arranjo
   elétrico da placa atual;
 - ausência de prova automatizada da fórmula de conversão nesta versão;
-- indistinguibilidade, no host, entre supressão por falha e perda de rádio;
-- indistinguibilidade, no host, entre valor calibrado e valor aproximado no modo
-  degradado.
+- indistinguibilidade, no host, entre supressão de uma medição isolada por falha
+  e perda de rádio; essa classe não altera o estado da telemetria.
 
 ## 10. Encerramento
 
@@ -685,20 +699,20 @@ e a validação de encerramento em
 `docs/reports/client-battery-level/validation/2026-08-15T164510Z-v0.5-7ce6c31-hardware-validation-and-closure.md`.
 
 Com essa aceitação humana, a v0.5 está Concluída [`Done`]. Os riscos residuais
-e débitos abaixo permanecem registrados, mas não impedem o encerramento desta
-entrega. Qualquer ampliação ou remediação posterior exige uma nova decisão e
-um recorte próprio.
+então aceitos não impediram o encerramento desta entrega. Os débitos relacionados
+foram posteriormente tratados em recorte próprio.
 
-**Pendências preservadas após o encerramento:**
+**Evoluções posteriores ao encerramento:**
 
-- os débitos `EKOM-DEBT-0001` a `EKOM-DEBT-0004`, registrados no mapa, alcançam
-  esta especificação; a aceitação da postergação não torna conforme a
-  divergência das capabilities existentes;
-- a aceitação da ADR-0005 disparou o gatilho de reavaliação de
-  `EKOM-DEBT-0002`; a remediação daquele débito não foi autorizada e permanece
-  fora deste recorte;
-- a ausência da capability por falha de configuração do ADC é silenciosa para o
-  host, consequência aceita do segundo desvio arquitetural;
+- os débitos `EKOM-DEBT-0001` a `EKOM-DEBT-0004`, que alcançavam esta
+  especificação, foram remediados por `Technical-Debt-Remediation.md@v0.2` e
+  quitados pelo Arquiteto em 19/08/2026;
+- a relação normativa antes ausente em `EKOM-DEBT-0002` foi acrescentada ao
+  bootstrap no recorte daquela remediação;
+- a observabilidade pelo host da falha de configuração do ADC e do modo sem
+  calibração foi contratada, implementada e validada por
+  `Technical-Debt-Remediation.md@v0.2`, preservando o domínio do evento de
+  nível;
 - os testes em hardware foram declarados executados e aceitáveis pelo
   Arquiteto; esta atuação de encerramento não acrescenta medições instrumentais
   nem uma enumeração de cenários além da evidência já registrada.

@@ -60,7 +60,10 @@ O Arquiteto confirmou:
 - `deviceId` permanece configurável nesta versão;
 - o endereço curto IEEE 802.15.4 não pertence à API comum e deve preservar
   internamente o valor vigente `0x1001`;
-- `endpointId` e `eventType` permanecem configuráveis e com a semântica atual;
+- `endpointId` permanece configurável pela composição, com identidade congelada
+  por capability. A semântica de `endpointId` e `eventType` foi estendida pela
+  ADR-0005 e por `Technical-Debt-Remediation.md`: o tipo identifica a natureza
+  da capability e é injetado pela fachada para as capabilities abrangidas;
 - protocolo wire, commissioning, persistência, reports, ACKs, retries,
   factory reset e demais comportamentos validados não devem mudar;
 - identidade automática, atribuição de endereço curto e abstração completa do
@@ -295,7 +298,8 @@ e deve ser especificada antes de validar múltiplos clients no mesmo PAN.
 
 Nesta versão:
 
-- `endpointId` e `eventType` continuam explícitos em `SwitchConfig`;
+- `endpointId` continua explícito em `SwitchConfig`; `eventType` é fixado pela
+  fachada conforme a ADR-0005;
 - comandos `ON`, `OFF` e `TOGGLE` mantêm a semântica atual;
 - `state()` pode expor o estado já consultável no behavior;
 - nenhuma nova operação local de atuação é adicionada.
@@ -374,7 +378,6 @@ struct SwitchConfig
     bool initialState;
     bool reportOnStart;
     std::uint8_t endpointId;
-    std::uint8_t eventType;
 };
 
 }
@@ -387,7 +390,7 @@ Regras:
 - `activeHigh=false` deve mapear para `activeLevel=0`;
 - estado inicial, report inicial, endpoint e event type devem ser encaminhados
   sem alteração semântica ao behavior;
-- pares duplicados de `endpointId` e `eventType` devem ser rejeitados;
+- endpoints ocupados devem ser rejeitados, independentemente do tipo de evento;
 - não deve haver inicialização de GPIO antes de `setup()`.
 
 ### 8.4 Configuração do factory reset
@@ -559,7 +562,6 @@ extern "C" void app_main()
         .initialState = false,
         .reportOnStart = true,
         .endpointId = 1,
-        .eventType = 2,
     });
 
     app.configureFactoryResetButton({

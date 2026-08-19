@@ -6,10 +6,12 @@
 
 **Aceita pelo Arquiteto em:** 14/08/2026
 
+**Emenda do tipo de evento 4 aceita pelo Arquiteto em:** 18/08/2026
+
 **Decisores:** Arquiteto humano
 
-**Especificação relacionada:**
-`docs/specs/Client-Battery-Level.md`
+**Especificações relacionadas:** `docs/specs/Client-Battery-Level.md` e
+`docs/specs/Technical-Debt-Remediation.md`
 
 **Habilita:** `EKOM-BATTERY-001`
 
@@ -17,8 +19,8 @@
 `eventType` fixada em `docs/specs/ISSP-Configurable-Bootstrap.md`, que permanece
 vigente em todo o restante. Nenhuma outra fonte é alterada.
 
-**Débitos relacionados:** `EKOM-DEBT-0001`, `EKOM-DEBT-0002` e `EKOM-DEBT-0003`,
-registrados em `docs/rfc/KNOWLEDGE-MAP.md`.
+**Débitos relacionados:** `EKOM-DEBT-0001`, `EKOM-DEBT-0002`, `EKOM-DEBT-0003`
+e `EKOM-DEBT-0004`, registrados em `docs/rfc/KNOWLEDGE-MAP.md`.
 
 ## Contexto
 
@@ -104,10 +106,13 @@ integral permanecem sob a lacuna `EKM-GAP-0002`.
 | 1 | Sensor de porta | 1 aberto, 0 fechado | `docs/specs/Firmware-Variants-Menuconfig.md` |
 | 2 | Plug comutável | ligado, desligado e alternar | `docs/specs/ISSP-Configurable-Bootstrap.md`; `docs/specs/Firmware-Variants-Menuconfig.md` |
 | 3 | Nível de bateria em percentual | 0 a 100 | `docs/specs/Client-Battery-Level.md` |
+| 4 | Estado da telemetria de bateria | 0 calibrado, 1 aproximado, 2 inerte | `docs/specs/Technical-Debt-Remediation.md` |
 
 Esta ADR registra a alocação e a estabilidade de cada tipo; o domínio detalhado
-e o comportamento permanecem com a fonte indicada na última coluna. O registro
-descreve o que já existe em código do coordenador.
+e o comportamento permanecem com a fonte indicada na última coluna. Os tipos 1
+a 3 descrevem o que já existe em código do coordenador; o tipo 4 fica reservado
+globalmente pela emenda aceita, ainda que uma composição não habilite bateria e
+não registre nem publique essa capability.
 
 **Regra de alocação.** Um tipo de evento tem significado global e estável: uma
 vez atribuído, não é reutilizado com outro significado, em nenhum endpoint. Um
@@ -118,16 +123,17 @@ genericamente pelo coordenador e não deve ser usado.
 **Endpoint não é conceito Zigbee.** Nenhuma semântica de cluster, perfil ou
 binding é importada, agora ou por analogia futura.
 
-## Estado atual divergente
+## Estado atual reconciliado
 
-As capabilities existentes ainda recebem `eventType` do product firmware, e a
-fachada ainda valida unicidade do par em vez do endpoint. Essa divergência é
-real e permanece **não conforme** com esta decisão enquanto não for corrigida.
-O Arquiteto aceitou postergar a correção, registrada como `EKOM-DEBT-0001`; a
-aceitação do débito não torna a condição conforme.
+A implementação de `Technical-Debt-Remediation.md@v0.2` removeu `eventType` das
+configurações públicas das capabilities existentes, transferiu a injeção do
+tipo para a fachada e tornou a unicidade exclusiva do endpoint. A capability de
+estado da telemetria e sua tradução no coordenador também foram implementadas
+para o tipo 4.
 
-Capabilities novas nascem já conforme: a de nível de bateria não expõe
-`eventType` em sua configuração.
+O Arquiteto validou a implementação em hardware e determinou, em 19/08/2026, a
+quitação de `EKOM-DEBT-0001` e `EKOM-DEBT-0004`. O registro histórico da
+postergação e de seus critérios permanece no mapa de conhecimento.
 
 ## Consequências
 

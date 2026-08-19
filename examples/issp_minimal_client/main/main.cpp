@@ -1,7 +1,6 @@
 #include <cstdint>
 
 #include "SmartSysApp.h"
-#include "digital_output_behavior.hpp"
 #include "issp_device.hpp"
 #include "issp154_network_manager.hpp"
 #include "issp154_report_executor.hpp"
@@ -10,8 +9,6 @@
 namespace
 {
 constexpr std::uint32_t kExampleDeviceId = 0x15400002;
-constexpr std::uint8_t kExampleEndpointId = 1;
-constexpr std::uint8_t kExampleEventType = 2;
 
 // A consumer supplies its own source of report identities. The example is a
 // compile/link integration proof and never publishes, so a deterministic
@@ -49,14 +46,6 @@ extern "C" void app_main()
         .reportIdGenerator = &exampleReportId,
         .reportIdGeneratorContext = nullptr,
     };
-    static const issp::DigitalOutputConfig behaviorConfig = {
-        .endpointId = kExampleEndpointId,
-        .eventType = kExampleEventType,
-        .pin = GPIO_NUM_NC,
-        .activeLevel = 1,
-        .initialState = false,
-        .reportOnStart = false,
-    };
 
     // Constructing the public types proves compile and link integration. The
     // example deliberately does not call begin(), start(), initializeNetwork()
@@ -65,11 +54,9 @@ extern "C" void app_main()
     static issp::Issp154NetworkManager networkManager(transport,
                                                        kExampleDeviceId);
     static issp::IsspDevice device(deviceConfig, transport);
-    static issp::DigitalOutputBehavior behavior(behaviorConfig);
     static issp::Issp154ReportExecutor reportExecutor(device, transport);
 
     (void)networkManager;
-    (void)behavior;
     (void)reportExecutor;
 
     facadeApp.addSwitchPlugCapability({
@@ -77,8 +64,7 @@ extern "C" void app_main()
         .activeHigh = true,
         .initialState = false,
         .reportOnStart = false,
-        .endpointId = kExampleEndpointId,
-        .eventType = kExampleEventType,
+        .endpointId = 1,
     });
     facadeApp.configureFactoryResetButton({
         .pin = GPIO_NUM_NC,

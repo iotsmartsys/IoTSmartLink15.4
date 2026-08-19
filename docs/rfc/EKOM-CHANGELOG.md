@@ -819,3 +819,61 @@ As fontes locais de governança foram reconciliadas com o EKOM 4.6 em
 18/08/2026. A alteração é exclusivamente documental; nenhum código, teste,
 dependência, build, Action, flash, monitor ou hardware foi alterado ou
 executado. O encerramento da transação permanece reservado ao Arquiteto.
+
+## EKOM-CHG-0009 — Remediação dos débitos técnicos aceitos
+
+**Estado:** Fechada [`Closed`] — v0.2 Concluída [`Done`] por decisão do
+Arquiteto em 19/08/2026
+
+**Especificação relacionada:** `docs/specs/Technical-Debt-Remediation.md`
+(`EKOM-DEBT-REMEDIATION-001`)
+
+**Objetivo:** contratar a remediação de `EKOM-DEBT-0001` a `EKOM-DEBT-0005` em
+recorte único, determinado pelo Arquiteto.
+
+### Decisões relacionadas
+
+- recorte único cobrindo os cinco débitos aceitos;
+- `eventType` sai das configurações públicas das capabilities existentes, a
+  fachada injeta o tipo e a unicidade passa a ser por endpoint, com os endpoints
+  vigentes congelados;
+- `smart_sys_app_test` integra explicitamente o recorte, com dois grupos de
+  casos vinculados a critérios de aceite;
+- `ISSP-Configurable-Bootstrap.md` passa a apontar a ADR-0005 como origem da
+  extensão de sua semântica;
+- a tabela de tipos de evento do coordenador ganha guarda em tempo de build
+  contra divergência do registro da ADR-0005;
+- a observabilidade da telemetria de bateria usa o tipo de evento 4, alocado por
+  emenda da ADR-0005 aceita pelo Arquiteto em 18/08/2026, em capability própria
+  no endpoint 3, com valores 0 calibrado, 1 aproximado e 2 inerte, sem ampliar o
+  domínio do evento 3; a reserva permanece global quando a bateria está
+  desabilitada;
+- `client_154/sdkconfig` é alinhado à baseline da decisão A9, preservando
+  `Firmware-Variants-Menuconfig.md`.
+
+### Relações e limites
+
+A proposta altera o bootstrap, a especificação de bateria e a de features
+configuráveis, e depende da alocação do tipo 4 já aceita na ADR-0005. Preserva
+layout wire, `EKM-GAP-0002`, commissioning, registry, ACK, retry,
+identidade de report e as fronteiras entre `client_154` e `coordinator_154`.
+
+A Autoria registrou a ressalva de que o bloco de observabilidade atravessa
+client, wire, coordenador e host sob lacuna de protocolo ainda `Partial`. A
+análise da v0.1 não identificou pré-requisito arquitetural e bloqueou somente a
+alocação normativa então pendente. O Arquiteto determinou a inclusão no recorte
+único e aceitou a emenda que remove essa pendência.
+
+### Estado
+
+Especificação v0.2 registrada em Rascunho [`Draft`] em 18/08/2026. A análise da
+v0.2 concluiu `Ready` e a implementação foi autorizada pelo Arquiteto em
+19/08/2026. Duas revisões devolveram achados materiais ao estágio de
+Implementação, e a correção final foi registrada em `7eb191f`.
+
+O Arquiteto declarou em 19/08/2026 que executou as validações em hardware,
+validou a implementação e considerou a especificação integralmente atendida.
+Com essa decisão, a v0.2 foi encerrada como Concluída [`Done`] e
+`EKOM-DEBT-0001` a `EKOM-DEBT-0005` foram quitados. O registro de encerramento
+está em
+`docs/reports/technical-debt-remediation/validation/2026-08-19T184122Z-v0.2-7eb191f-hardware-validation-and-closure.md`.

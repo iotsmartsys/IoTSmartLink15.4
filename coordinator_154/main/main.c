@@ -444,6 +444,8 @@ static const char *type_from_event(uint8_t event_type)
         return "Switch Plug";
     case IOT154_EVENT_BATTERY_LEVEL_PERCENT:
         return "Battery Level (%)";
+    case IOT154_EVENT_BATTERY_TELEMETRY_STATE:
+        return "Battery Telemetry State";
     default:
         return "Device";
     }
@@ -462,6 +464,21 @@ static const char *value_from_event(uint8_t event_type, uint8_t value, char *fal
             return "toggle";
         }
         return value != 0 ? "on" : "off";
+    }
+
+    if (event_type == IOT154_EVENT_BATTERY_TELEMETRY_STATE)
+    {
+        switch (value)
+        {
+        case 0:
+            return "calibrated";
+        case 1:
+            return "approximate";
+        case 2:
+            return "inert";
+        default:
+            break;
+        }
     }
 
     snprintf(fallback, fallback_len, "%u", value);
