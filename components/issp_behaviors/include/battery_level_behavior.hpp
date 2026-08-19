@@ -30,6 +30,13 @@ class BatteryLevelBehavior final : public IDeviceBehavior
 public:
     static constexpr std::uint8_t kEventType = 3;
 
+    enum class TelemetryState : std::uint8_t
+    {
+        Calibrated = 0,
+        Approximate = 1,
+        Inert = 2,
+    };
+
     explicit BatteryLevelBehavior(const BatteryLevelConfig &config);
     ~BatteryLevelBehavior() override;
 
@@ -43,6 +50,7 @@ public:
     bool accepts(const IsspCommand &command) const override;
     IsspCommandResult handle(const IsspCommand &command) override;
     IsspResult quiesce() override;
+    TelemetryState telemetryState() const;
 
 private:
     static constexpr adc_bitwidth_t kBitwidth = ADC_BITWIDTH_12;

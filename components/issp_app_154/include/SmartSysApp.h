@@ -21,7 +21,6 @@ struct SwitchConfig
     bool initialState;
     bool reportOnStart;
     std::uint8_t endpointId;
-    std::uint8_t eventType;
 };
 
 enum class DigitalInputPull : std::uint8_t
@@ -38,7 +37,6 @@ struct DoorSensorConfig
     DigitalInputPull pull;
     bool reportOnStart;
     std::uint8_t endpointId;
-    std::uint8_t eventType;
     std::uint32_t samplePeriodMs;
     std::uint8_t samplesPerWindow;
     std::uint8_t majorityThreshold;
@@ -162,6 +160,12 @@ class BatteryLevelCapability
 {
 public:
     BatteryLevelCapability() = default;
+};
+
+class BatteryTelemetryStateCapability
+{
+public:
+    BatteryTelemetryStateCapability() = default;
 };
 
 } // namespace iotsmartsys::core

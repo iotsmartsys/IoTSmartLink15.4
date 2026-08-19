@@ -95,6 +95,8 @@ SmartSysApp::Impl::Impl(const app::SmartSysAppConfig &config,
       batteryConfigs_{},
       batteryBehaviors_{},
       batteryCapabilities_{},
+      batteryStateBehaviors_{},
+      batteryStateCapabilities_{},
       batteryCount_(0),
       factoryResetConfigured_(false),
       factoryResetConfig_{},
@@ -148,20 +150,6 @@ void SmartSysApp::Impl::recordConfigurationFailure(AppResult result)
     }
 }
 
-bool SmartSysApp::Impl::hasDuplicateEndpoint(std::uint8_t endpointId,
-                                             std::uint8_t eventType) const
-{
-    for (std::size_t index = 0; index < behaviorCount_; ++index)
-    {
-        if (endpointEventPairs_[index].endpointId == endpointId &&
-            endpointEventPairs_[index].eventType == eventType)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
 bool SmartSysApp::Impl::hasOccupiedEndpoint(std::uint8_t endpointId) const
 {
     for (std::size_t index = 0; index < behaviorCount_; ++index)
@@ -187,7 +175,7 @@ SmartSysApp::Impl::addSwitchPlugCapability(const app::SwitchConfig &config)
         recordConfigurationFailure(AppResult::InvalidArgument);
         return nullptr;
     }
-    if (hasDuplicateEndpoint(config.endpointId, config.eventType))
+    if (hasOccupiedEndpoint(config.endpointId))
     {
         recordConfigurationFailure(AppResult::InvalidArgument);
         return nullptr;
@@ -205,7 +193,7 @@ SmartSysApp::Impl::addSwitchPlugCapability(const app::SwitchConfig &config)
 
     const issp::DigitalOutputConfig behaviorConfig = {
         .endpointId = config.endpointId,
-        .eventType = config.eventType,
+        .eventType = issp::DigitalOutputBehavior::kEventType,
         .pin = config.pin,
         .activeLevel = config.activeHigh ? 1U : 0U,
         .initialState = config.initialState,
@@ -218,7 +206,8 @@ SmartSysApp::Impl::addSwitchPlugCapability(const app::SwitchConfig &config)
         &switchStateThunk, static_cast<void *>(&*switchBehaviors_[switchCount_]));
     core::SwitchPlugCapability *capability = &*switchCapabilities_[switchCount_];
     behaviors_[behaviorCount_] = &*switchBehaviors_[switchCount_];
-    endpointEventPairs_[behaviorCount_] = {config.endpointId, config.eventType};
+    endpointEventPairs_[behaviorCount_] = {
+        config.endpointId, issp::DigitalOutputBehavior::kEventType};
     ++behaviorCount_;
     ++switchCount_;
     return capability;
@@ -244,7 +233,7 @@ SmartSysApp::Impl::addDoorSensorCapability(const app::DoorSensorConfig &config)
         recordConfigurationFailure(AppResult::InvalidArgument);
         return nullptr;
     }
-    if (hasDuplicateEndpoint(config.endpointId, config.eventType))
+    if (hasOccupiedEndpoint(config.endpointId))
     {
         recordConfigurationFailure(AppResult::InvalidArgument);
         return nullptr;
@@ -262,7 +251,7 @@ SmartSysApp::Impl::addDoorSensorCapability(const app::DoorSensorConfig &config)
 
     const issp::DigitalInputConfig behaviorConfig = {
         .endpointId = config.endpointId,
-        .eventType = config.eventType,
+        .eventType = issp::DigitalInputBehavior::kEventType,
         .pin = config.pin,
         .activeLevel = config.activeHigh ? 1U : 0U,
         .pull = mapInputPull(config.pull),
@@ -281,7 +270,8 @@ SmartSysApp::Impl::addDoorSensorCapability(const app::DoorSensorConfig &config)
     core::DoorSensorCapability *capability =
         &*doorSensorCapabilities_[doorSensorCount_];
     behaviors_[behaviorCount_] = &*doorSensorBehaviors_[doorSensorCount_];
-    endpointEventPairs_[behaviorCount_] = {config.endpointId, config.eventType};
+    endpointEventPairs_[behaviorCount_] = {
+        config.endpointId, issp::DigitalInputBehavior::kEventType};
     ++behaviorCount_;
     ++doorSensorCount_;
     return capability;
@@ -310,7 +300,8 @@ SmartSysApp::Impl::addBatteryLevelCapability(const app::BatteryLevelConfig &conf
         recordConfigurationFailure(AppResult::InvalidArgument);
         return nullptr;
     }
-    if (behaviorCount_ >= kMaxCapabilities || batteryCount_ >= kMaxCapabilities)
+    if (hasOccupiedEndpoint(3U) || behaviorCount_ + 1U >= kMaxCapabilities ||
+        batteryCount_ >= kMaxCapabilities)
     {
         recordConfigurationFailure(AppResult::Failed);
         return nullptr;
@@ -339,6 +330,13 @@ SmartSysApp::Impl::addBatteryLevelCapability(const app::BatteryLevelConfig &conf
     behaviors_[behaviorCount_] = &*batteryBehaviors_[batteryCount_];
     endpointEventPairs_[behaviorCount_] = {
         config.endpointId, issp::BatteryLevelBehavior::kEventType};
+    ++behaviorCount_;
+    batteryStateBehaviors_[batteryCount_].emplace(
+        3U, *batteryBehaviors_[batteryCount_]);
+    batteryStateCapabilities_[batteryCount_].emplace();
+    behaviors_[behaviorCount_] = &*batteryStateBehaviors_[batteryCount_];
+    endpointEventPairs_[behaviorCount_] = {3U,
+                                            issp::BatteryTelemetryStateBehavior::kEventType};
     ++behaviorCount_;
     ++batteryCount_;
     return capability;

@@ -822,7 +822,7 @@ executado. O encerramento da transação permanece reservado ao Arquiteto.
 
 ## EKOM-CHG-0009 — Remediação dos débitos técnicos aceitos
 
-**Estado:** Aberta [`Open`]
+**Estado:** Em andamento [`In Progress`]
 
 **Especificação relacionada:** `docs/specs/Technical-Debt-Remediation.md`
 (`EKOM-DEBT-REMEDIATION-001`)
@@ -866,8 +866,6 @@ alocação normativa então pendente. O Arquiteto determinou a inclusão no reco
 ### Estado
 
 Especificação v0.2 registrada em Rascunho [`Draft`] em 18/08/2026. A análise da
-v0.1 concluiu `Not Ready — Specification Defect`; o Arquiteto aceitou a emenda
-da ADR-0005 que remove seu único bloqueador. A v0.2 aguarda nova análise de
-implementabilidade. Nenhuma implementação, build, teste, flash, monitor ou
-hardware foi executado nesta atuação. Nenhum débito foi quitado; a quitação
-permanece reservada ao Arquiteto.
+v0.2 concluiu `Ready` e a implementação foi autorizada pelo Arquiteto em
+19/08/2026. A implementação permanece `In Progress`; nenhum débito foi
+quitado e a quitação permanece reservada ao Arquiteto.

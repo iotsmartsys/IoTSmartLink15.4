@@ -8,9 +8,9 @@
 
 **Estado normativo:** `Active`
 
-**Estado da implementação:** Não iniciada
+**Estado da implementação:** Em andamento [`In Progress`]
 
-**Estado do workflow:** Rascunho [`Draft`]
+**Estado do workflow:** Implementação [`In Progress`]
 
 **Análise de implementabilidade:** Pendente para v0.2. A análise da v0.1 foi
 concluída como Não pronta — defeito da especificação [`Not Ready — Specification

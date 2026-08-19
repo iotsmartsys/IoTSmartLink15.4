@@ -58,6 +58,16 @@ bool BatteryLevelBehavior::validConfig() const
            config_.rBottomOhms != 0U && config_.endpointId != 0U;
 }
 
+BatteryLevelBehavior::TelemetryState BatteryLevelBehavior::telemetryState() const
+{
+    if (inert_ || adcUnit_ == nullptr)
+    {
+        return TelemetryState::Inert;
+    }
+    return calibration_ != nullptr ? TelemetryState::Calibrated
+                                    : TelemetryState::Approximate;
+}
+
 bool BatteryLevelBehavior::initializeAdc()
 {
     const adc_oneshot_unit_init_cfg_t unitConfig = {

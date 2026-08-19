@@ -22,6 +22,7 @@
 
 #include "SmartSysApp.h"
 #include "battery_level_behavior.hpp"
+#include "battery_telemetry_state_behavior.hpp"
 #include "digital_input_behavior.hpp"
 #include "digital_output_behavior.hpp"
 #include "esp_timer.h"
@@ -62,7 +63,6 @@ struct SmartSysApp::Impl
     alignas(alignof(std::max_align_t)) unsigned char hardwareStorage_[kHardwareStorageBytes];
 
     void recordConfigurationFailure(AppResult result);
-    bool hasDuplicateEndpoint(std::uint8_t endpointId, std::uint8_t eventType) const;
     bool hasOccupiedEndpoint(std::uint8_t endpointId) const;
     AppResult validateBatterySampling() const;
     SetupResult fail(SetupStage stage, AppResult result);
@@ -187,6 +187,10 @@ struct SmartSysApp::Impl
         batteryBehaviors_;
     std::array<std::optional<core::BatteryLevelCapability>, kMaxCapabilities>
         batteryCapabilities_;
+    std::array<std::optional<issp::BatteryTelemetryStateBehavior>, kMaxCapabilities>
+        batteryStateBehaviors_;
+    std::array<std::optional<core::BatteryTelemetryStateCapability>, kMaxCapabilities>
+        batteryStateCapabilities_;
     std::size_t batteryCount_;
 
     bool factoryResetConfigured_;

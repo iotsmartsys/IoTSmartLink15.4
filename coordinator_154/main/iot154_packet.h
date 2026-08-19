@@ -27,12 +27,20 @@ extern "C" {
 #define IOT154_EVENT_DOOR 1
 #define IOT154_EVENT_POWER 2
 #define IOT154_EVENT_BATTERY_LEVEL_PERCENT 3
+#define IOT154_EVENT_BATTERY_TELEMETRY_STATE 4
 #define IOT154_ACK_STATUS_OK 0
 #define IOT154_ACK_STATUS_UNSUPPORTED 1
 #define IOT154_ACK_STATUS_INVALID 2
 #define IOT154_VALUE_OFF 0
 #define IOT154_VALUE_ON 1
 #define IOT154_VALUE_TOGGLE 2
+
+_Static_assert(IOT154_EVENT_DOOR == 1, "event registry mismatch: type 1");
+_Static_assert(IOT154_EVENT_POWER == 2, "event registry mismatch: type 2");
+_Static_assert(IOT154_EVENT_BATTERY_LEVEL_PERCENT == 3,
+               "event registry mismatch: type 3");
+_Static_assert(IOT154_EVENT_BATTERY_TELEMETRY_STATE == 4,
+               "event registry mismatch: type 4");
 
 #define IOT154_MAC_HEADER_LEN 9
 #define IOT154_MAC_HEADER_SHORT_EXT_LEN 15
