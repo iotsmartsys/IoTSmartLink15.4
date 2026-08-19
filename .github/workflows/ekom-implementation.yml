@@ -55,6 +55,9 @@ jobs:
       change_id: ${{ steps.validate_identity.outputs.change_id }}
       specification_path: ${{ steps.validate_identity.outputs.specification_path }}
       analysis_report_path: ${{ steps.validate_identity.outputs.analysis_report_path }}
+      execution_mode: ${{ steps.validate_identity.outputs.execution_mode }}
+      review_report_path: ${{ steps.validate_identity.outputs.review_report_path }}
+      reviewed_revision: ${{ steps.validate_identity.outputs.reviewed_revision }}
       implementation_report_path: ${{ steps.prepare_execution.outputs.implementation_report_path }}
       patch_sha256: ${{ steps.prepare_patch.outputs.patch_sha256 }}
 
@@ -162,6 +165,146 @@ jobs:
               name = path.stem.lower().replace("_", "-")
               return re.sub(r"[^a-z0-9-]", "", name)
 
+          def normalize_specification(text):
+              return re.sub(
+                  r"^(\*\*(?:Estado da implementação|Estado do workflow):\*\*).*$",
+                  r"\1 <estado-operacional>",
+                  text,
+                  flags=re.MULTILINE,
+              )
+
+          def added_files_in_commit(revision):
+              changes = git(
+                  "diff-tree",
+                  "--root",
+                  "--no-commit-id",
+                  "--name-status",
+                  "-r",
+                  revision,
+              ).stdout.splitlines()
+              added = []
+              for change in changes:
+                  fields = change.split("\t", 1)
+                  if len(fields) == 2 and fields[0] == "A":
+                      added.append(fields[1])
+              return changes, added
+
+          def validate_correction(
+              specification_path,
+              spec_slug,
+              analysis_report_path,
+              analyzed_revision,
+          ):
+              lineage = git("rev-list", "--parents", "-n", "1", "HEAD").stdout.split()
+              if len(lineage) != 2:
+                  raise ValueError(
+                      "a correção exige que o HEAD de revisão possua um único pai direto"
+                  )
+              head_revision, reviewed_revision = lineage
+
+              review_changes, review_additions = added_files_in_commit(head_revision)
+              review_prefix = f"docs/reports/{spec_slug}/review/"
+              review_paths = [
+                  path
+                  for path in review_additions
+                  if path.startswith(review_prefix) and path.endswith(".md")
+              ]
+              if len(review_changes) != 1 or len(review_paths) != 1:
+                  raise ValueError(
+                      "o HEAD deve adicionar exclusivamente um relatório de revisão"
+                  )
+
+              review_path = Path(review_paths[0])
+              review = review_path.read_text(encoding="utf-8")
+              required_review_fields = (
+                  "**Classe da fonte:** Relatório",
+                  "**Papel:** Engenheiro Revisor",
+              )
+              missing = [field for field in required_review_fields if field not in review]
+              if missing:
+                  raise ValueError(f"relatório de revisão sem campo: {missing[0]}")
+              if not re.search(
+                  rf"^\*\*Especificação:\*\*\s*`{re.escape(str(specification_path))}`(?:\s+v\S+)?\s*$",
+                  review,
+                  re.MULTILINE,
+              ):
+                  raise ValueError("a revisão não identifica a especificação corrente")
+
+              compact_review = " ".join(review.split())
+              if not re.search(
+                  r"\*\*Estado:\*\*\s*Concluído\b",
+                  review,
+                  re.MULTILINE,
+              ):
+                  raise ValueError("a revisão não está concluída")
+              if "**Defeito de implementação.**" not in review:
+                  raise ValueError("a revisão não classifica Defeito de implementação")
+              if not re.search(
+                  r"retorn\w*\s+ao\s+(?:estágio\s+de\s+)?Implementa(?:ção|dor)",
+                  compact_review,
+                  re.IGNORECASE,
+              ):
+                  raise ValueError("a revisão não devolve explicitamente ao Implementador")
+              if not re.search(r"ordem original", compact_review, re.IGNORECASE):
+                  raise ValueError("a revisão não preserva explicitamente a ordem original")
+              if re.search(
+                  r"\*\*(?:Defeito normativo|Defeito da especificação|Pré-requisito arquitetural)",
+                  review,
+                  re.IGNORECASE,
+              ):
+                  raise ValueError("a revisão também registra devolução fora da Implementação")
+
+              confronted = re.search(
+                  r"\bimplementação\s+`([0-9a-f]{7,40})`",
+                  review,
+                  re.IGNORECASE,
+              )
+              if not confronted:
+                  raise ValueError("a revisão não identifica a implementação confrontada")
+              confronted_revision = git(
+                  "rev-parse",
+                  f"{confronted.group(1)}^{{commit}}",
+              ).stdout.strip()
+              if confronted_revision != reviewed_revision:
+                  raise ValueError("a revisão não confronta seu commit-pai direto")
+              if f"-{reviewed_revision[:7]}-" not in review_path.name:
+                  raise ValueError("o nome da revisão não identifica a implementação confrontada")
+
+              _, implementation_additions = added_files_in_commit(reviewed_revision)
+              implementation_prefix = f"docs/reports/{spec_slug}/implementation/"
+              implementation_paths = [
+                  path
+                  for path in implementation_additions
+                  if path.startswith(implementation_prefix) and path.endswith(".md")
+              ]
+              if len(implementation_paths) != 1:
+                  raise ValueError(
+                      "o commit revisado deve adicionar exatamente um relatório de implementação"
+                  )
+
+              implementation_path = Path(implementation_paths[0])
+              implementation = git(
+                  "show",
+                  f"{reviewed_revision}:{implementation_path}",
+              ).stdout
+              required_implementation_fields = (
+                  "**Classe da fonte:** Relatório",
+                  "**Papel:** Engenheiro Implementador",
+                  f"**Especificação:** `{specification_path}`",
+                  f"**Revisão confrontada:** `{analyzed_revision}`",
+                  f"**Análise de entrada:** `{analysis_report_path}`",
+              )
+              missing = [
+                  field for field in required_implementation_fields
+                  if field not in implementation
+              ]
+              if missing:
+                  raise ValueError(
+                      f"relatório da implementação revisada sem vínculo: {missing[0]}"
+                  )
+
+              return str(review_path), reviewed_revision
+
           specification_matches = []
           for path in sorted(Path("docs/specs").glob("*.md")):
               if f"spec/{slug_for(path)}" == working_branch:
@@ -194,7 +337,7 @@ jobs:
           if not candidates:
               raise SystemExit("Nenhum relatório de análise foi encontrado para a especificação.")
 
-          current_spec_blob = git("rev-parse", f"HEAD:{specification_path}").stdout.strip()
+          current_specification = normalize_specification(specification)
           rejected = []
           selected = None
 
@@ -246,23 +389,12 @@ jobs:
                   ).returncode != 0:
                       raise ValueError("revisão fora da linhagem atual")
 
-                  analyzed_spec_blob = git(
-                      "rev-parse",
+                  analyzed_specification = git(
+                      "show",
                       f"{analyzed_revision}:{specification_path}",
-                  ).stdout.strip()
-                  if analyzed_spec_blob != current_spec_blob:
-                      raise ValueError("especificação alterada depois da análise")
-
-                  unanalyzed = git(
-                      "diff",
-                      "--name-only",
-                      f"{analyzed_revision}..HEAD",
-                      "--",
-                      ".",
-                      f":(exclude)docs/reports/{spec_slug}/analysis/**",
-                  ).stdout.strip()
-                  if unanalyzed:
-                      raise ValueError("há alterações posteriores fora dos relatórios de análise")
+                  ).stdout
+                  if normalize_specification(analyzed_specification) != current_specification:
+                      raise ValueError("especificação alterada normativamente depois da análise")
 
                   short_revision = analyzed_revision[:7]
                   if f"-{short_revision}-" not in report_path.name:
@@ -286,6 +418,32 @@ jobs:
                   f"classificação Ready: {report_path} ({classification})"
               )
 
+          unanalyzed = git(
+              "diff",
+              "--name-only",
+              f"{analyzed_revision}..HEAD",
+              "--",
+              ".",
+              f":(exclude)docs/reports/{spec_slug}/analysis/**",
+          ).stdout.strip()
+          execution_mode = "initial"
+          review_report_path = ""
+          reviewed_revision = ""
+          if unanalyzed:
+              try:
+                  review_report_path, reviewed_revision = validate_correction(
+                      specification_path,
+                      spec_slug,
+                      report_path,
+                      analyzed_revision,
+                  )
+                  execution_mode = "correction"
+              except (OSError, RuntimeError, ValueError) as error:
+                  raise SystemExit(
+                      "A branch possui delta posterior ao Ready, mas não forma "
+                      f"uma devolução válida da Revisão: {error}"
+                  )
+
           baseline_head = git("rev-parse", "HEAD").stdout.strip()
           outputs = {
               "change_id": change_id,
@@ -293,6 +451,9 @@ jobs:
               "analysis_report_path": str(report_path),
               "analyzed_revision": analyzed_revision,
               "baseline_head": baseline_head,
+              "execution_mode": execution_mode,
+              "review_report_path": review_report_path,
+              "reviewed_revision": reviewed_revision,
           }
           with Path(output_path).open("a", encoding="utf-8") as output:
               for key, value in outputs.items():
@@ -305,6 +466,10 @@ jobs:
               summary.write(f"- Especificação derivada: `{specification_path}`\n")
               summary.write(f"- Ready aplicável: `{report_path}`\n")
               summary.write(f"- Revisão normativa: `{analyzed_revision}`\n")
+              summary.write(f"- Modo: `{execution_mode}`\n")
+              if review_report_path:
+                  summary.write(f"- Revisão de entrada: `{review_report_path}`\n")
+                  summary.write(f"- Implementação revisada: `{reviewed_revision}`\n")
               summary.write(f"- Baseline da branch: `{baseline_head}`\n")
               summary.write("- Árvore inicial: limpa\n")
           PY
@@ -314,6 +479,9 @@ jobs:
           CHANGE_ID: ${{ steps.validate_identity.outputs.change_id }}
           SPECIFICATION_PATH: ${{ steps.validate_identity.outputs.specification_path }}
           ANALYSIS_REPORT_PATH: ${{ steps.validate_identity.outputs.analysis_report_path }}
+          EXECUTION_MODE: ${{ steps.validate_identity.outputs.execution_mode }}
+          REVIEW_REPORT_PATH: ${{ steps.validate_identity.outputs.review_report_path }}
+          REVIEWED_REVISION: ${{ steps.validate_identity.outputs.reviewed_revision }}
           WORKING_BRANCH: ${{ inputs.working_branch }}
           AUTHORIZED_BY: ${{ inputs.authorized_by }}
         run: |
@@ -323,6 +491,11 @@ jobs:
             echo "- Change ID: \`$CHANGE_ID\`"
             echo "- Especificação: \`$SPECIFICATION_PATH\`"
             echo "- Análise Ready: \`$ANALYSIS_REPORT_PATH\`"
+            echo "- Modo: \`$EXECUTION_MODE\`"
+            if [ -n "$REVIEW_REPORT_PATH" ]; then
+              echo "- Revisão de entrada: \`$REVIEW_REPORT_PATH\`"
+              echo "- Implementação revisada: \`$REVIEWED_REVISION\`"
+            fi
             echo "- Branch: \`$WORKING_BRANCH\`"
             echo "- Autorizada por: $AUTHORIZED_BY"
             echo "- Código e build canônico: autorizados"
@@ -413,7 +586,8 @@ jobs:
             3. .ekom-guidelines/roles/ENGENHEIRO-IMPLEMENTADOR.md;
             4. a especificação autorizada;
             5. o relatório Ready aplicável;
-            6. somente as fontes técnicas e normativas pertinentes.
+            6. quando o modo for `correction`, o relatório de revisão de entrada;
+            7. somente as fontes técnicas e normativas pertinentes.
 
             Os perfis canônicos governam a atuação. O pipeline já confirmou a
             identidade, a árvore limpa, a correspondência do Ready e a ordem
@@ -430,8 +604,19 @@ jobs:
             - Especificação: ${{ steps.validate_identity.outputs.specification_path }}
             - Revisão normativa autorizada: ${{ steps.validate_identity.outputs.analyzed_revision }}
             - Relatório Ready: ${{ steps.validate_identity.outputs.analysis_report_path }}
+            - Modo: ${{ steps.validate_identity.outputs.execution_mode }}
+            - Relatório de revisão de entrada: ${{ steps.validate_identity.outputs.review_report_path }}
+            - Implementação revisada: ${{ steps.validate_identity.outputs.reviewed_revision }}
             - Branch: ${{ inputs.working_branch }}
             - Autorizada por: ${{ inputs.authorized_by }}
+
+            No modo `correction`, preserve o trabalho válido existente e
+            reconcilie todos os achados materiais do relatório de revisão de
+            entrada. Não presuma quantidade fixa de achados e não limite o
+            confronto ao relatório: a especificação integral continua sendo o
+            contrato. Se o relatório introduzir decisão normativa, arquitetural
+            ou ampliação de escopo não autorizada, interrompa a obrigação afetada
+            conforme o perfil.
 
             Operações autorizadas:
             - alterar código, configuração e conhecimento dentro do recorte;
@@ -504,6 +689,9 @@ jobs:
           SPECIFICATION_PATH: ${{ steps.validate_identity.outputs.specification_path }}
           ANALYZED_REVISION: ${{ steps.validate_identity.outputs.analyzed_revision }}
           ANALYSIS_REPORT_PATH: ${{ steps.validate_identity.outputs.analysis_report_path }}
+          EXECUTION_MODE: ${{ steps.validate_identity.outputs.execution_mode }}
+          REVIEW_REPORT_PATH: ${{ steps.validate_identity.outputs.review_report_path }}
+          REVIEWED_REVISION: ${{ steps.validate_identity.outputs.reviewed_revision }}
           WORKING_BRANCH: ${{ inputs.working_branch }}
           AUTHORIZED_BY: ${{ inputs.authorized_by }}
         run: |
@@ -525,6 +713,11 @@ jobs:
             printf '**Especificação:** `%s`\n\n' "$SPECIFICATION_PATH"
             printf '**Revisão confrontada:** `%s`\n\n' "$ANALYZED_REVISION"
             printf '**Análise de entrada:** `%s`\n\n' "$ANALYSIS_REPORT_PATH"
+            printf '**Modo da atuação:** `%s`\n\n' "$EXECUTION_MODE"
+            if [ "$EXECUTION_MODE" = "correction" ]; then
+              printf '**Revisão de entrada:** `%s`\n\n' "$REVIEW_REPORT_PATH"
+              printf '**Implementação revisada:** `%s`\n\n' "$REVIEWED_REVISION"
+            fi
             printf '**Estado:** Em andamento [`In Progress`]\n\n'
             printf '**Branch:** `%s`\n\n' "$WORKING_BRANCH"
             printf '**Ordem do Arquiteto:** %s\n\n' "$AUTHORIZED_BY"
@@ -548,6 +741,9 @@ jobs:
         env:
           BASELINE_HEAD: ${{ steps.validate_identity.outputs.baseline_head }}
           ANALYZED_REVISION: ${{ steps.validate_identity.outputs.analyzed_revision }}
+          EXECUTION_MODE: ${{ steps.validate_identity.outputs.execution_mode }}
+          REVIEW_REPORT_PATH: ${{ steps.validate_identity.outputs.review_report_path }}
+          REVIEWED_REVISION: ${{ steps.validate_identity.outputs.reviewed_revision }}
           SPECIFICATION_PATH: ${{ steps.validate_identity.outputs.specification_path }}
           IMPLEMENTATION_REPORT_PATH: ${{ steps.prepare_execution.outputs.implementation_report_path }}
         run: |
@@ -608,12 +804,22 @@ jobs:
           python3 - \
             "$IMPLEMENTATION_REPORT_PATH" \
             "$SPECIFICATION_PATH" \
-            "$ANALYZED_REVISION" <<'PY'
+            "$ANALYZED_REVISION" \
+            "$EXECUTION_MODE" \
+            "$REVIEW_REPORT_PATH" \
+            "$REVIEWED_REVISION" <<'PY'
           import re
           import sys
           from pathlib import Path
 
-          report_path, specification_path, analyzed_revision = sys.argv[1:]
+          (
+              report_path,
+              specification_path,
+              analyzed_revision,
+              execution_mode,
+              review_report_path,
+              reviewed_revision,
+          ) = sys.argv[1:]
           report = Path(report_path).read_text(encoding="utf-8")
 
           required_fields = (
@@ -621,6 +827,7 @@ jobs:
               "**Papel:** Engenheiro Implementador",
               f"**Especificação:** `{specification_path}`",
               "**Revisão confrontada:**",
+              f"**Modo da atuação:** `{execution_mode}`",
               "**Estado:**",
               "**Execução do GitHub Actions:**",
               "**Branch:**",
@@ -632,6 +839,17 @@ jobs:
 
           if analyzed_revision not in report:
               raise SystemExit("O relatório não referencia a revisão normativa autorizada.")
+
+          if execution_mode == "correction":
+              correction_fields = (
+                  f"**Revisão de entrada:** `{review_report_path}`",
+                  f"**Implementação revisada:** `{reviewed_revision}`",
+              )
+              for field in correction_fields:
+                  if field not in report:
+                      raise SystemExit(f"Vínculo de correção ausente: {field}")
+          elif execution_mode != "initial":
+              raise SystemExit(f"Modo de implementação inválido: {execution_mode}")
 
           required_headings = (
               "Gates",
