@@ -46,6 +46,7 @@ não criam autoridade paralela.
 | Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 concluída; correlação exige `report_id` | Transporte, executor e coordenador | Análises, implementações e revisões v0.2/v0.3; comportamento funcional relatado validado em hardware | Implementado e validado no caminho funcional; cenários adversos da fronteira UART aceitos sem execução própria |
 | Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.5 Concluída [`Done`]; análise **Pronta** [`Ready`]; ADR-0005 `Accepted` | `components/issp_app_154`; `components/issp_behaviors`; `client_154/main/` | Análise, implementação e revisão v0.5; builds H2 concluídos; testes em hardware executados e aceitos pelo Arquiteto | Implementada, revisada e validada em hardware; riscos residuais preservados e débitos relacionados posteriormente quitados |
 | Features configuráveis do client | `docs/specs/Client-SDK-Configurable-Features.md` (`EKOM-CLIENT-CONFIG-001`); ADR-0002 | v0.1 Concluída [`Done`] por decisão do Arquiteto | `client_154/main/`; lifecycle periódico da bateria | Análise `Ready`; implementação recuperada da execução `32091116616`; hierarquia `App Client` validada pelo Arquiteto; builds H2 default, sem deep sleep, sem bateria e alternativo concluídos | Implementada e aceita pelo Arquiteto; testes, flash, monitor e hardware `Not Executed` |
+| Sensor de presença a bateria | `docs/specs/Presence-Sensor-Battery-H2.md` (`EKOM-PRESENCE-001`); ADR-0005 | v0.1 em Rascunho [`Draft`]; submetida à Análise de Implementabilidade | `client_154/main/`; `components/issp_app_154`; `components/issp_behaviors`; tradução de eventos do coordenador | Análise pendente; nenhuma implementação ou execução | Especificado; testes explicitamente fora do recorte |
 | Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001`; `EKOM-DEBT-0004` | Modelo e tipo 4 implementados; remediação v0.2 Concluída [`Done`] | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client`; `coordinator_154/main` | Análise `Ready`; implementações e revisões; builds H2/C6; validações em hardware aceitas pelo Arquiteto | Implementada e validada; débitos relacionados quitados |
 | Remediação de débitos técnicos | `docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`); ADR-0005 | v0.2 Concluída [`Done`] por decisão do Arquiteto | `components/issp_app_154`; `client_154/main`; `examples/issp_minimal_client`; `coordinator_154/main`; `client_154/sdkconfig` | Análise `Ready`; implementações e revisões; builds H2/C6; validações em hardware declaradas suficientes pelo Arquiteto | Implementação validada; `EKOM-DEBT-0001` a `EKOM-DEBT-0005` quitados |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
@@ -58,10 +59,11 @@ IoTSmartLink15.4
 │   ├── client_154 — ESP32-H2
 │   │   ├── Product firmware
 │   │   │   ├── Single smart plug
-│   │   │   └── Door sensor battery H2 — door_sensor_battery_h2, com wake_led e dry_contact_wakeup
+│   │   │   ├── Door sensor battery H2 — door_sensor_battery_h2, com wake_led e dry_contact_wakeup
+│   │   │   └── Presence sensor battery H2 — especificado, implementação não iniciada
 │   │   ├── Board model
 │   │   │   ├── Current client ESP32-H2 wiring
-│   │   │   └── Door Sensor Battery H2
+│   │   │   └── Battery Digital Sensor H2 — generalização especificada do board vigente
 │   │   └── SmartSysApp + componentes ISSP compartilhados
 │   │       ├── Deep sleep opt-in — timer e wakeup por contato (EXT1) implementados
 │   │       ├── Features via menu `App Client` — energia, bateria e GPIO de reset; v0.1 concluída
