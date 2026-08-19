@@ -46,8 +46,8 @@ não criam autoridade paralela.
 | Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 concluída; correlação exige `report_id` | Transporte, executor e coordenador | Análises, implementações e revisões v0.2/v0.3; comportamento funcional relatado validado em hardware | Implementado e validado no caminho funcional; cenários adversos da fronteira UART aceitos sem execução própria |
 | Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.5 Concluída [`Done`]; análise **Pronta** [`Ready`]; ADR-0005 `Accepted` | `components/issp_app_154`; `components/issp_behaviors`; `client_154/main/` | Análise, implementação e revisão v0.5; builds H2 concluídos; testes em hardware executados e aceitos pelo Arquiteto | Implementada, revisada e validada em hardware; riscos residuais e débitos preservados |
 | Features configuráveis do client | `docs/specs/Client-SDK-Configurable-Features.md` (`EKOM-CLIENT-CONFIG-001`); ADR-0002 | v0.1 Concluída [`Done`] por decisão do Arquiteto | `client_154/main/`; lifecycle periódico da bateria | Análise `Ready`; implementação recuperada da execução `32091116616`; hierarquia `App Client` validada pelo Arquiteto; builds H2 default, sem deep sleep, sem bateria e alternativo concluídos | Implementada e aceita pelo Arquiteto; testes, flash, monitor e hardware `Not Executed` |
-| Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001` | Modelo aceito em 14/08/2026; retrofit postergado | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client` | Nenhuma | Divergente do modelo nas capabilities existentes |
-| Remediação de débitos técnicos | `docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`); ADR-0005 | v0.1 em Rascunho [`Draft`]; análise pendente | `components/issp_app_154`; `client_154/main`; `examples/issp_minimal_client`; `coordinator_154/main`; `client_154/sdkconfig` | Nenhuma | Especificado; nenhum débito quitado |
+| Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001`; `EKOM-DEBT-0004` | Modelo aceito em 14/08/2026; emenda do tipo 4 aceita em 18/08/2026; retrofit postergado | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client`; `coordinator_154/main` | Nenhuma | Capabilities existentes e estado da telemetria ainda divergem do modelo |
+| Remediação de débitos técnicos | `docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`); ADR-0005 | v0.2 em Rascunho [`Draft`]; nova análise pendente | `components/issp_app_154`; `client_154/main`; `examples/issp_minimal_client`; `coordinator_154/main`; `client_154/sdkconfig` | Análise v0.1 `Not Ready`; bloqueador normativo removido na v0.2 | Especificado; nenhum débito quitado |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
 
 ## 3. Árvore de conhecimento
@@ -143,7 +143,7 @@ aceitação registra a postergação consciente; **não** torna conforme o que e
 em desconformidade nem altera evidência.
 
 A remediação dos cinco débitos está especificada em
-`docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`), v0.1
+`docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`), v0.2
 em Rascunho [`Draft`]. A existência da especificação não altera o estado de
 nenhum débito: todos permanecem `Accepted` até que o Arquiteto determine a
 quitação diante da implementação e da evidência.

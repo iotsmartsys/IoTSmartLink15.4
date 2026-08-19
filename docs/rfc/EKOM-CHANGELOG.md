@@ -843,25 +843,31 @@ recorte único, determinado pelo Arquiteto.
 - a tabela de tipos de evento do coordenador ganha guarda em tempo de build
   contra divergência do registro da ADR-0005;
 - a observabilidade da telemetria de bateria usa o tipo de evento 4, alocado por
-  emenda da ADR-0005, em capability própria no endpoint 3, com valores 0
-  calibrado, 1 aproximado e 2 inerte, sem ampliar o domínio do evento 3;
+  emenda da ADR-0005 aceita pelo Arquiteto em 18/08/2026, em capability própria
+  no endpoint 3, com valores 0 calibrado, 1 aproximado e 2 inerte, sem ampliar o
+  domínio do evento 3; a reserva permanece global quando a bateria está
+  desabilitada;
 - `client_154/sdkconfig` é alinhado à baseline da decisão A9, preservando
   `Firmware-Variants-Menuconfig.md`.
 
 ### Relações e limites
 
 A proposta altera o bootstrap, a especificação de bateria e a de features
-configuráveis, e depende de emenda aceita da ADR-0005 para a alocação do tipo 4.
-Preserva layout wire, `EKM-GAP-0002`, commissioning, registry, ACK, retry,
+configuráveis, e depende da alocação do tipo 4 já aceita na ADR-0005. Preserva
+layout wire, `EKM-GAP-0002`, commissioning, registry, ACK, retry,
 identidade de report e as fronteiras entre `client_154` e `coordinator_154`.
 
 A Autoria registrou a ressalva de que o bloco de observabilidade atravessa
-client, wire, coordenador e host sob lacuna de protocolo ainda `Partial`, e que
-a Análise de Implementabilidade pode classificá-lo como pré-requisito
-arquitetural. O Arquiteto determinou sua inclusão no recorte único.
+client, wire, coordenador e host sob lacuna de protocolo ainda `Partial`. A
+análise da v0.1 não identificou pré-requisito arquitetural e bloqueou somente a
+alocação normativa então pendente. O Arquiteto determinou a inclusão no recorte
+único e aceitou a emenda que remove essa pendência.
 
 ### Estado
 
-Especificação registrada em Rascunho [`Draft`] em 18/08/2026. Nenhuma análise,
-implementação, build, teste, flash, monitor ou hardware foi executado nesta
-atuação. Nenhum débito foi quitado; a quitação permanece reservada ao Arquiteto.
+Especificação v0.2 registrada em Rascunho [`Draft`] em 18/08/2026. A análise da
+v0.1 concluiu `Not Ready — Specification Defect`; o Arquiteto aceitou a emenda
+da ADR-0005 que remove seu único bloqueador. A v0.2 aguarda nova análise de
+implementabilidade. Nenhuma implementação, build, teste, flash, monitor ou
+hardware foi executado nesta atuação. Nenhum débito foi quitado; a quitação
+permanece reservada ao Arquiteto.

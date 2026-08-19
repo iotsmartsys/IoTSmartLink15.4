@@ -4,7 +4,7 @@
 
 **Classe da fonte:** Normativa
 
-**Versão:** 0.1
+**Versão:** 0.2
 
 **Estado normativo:** `Active`
 
@@ -12,11 +12,11 @@
 
 **Estado do workflow:** Rascunho [`Draft`]
 
-**Análise de implementabilidade:** Pendente
+**Análise de implementabilidade:** Pendente para v0.2. A análise da v0.1 foi
+concluída como Não pronta — defeito da especificação [`Not Ready — Specification
+Defect`]; seu bloqueador foi removido pela emenda aceita da ADR-0005.
 
-**Bloqueio arquitetural:** Nenhum declarado pela Autoria. A seção 5.4 depende de
-emenda aceita da ADR-0005; enquanto a emenda não for aceita, aquele bloco não é
-implementável.
+**Bloqueio arquitetural:** Nenhum declarado pela Autoria.
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -40,9 +40,9 @@ rastreada do `client_154`
 - Altera [`Amends`] `docs/specs/Client-SDK-Configurable-Features.md@v0.1` —
   substitui a exclusão explícita de `client_154/sdkconfig` do recorte por seu
   alinhamento à baseline declarada;
-- Depende de [`Depends On`] `docs/adr/ADR-0005-CAPABILITY-IDENTITY.md` com
-  emenda aceita que aloque o tipo de evento 4; sem essa aceitação, a seção 5.4
-  não é implementável;
+- Depende de [`Depends On`] `docs/adr/ADR-0005-CAPABILITY-IDENTITY.md`, cuja
+  emenda aceita em 18/08/2026 aloca globalmente o tipo de evento 4 à capability
+  de estado da telemetria de bateria;
 - Preserva `docs/specs/Firmware-Variants-Menuconfig.md` e sua decisão A9,
   `docs/specs/ISSP-Architecture.md`, `docs/specs/ISSP-Reusable-Components.md`,
   `docs/specs/Client-Deep-Sleep.md`, `docs/specs/ISSP-Report-Identity.md`,
@@ -92,7 +92,7 @@ por tipo de evento próprio.
 - layout wire, tamanho, offsets, checksum, endianness e encerramento de
   `EKM-GAP-0002`;
 - commissioning, pareamento, registry, ACK, retry e identidade de report;
-- alocação de tipos de evento além do previsto na seção 5.4;
+- alocação de tipos de evento além do previsto na seção 4.4;
 - alteração da faixa elétrica, química, de média, de variação ou do intervalo da
   capability de nível de bateria;
 - alteração de produto, board, GPIO, polaridade, debounce, factory reset, wake
@@ -121,11 +121,10 @@ permanecem restritos a `client_154/main`.
 fachada, transporte de reports e tradução de evento no coordenador, todos
 vigentes.
 
-**Preparação arquitetural separada:** Não aplicável. A seção 5.4 não cria
+**Preparação arquitetural separada:** Não aplicável. A seção 4.4 não cria
 lifecycle, dono de execução, persistência ou API transversal novos: ela compõe
-uma capability adicional pelos mecanismos existentes. Sua única dependência
-externa é a alocação do tipo de evento 4 por emenda da ADR-0005, registrada
-como `Depends On`.
+uma capability adicional pelos mecanismos existentes. O tipo de evento 4 já
+está alocado pela emenda aceita da ADR-0005, registrada como `Depends On`.
 
 ## 4. Requisitos
 
@@ -259,8 +258,7 @@ setup inicializa a capability de bateria
 → estado publicado quando determinado e a cada mudança
 ```
 
-Registro dos tipos de evento após esta especificação, sujeito à emenda da
-ADR-0005:
+Registro dos tipos de evento conforme a ADR-0005 emendada:
 
 | Tipo | Capability | Endpoint vigente | Domínio do valor |
 |---|---|---|---|
@@ -420,9 +418,9 @@ monitor e validação em hardware do estado da telemetria permanecem
 
 ## 8. Conhecimento afetado
 
-- `docs/adr/ADR-0005-CAPABILITY-IDENTITY.md`: exige emenda aceita pelo Arquiteto
-  alocando o tipo de evento 4 e atualizando a seção de estado divergente quando
-  a remediação for concluída;
+- `docs/adr/ADR-0005-CAPABILITY-IDENTITY.md`: emendada e aceita pelo Arquiteto
+  para alocar globalmente o tipo de evento 4; sua seção de estado divergente é
+  atualizada novamente quando a remediação for concluída;
 - `docs/specs/ISSP-Configurable-Bootstrap.md`: emendado conforme `DEBTREM-008` e
   `DEBTREM-009`;
 - `docs/specs/Client-Battery-Level.md`: emendado quanto à observabilidade de
@@ -468,20 +466,18 @@ monitor e validação em hardware do estado da telemetria permanecem
 - `EKOM-DEBT-0004` incluído nesta fonte, apesar da ressalva de que sua parte
   atravessa client, wire, coordenador e host sob `EKM-GAP-0002` `Partial`;
 - observabilidade por tipo de evento 4 no endpoint 3, com valores 0, 1 e 2;
+- emenda da ADR-0005 aceita, reservando globalmente o tipo de evento 4 ao estado
+  da telemetria de bateria, sem reutilização quando a bateria estiver
+  desabilitada;
 - guarda de `EKOM-DEBT-0003` em tempo de build;
 - `EKOM-DEBT-0005` quitado por alinhamento do `sdkconfig` à baseline da decisão
   A9.
 
-**Solução proposta:** conforme as seções 4 a 7. A Autoria recomenda que a
-emenda da ADR-0005 seja aceita antes da ordem de implementação, para que a seção
-4.4 não permaneça dependente de decisão pendente durante a execução.
+**Solução proposta:** conforme as seções 4 a 7. A emenda aceita da ADR-0005
+remove a dependência normativa que bloqueou a análise da v0.1.
 
-**Decisões pendentes:**
-
-- aceitação, pelo Arquiteto, da emenda da ADR-0005 que aloca o tipo de evento 4
-  e fixa o endpoint 3 para a capability de estado da telemetria;
-- momento da quitação de cada débito no `KNOWLEDGE-MAP.md`, após implementação e
-  evidência.
+**Decisão pendente:** momento da quitação de cada débito no
+`KNOWLEDGE-MAP.md`, após implementação e evidência.
 
 **Relações:** `EKOM-DEBT-0001` a `EKOM-DEBT-0005`; ADR-0005; ADR-0001;
 `EKM-GAP-0002`; `docs/specs/Client-Battery-Level.md`;
