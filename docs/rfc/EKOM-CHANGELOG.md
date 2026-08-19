@@ -819,3 +819,49 @@ As fontes locais de governança foram reconciliadas com o EKOM 4.6 em
 18/08/2026. A alteração é exclusivamente documental; nenhum código, teste,
 dependência, build, Action, flash, monitor ou hardware foi alterado ou
 executado. O encerramento da transação permanece reservado ao Arquiteto.
+
+## EKOM-CHG-0009 — Remediação dos débitos técnicos aceitos
+
+**Estado:** Aberta [`Open`]
+
+**Especificação relacionada:** `docs/specs/Technical-Debt-Remediation.md`
+(`EKOM-DEBT-REMEDIATION-001`)
+
+**Objetivo:** contratar a remediação de `EKOM-DEBT-0001` a `EKOM-DEBT-0005` em
+recorte único, determinado pelo Arquiteto.
+
+### Decisões relacionadas
+
+- recorte único cobrindo os cinco débitos aceitos;
+- `eventType` sai das configurações públicas das capabilities existentes, a
+  fachada injeta o tipo e a unicidade passa a ser por endpoint, com os endpoints
+  vigentes congelados;
+- `smart_sys_app_test` integra explicitamente o recorte, com dois grupos de
+  casos vinculados a critérios de aceite;
+- `ISSP-Configurable-Bootstrap.md` passa a apontar a ADR-0005 como origem da
+  extensão de sua semântica;
+- a tabela de tipos de evento do coordenador ganha guarda em tempo de build
+  contra divergência do registro da ADR-0005;
+- a observabilidade da telemetria de bateria usa o tipo de evento 4, alocado por
+  emenda da ADR-0005, em capability própria no endpoint 3, com valores 0
+  calibrado, 1 aproximado e 2 inerte, sem ampliar o domínio do evento 3;
+- `client_154/sdkconfig` é alinhado à baseline da decisão A9, preservando
+  `Firmware-Variants-Menuconfig.md`.
+
+### Relações e limites
+
+A proposta altera o bootstrap, a especificação de bateria e a de features
+configuráveis, e depende de emenda aceita da ADR-0005 para a alocação do tipo 4.
+Preserva layout wire, `EKM-GAP-0002`, commissioning, registry, ACK, retry,
+identidade de report e as fronteiras entre `client_154` e `coordinator_154`.
+
+A Autoria registrou a ressalva de que o bloco de observabilidade atravessa
+client, wire, coordenador e host sob lacuna de protocolo ainda `Partial`, e que
+a Análise de Implementabilidade pode classificá-lo como pré-requisito
+arquitetural. O Arquiteto determinou sua inclusão no recorte único.
+
+### Estado
+
+Especificação registrada em Rascunho [`Draft`] em 18/08/2026. Nenhuma análise,
+implementação, build, teste, flash, monitor ou hardware foi executado nesta
+atuação. Nenhum débito foi quitado; a quitação permanece reservada ao Arquiteto.

@@ -47,6 +47,7 @@ não criam autoridade paralela.
 | Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.5 Concluída [`Done`]; análise **Pronta** [`Ready`]; ADR-0005 `Accepted` | `components/issp_app_154`; `components/issp_behaviors`; `client_154/main/` | Análise, implementação e revisão v0.5; builds H2 concluídos; testes em hardware executados e aceitos pelo Arquiteto | Implementada, revisada e validada em hardware; riscos residuais e débitos preservados |
 | Features configuráveis do client | `docs/specs/Client-SDK-Configurable-Features.md` (`EKOM-CLIENT-CONFIG-001`); ADR-0002 | v0.1 Concluída [`Done`] por decisão do Arquiteto | `client_154/main/`; lifecycle periódico da bateria | Análise `Ready`; implementação recuperada da execução `32091116616`; hierarquia `App Client` validada pelo Arquiteto; builds H2 default, sem deep sleep, sem bateria e alternativo concluídos | Implementada e aceita pelo Arquiteto; testes, flash, monitor e hardware `Not Executed` |
 | Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001` | Modelo aceito em 14/08/2026; retrofit postergado | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client` | Nenhuma | Divergente do modelo nas capabilities existentes |
+| Remediação de débitos técnicos | `docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`); ADR-0005 | v0.1 em Rascunho [`Draft`]; análise pendente | `components/issp_app_154`; `client_154/main`; `examples/issp_minimal_client`; `coordinator_154/main`; `client_154/sdkconfig` | Nenhuma | Especificado; nenhum débito quitado |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
 
 ## 3. Árvore de conhecimento
@@ -140,6 +141,12 @@ indicar o destino do conhecimento correspondente.
 Registro canônico dos débitos aceitos, conforme a `ADR-0013` do EKOM 4.4. A
 aceitação registra a postergação consciente; **não** torna conforme o que está
 em desconformidade nem altera evidência.
+
+A remediação dos cinco débitos está especificada em
+`docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`), v0.1
+em Rascunho [`Draft`]. A existência da especificação não altera o estado de
+nenhum débito: todos permanecem `Accepted` até que o Arquiteto determine a
+quitação diante da implementação e da evidência.
 
 | ID | Estado | Condição | Alcance |
 |---|---|---|---|
