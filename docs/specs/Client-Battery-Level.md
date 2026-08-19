@@ -23,7 +23,7 @@ identificado na v0.4.
 
 **Responsável arquitetural:** Marcelo Miranda
 
-**Última atualização:** 15/08/2026
+**Última atualização:** 19/08/2026
 
 **Escopo:** `client_154`, fachada `SmartSysApp`, product firmware e board model
 
@@ -59,6 +59,10 @@ identificado na v0.4.
   `docs/specs/ISSP-Reusable-Components.md` e
   `docs/specs/ISSP-Report-Identity.md` — nenhuma mudança de wire, de versão de
   protocolo, de checksum, de sequência ou de identidade de report.
+- Alterada por [`Amended By`] `docs/specs/Technical-Debt-Remediation.md@v0.2`
+  — `BATTERY-015` e `BATTERY-016` passam a ser observáveis pelo host pela
+  capability separada de estado da telemetria, sem ampliar o domínio do evento
+  de nível de bateria.
 
 Esta especificação **não** emenda `Client-Deep-Sleep.md`. A configuração da
 capability vive fora de `DeepSleepConfig`, de modo que nenhuma versão em
@@ -108,7 +112,8 @@ concreto. Alterar a seção 8 não exige emendar as seções 4 a 7.
 - carga, proteção, balanceamento ou gestão de bateria;
 - alteração do protocolo ISSP, do wire, do ACK, do retry ou da identidade de
   report;
-- alteração do coordenador ou do host;
+- alteração do coordenador ou do host além da observabilidade estreita
+  acrescentada por `Technical-Debt-Remediation.md@v0.2`;
 - light sleep, fontes de wakeup e política de energia, que pertencem a
   `Client-Deep-Sleep.md`;
 - qualquer decisão sobre o projeto ESP-IDF da raiz, que permanece não
@@ -147,8 +152,10 @@ com temporizador próprio; `board_model.hpp` e a composição em
    alcançar `Running` prova que todos tiveram sucesso. A capability de bateria é
    exceção: telemetria não deve impedir a função principal do produto, e um
    sensor de porta com medição defeituosa continua reportando porta. O custo
-   aceito é que a ausência da capability é silenciosa para o host e observável
-   apenas em log local.
+   originalmente aceito de observabilidade apenas em log local foi substituído
+   pela capability separada de estado contratada em
+   `Technical-Debt-Remediation.md@v0.2`; a função principal continua sem ser
+   bloqueada.
 
 ### 3.2 Limite de escopo funcional
 
@@ -214,11 +221,14 @@ valores concretos.
 - **`BATTERY-015`:** calibração de ADC indisponível não impede a operação; a
   capability converte a leitura bruta linearmente entre zero e a tensão de fundo
   de escala correspondente à atenuação declarada pelo board, registra a
-  degradação e continua publicando.
+  degradação, publica o estado aproximado pela capability separada definida em
+  `Technical-Debt-Remediation.md@v0.2` e continua publicando o nível.
 - **`BATTERY-016`:** falha ao configurar a unidade ou o canal do ADC no início
   da capability não impede o dispositivo de alcançar `Running`. A capability
-  permanece inerte, sem publicar, e a condição é registrada em log local;
-  nenhuma outra capability e nenhum estágio de `setup()` é afetado.
+  de nível permanece inerte, sem publicar evento 3; a condição é registrada em
+  log local e publicada como estado inerte pela capability separada definida em
+  `Technical-Debt-Remediation.md@v0.2`. Nenhuma outra capability e nenhum
+  estágio de `setup()` é afetado.
 - **`BATTERY-017`:** o report de bateria não integra a evidência de admissão de
   deep sleep. Sua publicação segue as regras de drenagem de reports pendentes já
   contratadas em `Client-Deep-Sleep.md`, mas o ciclo acordado nunca aguarda por
@@ -392,15 +402,16 @@ o host como 0%, e não como silêncio.
 linearmente entre zero e a tensão de fundo de escala correspondente à atenuação
 que o board declara, obtida da fonte do alvo; nenhum valor literal de fundo de
 escala pertence a esta especificação, porque ele varia com a atenuação e com o
-alvo. A degradação é registrada em log e a publicação continua. O host não
-distingue valor calibrado de aproximado; isso é risco residual declarado na
-seção 9.
+alvo. A degradação é registrada em log, a publicação de nível continua e a
+capability separada de estado definida em `Technical-Debt-Remediation.md@v0.2`
+torna o modo aproximado distinguível pelo host.
 
 **Falha na configuração do ADC.** Distinta das três classes acima, porque ocorre
 antes de qualquer medição. A unidade ou o canal não puderam ser configurados no
 início da capability. Conforme `BATTERY-016` e o segundo desvio da seção 3.1, o
 dispositivo alcança `Running` normalmente, a capability permanece inerte e a
-condição é registrada em log local.
+condição é registrada em log local. A capability separada de estado publica a
+condição inerte sem reativar medições nem produzir report de nível.
 
 **Retentativa.** Nova tentativa de medição dentro do mesmo ciclo, após falha,
 não pertence a este contrato: o resultado observável já é a ausência do report,
@@ -671,9 +682,8 @@ elétricos é o projeto ESP-IDF da raiz, que permanece não classificado sob
 - drenagem contínua do divisor permanentemente conectado, inerente ao arranjo
   elétrico da placa atual;
 - ausência de prova automatizada da fórmula de conversão nesta versão;
-- indistinguibilidade, no host, entre supressão por falha e perda de rádio;
-- indistinguibilidade, no host, entre valor calibrado e valor aproximado no modo
-  degradado.
+- indistinguibilidade, no host, entre supressão de uma medição isolada por falha
+  e perda de rádio; essa classe não altera o estado da telemetria.
 
 ## 10. Encerramento
 
@@ -697,8 +707,10 @@ um recorte próprio.
 - a aceitação da ADR-0005 disparou o gatilho de reavaliação de
   `EKOM-DEBT-0002`; a remediação daquele débito não foi autorizada e permanece
   fora deste recorte;
-- a ausência da capability por falha de configuração do ADC é silenciosa para o
-  host, consequência aceita do segundo desvio arquitetural;
+- a observabilidade pelo host da falha de configuração do ADC e do modo sem
+  calibração foi posteriormente contratada por
+  `Technical-Debt-Remediation.md@v0.2`, preservando o segundo desvio
+  arquitetural e o domínio do evento de nível;
 - os testes em hardware foram declarados executados e aceitáveis pelo
   Arquiteto; esta atuação de encerramento não acrescenta medições instrumentais
   nem uma enumeração de cenários além da evidência já registrada.

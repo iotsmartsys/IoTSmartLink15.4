@@ -46,7 +46,7 @@ não criam autoridade paralela.
 | Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 concluída; correlação exige `report_id` | Transporte, executor e coordenador | Análises, implementações e revisões v0.2/v0.3; comportamento funcional relatado validado em hardware | Implementado e validado no caminho funcional; cenários adversos da fronteira UART aceitos sem execução própria |
 | Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.5 Concluída [`Done`]; análise **Pronta** [`Ready`]; ADR-0005 `Accepted` | `components/issp_app_154`; `components/issp_behaviors`; `client_154/main/` | Análise, implementação e revisão v0.5; builds H2 concluídos; testes em hardware executados e aceitos pelo Arquiteto | Implementada, revisada e validada em hardware; riscos residuais e débitos preservados |
 | Features configuráveis do client | `docs/specs/Client-SDK-Configurable-Features.md` (`EKOM-CLIENT-CONFIG-001`); ADR-0002 | v0.1 Concluída [`Done`] por decisão do Arquiteto | `client_154/main/`; lifecycle periódico da bateria | Análise `Ready`; implementação recuperada da execução `32091116616`; hierarquia `App Client` validada pelo Arquiteto; builds H2 default, sem deep sleep, sem bateria e alternativo concluídos | Implementada e aceita pelo Arquiteto; testes, flash, monitor e hardware `Not Executed` |
-| Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001`; `EKOM-DEBT-0004` | Modelo aceito em 14/08/2026; emenda do tipo 4 aceita em 18/08/2026; retrofit postergado | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client`; `coordinator_154/main` | Nenhuma | Capabilities existentes e estado da telemetria ainda divergem do modelo |
+| Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001`; `EKOM-DEBT-0004` | Modelo e tipo 4 aceitos; remediação v0.2 em implementação [`In Progress`] | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client`; `coordinator_154/main` | Análise `Ready`; implementação devolvida para correção pela revisão de 19/08/2026 | Correção em andamento; débitos permanecem `Accepted` até decisão do Arquiteto |
 | Remediação de débitos técnicos | `docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`); ADR-0005 | v0.2 em implementação [`In Progress`]; análise `Ready` | `components/issp_app_154`; `client_154/main`; `examples/issp_minimal_client`; `coordinator_154/main`; `client_154/sdkconfig` | Análise `Ready` de 19/08/2026; builds H2/C6 concluídos; validação funcional pendente | Implementação em andamento; nenhum débito quitado |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
 
@@ -66,13 +66,14 @@ IoTSmartLink15.4
 │   │       ├── Deep sleep opt-in — timer e wakeup por contato (EXT1) implementados
 │   │       ├── Features via menu `App Client` — energia, bateria e GPIO de reset; v0.1 concluída
 │   │       ├── Identidade de report gerada no client — v0.3 concluída
-│   │       └── Nível de bateria — v0.5 concluída; implementação e hardware aceitos
+│   │       ├── Nível de bateria — v0.5 concluída; implementação e hardware aceitos
+│   │       └── Estado da telemetria de bateria — endpoint 3, evento 4; remediação em implementação
 │   └── coordinator_154 — ESP32-C6
 │       ├── commissioning e rádio
 │       ├── registry persistente
 │       ├── commands, reports e ACKs
 │       ├── janela volátil de deduplicação por report_id — v0.3 concluída
-│       └── ponte JSON-lines/UART para o host
+│       └── ponte JSON-lines/UART para o host — tradução do estado de bateria em implementação
 ├── Conexão lógica
 │   └── ISSP sobre IEEE 802.15.4
 ├── Evidência de integração
@@ -144,9 +145,10 @@ em desconformidade nem altera evidência.
 
 A remediação dos cinco débitos está especificada em
 `docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`), v0.2
-em Rascunho [`Draft`]. A existência da especificação não altera o estado de
-nenhum débito: todos permanecem `Accepted` até que o Arquiteto determine a
-quitação diante da implementação e da evidência.
+em implementação [`In Progress`] após análise `Ready` e retorno da revisão para
+correção. A implementação não altera por si só o estado de nenhum débito: todos
+permanecem `Accepted` até que o Arquiteto determine a quitação diante da
+implementação e da evidência.
 
 | ID | Estado | Condição | Alcance |
 |---|---|---|---|

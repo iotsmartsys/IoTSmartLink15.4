@@ -34,7 +34,6 @@ struct DigitalInputConfig
 class DigitalInputBehavior final : public IDeviceBehavior
 {
 public:
-    static constexpr std::uint8_t kEventType = 1;
     using LevelReader = int (*)(void *context);
 
     explicit DigitalInputBehavior(const DigitalInputConfig &config);

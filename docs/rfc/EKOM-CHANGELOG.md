@@ -867,5 +867,6 @@ alocação normativa então pendente. O Arquiteto determinou a inclusão no reco
 
 Especificação v0.2 registrada em Rascunho [`Draft`] em 18/08/2026. A análise da
 v0.2 concluiu `Ready` e a implementação foi autorizada pelo Arquiteto em
-19/08/2026. A implementação permanece `In Progress`; nenhum débito foi
+19/08/2026. A revisão da implementação devolveu os achados materiais ao estágio
+de Implementação, e a correção permanece `In Progress`; nenhum débito foi
 quitado e a quitação permanece reservada ao Arquiteto.

@@ -39,6 +39,9 @@ BatteryLevelBehavior::BatteryLevelBehavior(const BatteryLevelConfig &config)
       timer_(nullptr),
       timerStarted_(false),
       inert_(false),
+      telemetryState_(TelemetryState::Inert),
+      telemetryStateListener_(nullptr),
+      telemetryStateListenerContext_(nullptr),
       hasPublishedPercentage_(false),
       lastPublishedPercentage_(0)
 {
@@ -60,12 +63,27 @@ bool BatteryLevelBehavior::validConfig() const
 
 BatteryLevelBehavior::TelemetryState BatteryLevelBehavior::telemetryState() const
 {
-    if (inert_ || adcUnit_ == nullptr)
+    return telemetryState_;
+}
+
+void BatteryLevelBehavior::setTelemetryStateListener(
+    TelemetryStateListener listener, void *context)
+{
+    telemetryStateListener_ = listener;
+    telemetryStateListenerContext_ = context;
+}
+
+void BatteryLevelBehavior::setTelemetryState(TelemetryState state)
+{
+    if (telemetryState_ == state)
     {
-        return TelemetryState::Inert;
+        return;
     }
-    return calibration_ != nullptr ? TelemetryState::Calibrated
-                                    : TelemetryState::Approximate;
+    telemetryState_ = state;
+    if (telemetryStateListener_ != nullptr)
+    {
+        telemetryStateListener_(telemetryStateListenerContext_, state);
+    }
 }
 
 bool BatteryLevelBehavior::initializeAdc()
@@ -81,6 +99,7 @@ bool BatteryLevelBehavior::initializeAdc()
         ESP_LOGE(kTag, "adc_unit_config failed endpoint=%u error=%s",
                  static_cast<unsigned>(config_.endpointId), esp_err_to_name(result));
         adcUnit_ = nullptr;
+        setTelemetryState(TelemetryState::Inert);
         return false;
     }
 
@@ -125,6 +144,8 @@ bool BatteryLevelBehavior::initializeAdc()
                  static_cast<unsigned>(config_.endpointId), esp_err_to_name(result),
                  static_cast<unsigned>(fallbackFullScaleMv()));
     }
+    setTelemetryState(calibration_ != nullptr ? TelemetryState::Calibrated
+                                               : TelemetryState::Approximate);
     return true;
 }
 

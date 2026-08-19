@@ -12,15 +12,17 @@
 
 **Estado do workflow:** Implementação [`In Progress`]
 
-**Análise de implementabilidade:** Pendente para v0.2. A análise da v0.1 foi
-concluída como Não pronta — defeito da especificação [`Not Ready — Specification
-Defect`]; seu bloqueador foi removido pela emenda aceita da ADR-0005.
+**Análise de implementabilidade:** Pronta [`Ready`] para v0.2 na revisão
+`e040fc21792cfc632779b703cd77f524162c7841`, conforme
+`docs/reports/technical-debt-remediation/analysis/2026-08-19T025345Z-e040fc2-32210000227-implementability-analysis.md`.
+O bloqueador normativo da análise v0.1 foi removido pela emenda aceita da
+ADR-0005.
 
 **Bloqueio arquitetural:** Nenhum declarado pela Autoria.
 
 **Responsável arquitetural:** Marcelo Miranda
 
-**Última atualização:** 18/08/2026
+**Última atualização:** 19/08/2026
 
 **Escopo:** fachada `SmartSysApp`, product firmwares do `client_154`, exemplo
 `issp_minimal_client`, `smart_sys_app_test`, tabela de tipos de evento do

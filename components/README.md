@@ -12,8 +12,11 @@ Este diretório contém os componentes reutilizáveis do runtime ISSP:
 - `issp_transport_154`: transporte IEEE 802.15.4, commissioning, NVS e executor
   de reports; depende de `issp_core`, `ieee802154` e `nvs_flash`;
 - `issp_behaviors`: behaviors reutilizáveis; atualmente expõe
-  `DigitalOutputBehavior`, `DigitalInputBehavior` e `BatteryLevelBehavior` e
-  depende de `issp_core`, `esp_adc`, `esp_driver_gpio` e `esp_timer`;
+  `DigitalOutputBehavior`, `DigitalInputBehavior`, `BatteryLevelBehavior` e
+  `BatteryTelemetryStateBehavior` e depende de `issp_core`, `esp_adc`,
+  `esp_driver_gpio` e `esp_timer`; os behaviors digitais recebem o tipo de
+  evento pela configuração construída na fachada e não conhecem a capability
+  do produto;
 - `issp_app_154`: fachada pública `iotsmartsys::SmartSysApp`; compõe por
   delegação `issp_core`, `issp_behaviors` e `issp_transport_154`, além de
   possuir o factory reset local (`FactoryResetService`,

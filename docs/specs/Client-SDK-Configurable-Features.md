@@ -20,7 +20,7 @@ confrontados; hierarquia do SDK Configuration Editor validada pelo Arquiteto
 
 **Responsável arquitetural:** Marcelo Miranda
 
-**Última atualização:** 18/08/2026
+**Última atualização:** 19/08/2026
 
 **Escopo:** `client_154`, SDK Configuration Editor, product firmware, board
 model e lifecycle periódico da capability de bateria
@@ -44,6 +44,10 @@ model e lifecycle periódico da capability de bateria
 - Preserva `docs/specs/ISSP-Configurable-Bootstrap.md`, ADR-0001 e ADR-0005 —
   nenhuma API pública, identidade de capability, lógica do factory reset ou
   fronteira de componente é redefinida.
+- Alterada por [`Amended By`] `docs/specs/Technical-Debt-Remediation.md@v0.2`
+  — a exclusão do `client_154/sdkconfig` é substituída pelo alinhamento da
+  configuração rastreada à baseline já declarada pela decisão A9, sem mudar os
+  defaults ou a composição definida nesta fonte.
 
 ---
 
@@ -88,7 +92,8 @@ uma única composição, sem seleção de feature em runtime.
   capability de bateria, exceto seu intervalo sem deep sleep;
 - alterar polaridade, hold, polling, limpeza do vínculo ou reboot do factory
   reset;
-- corrigir `client_154/sdkconfig` para a composição default do Kconfig;
+- alterar `client_154/sdkconfig` além do alinhamento estreito à composição
+  default autorizado por `Technical-Debt-Remediation.md@v0.2`;
 - criar seleção em runtime, geração de código ou framework genérico de boards;
 - alterar o projeto ESP-IDF não classificado da raiz;
 - implementar, executar testes, fazer flash, monitorar ou validar hardware
@@ -212,9 +217,9 @@ somente valores cujas condições estejam satisfeitas.
 - **`CLIENTCFG-024`:** combinações sem recurso físico necessário falham antes
   de produzir binário e diagnosticam produto, board e recurso ausente.
 - **`CLIENTCFG-025`:** as escolhas exclusivas e os defaults atuais de product
-  firmware e board model no Kconfig permanecem inalterados. A seleção divergente
-  já rastreada em `client_154/sdkconfig` permanece fora do recorte e registrada
-  em `EKOM-DEBT-0005`.
+  firmware e board model no Kconfig permanecem inalterados. A configuração
+  rastreada passa a selecionar esses defaults por força de
+  `Technical-Debt-Remediation.md@v0.2`; nenhuma baseline nova é criada.
 
 ## 6. Fluxos e condições de borda
 
@@ -327,8 +332,9 @@ especificação.
 - a medição e o report periódicos só ocorrem depois de boot concluído com
   sucesso e de um intervalo completo contado desde `Running`;
 - GPIO de factory reset torna-se parâmetro do board selecionado, com default 9;
-- `client_154/sdkconfig` permanece como está e sua divergência é aceita como
-  `EKOM-DEBT-0005`.
+- a decisão original de preservar o `client_154/sdkconfig` divergente foi
+  posteriormente substituída, no recorte exclusivo dessa configuração, pelo
+  alinhamento autorizado em `Technical-Debt-Remediation.md@v0.2`;
 
 As pendências submetidas à análise foram resolvidas na revisão `Ready` e na
 implementação: a amostragem periódica é iniciada somente depois de `Running`,

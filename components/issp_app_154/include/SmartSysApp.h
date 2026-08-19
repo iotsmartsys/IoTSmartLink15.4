@@ -224,7 +224,9 @@ public:
     {
         AppResult (*initializePlatform)(void *context);
         AppResult (*initializeNetwork)(void *context);
-        AppResult (*registerCapability)(void *context, std::size_t index);
+        AppResult (*registerCapability)(void *context, std::size_t index,
+                                        std::uint8_t endpointId,
+                                        std::uint8_t eventType);
         AppResult (*startDevice)(void *context);
         AppResult (*startReportExecutor)(void *context);
         void (*rollbackTransport)(void *context);

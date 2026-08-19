@@ -21,7 +21,6 @@ struct DigitalOutputConfig
 class DigitalOutputBehavior final : public IDeviceBehavior
 {
 public:
-    static constexpr std::uint8_t kEventType = 2;
     explicit DigitalOutputBehavior(const DigitalOutputConfig &config);
 
     IsspResult begin(IBehaviorStatePublisher &publisher) override;

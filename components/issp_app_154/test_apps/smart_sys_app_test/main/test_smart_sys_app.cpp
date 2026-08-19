@@ -30,7 +30,7 @@ using namespace iotsmartsys;
 namespace
 {
 
-app::SwitchConfig makeSwitchConfig(std::uint8_t endpointId, std::uint8_t eventType)
+app::SwitchConfig makeSwitchConfig(std::uint8_t endpointId)
 {
     return {
         .pin = GPIO_NUM_2,
@@ -38,12 +38,10 @@ app::SwitchConfig makeSwitchConfig(std::uint8_t endpointId, std::uint8_t eventTy
         .initialState = false,
         .reportOnStart = false,
         .endpointId = endpointId,
-        .eventType = eventType,
     };
 }
 
-app::DoorSensorConfig makeDoorSensorConfig(std::uint8_t endpointId,
-                                           std::uint8_t eventType)
+app::DoorSensorConfig makeDoorSensorConfig(std::uint8_t endpointId)
 {
     return {
         .pin = GPIO_NUM_14,
@@ -51,7 +49,6 @@ app::DoorSensorConfig makeDoorSensorConfig(std::uint8_t endpointId,
         .pull = app::DigitalInputPull::PullUp,
         .reportOnStart = true,
         .endpointId = endpointId,
-        .eventType = eventType,
         .samplePeriodMs = 10,
         .samplesPerWindow = 5,
         .majorityThreshold = 3,
@@ -106,6 +103,8 @@ struct FakeScenario
     std::array<Step, kMaxCalls> callOrder{};
     std::size_t callCount = 0;
     std::size_t registerCapabilityCalls = 0;
+    std::array<std::uint8_t, issp::kMaxDeviceBehaviors> registeredEndpoints{};
+    std::array<std::uint8_t, issp::kMaxDeviceBehaviors> registeredEventTypes{};
     std::size_t rollbackCalls = 0;
 
     void record(Step step)
@@ -205,10 +204,17 @@ AppResult fakeInitializeNetwork(void *context)
     return scenario->initializeNetworkResult;
 }
 
-AppResult fakeRegisterCapability(void *context, std::size_t /*index*/)
+AppResult fakeRegisterCapability(void *context, std::size_t index,
+                                 std::uint8_t endpointId,
+                                 std::uint8_t eventType)
 {
     auto *scenario = static_cast<FakeScenario *>(context);
     scenario->record(Step::RegisterCapability);
+    if (index < scenario->registeredEndpoints.size())
+    {
+        scenario->registeredEndpoints[index] = endpointId;
+        scenario->registeredEventTypes[index] = eventType;
+    }
     ++scenario->registerCapabilityCalls;
     return scenario->registerCapabilityResult;
 }
@@ -346,7 +352,7 @@ TEST_CASE("addSwitchPlugCapability accepts a valid config", "[smart_sys_app]")
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
     core::SwitchPlugCapability *capability =
-        app.addSwitchPlugCapability(makeSwitchConfig(1, 2));
+        app.addSwitchPlugCapability(makeSwitchConfig(1));
     TEST_ASSERT_NOT_NULL(capability);
     TEST_ASSERT_FALSE(capability->state());
     TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
@@ -357,7 +363,7 @@ TEST_CASE("addSwitchPlugCapability rejects an invalid GPIO", "[smart_sys_app]")
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    app::SwitchConfig config = makeSwitchConfig(1, 2);
+    app::SwitchConfig config = makeSwitchConfig(1);
     config.pin = GPIO_NUM_NC;
     core::SwitchPlugCapability *capability = app.addSwitchPlugCapability(config);
     TEST_ASSERT_NULL(capability);
@@ -365,32 +371,36 @@ TEST_CASE("addSwitchPlugCapability rejects an invalid GPIO", "[smart_sys_app]")
                        static_cast<int>(app.lastConfigurationResult()));
 }
 
-TEST_CASE("addSwitchPlugCapability rejects a duplicate endpoint/eventType pair", "[smart_sys_app]")
+TEST_CASE("addSwitchPlugCapability rejects an occupied endpoint without changing the first",
+          "[smart_sys_app][debtrem]")
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
     core::SwitchPlugCapability *first =
-        app.addSwitchPlugCapability(makeSwitchConfig(1, 2));
+        app.addSwitchPlugCapability(makeSwitchConfig(1));
     TEST_ASSERT_NOT_NULL(first);
 
     core::SwitchPlugCapability *duplicate =
-        app.addSwitchPlugCapability(makeSwitchConfig(1, 2));
+        app.addSwitchPlugCapability(makeSwitchConfig(1));
     TEST_ASSERT_NULL(duplicate);
+    TEST_ASSERT_FALSE(first->state());
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.lastConfigurationResult()));
 }
 
 TEST_CASE("addSwitchPlugCapability rejects excess capacity", "[smart_sys_app]")
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    for (std::uint8_t endpointId = 0; endpointId < issp::kMaxDeviceBehaviors; ++endpointId)
+    for (std::uint8_t endpointId = 1; endpointId <= issp::kMaxDeviceBehaviors; ++endpointId)
     {
         core::SwitchPlugCapability *capability =
-            app.addSwitchPlugCapability(makeSwitchConfig(endpointId, 1));
+            app.addSwitchPlugCapability(makeSwitchConfig(endpointId));
         TEST_ASSERT_NOT_NULL(capability);
     }
 
     core::SwitchPlugCapability *overflow = app.addSwitchPlugCapability(
-        makeSwitchConfig(static_cast<std::uint8_t>(issp::kMaxDeviceBehaviors), 1));
+        makeSwitchConfig(static_cast<std::uint8_t>(issp::kMaxDeviceBehaviors + 1U)));
     TEST_ASSERT_NULL(overflow);
 }
 
@@ -399,7 +409,7 @@ TEST_CASE("addDoorSensorCapability accepts a valid config", "[smart_sys_app][doo
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
     core::DoorSensorCapability *capability =
-        app.addDoorSensorCapability(makeDoorSensorConfig(1, 1));
+        app.addDoorSensorCapability(makeDoorSensorConfig(1));
     TEST_ASSERT_NOT_NULL(capability);
     TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
                       static_cast<int>(app.lastConfigurationResult()));
@@ -409,7 +419,7 @@ TEST_CASE("addDoorSensorCapability rejects an invalid pin", "[smart_sys_app][doo
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    app::DoorSensorConfig config = makeDoorSensorConfig(1, 1);
+    app::DoorSensorConfig config = makeDoorSensorConfig(1);
     config.pin = GPIO_NUM_NC;
     TEST_ASSERT_NULL(app.addDoorSensorCapability(config));
     TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
@@ -421,37 +431,45 @@ TEST_CASE("addDoorSensorCapability rejects an invalid debounce configuration",
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    app::DoorSensorConfig config = makeDoorSensorConfig(1, 1);
+    app::DoorSensorConfig config = makeDoorSensorConfig(1);
     config.majorityThreshold = 6;
     TEST_ASSERT_NULL(app.addDoorSensorCapability(config));
     TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
                       static_cast<int>(app.lastConfigurationResult()));
 }
 
-TEST_CASE("endpoint and event pairs are unique across capability types",
-          "[smart_sys_app][door]")
+TEST_CASE("an endpoint occupied by a different capability type is rejected",
+          "[smart_sys_app][door][debtrem]")
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1, 1)));
-    TEST_ASSERT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
+    core::SwitchPlugCapability *first =
+        app.addSwitchPlugCapability(makeSwitchConfig(1));
+    TEST_ASSERT_NOT_NULL(first);
+    TEST_ASSERT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1)));
+    TEST_ASSERT_FALSE(first->state());
+    TEST_ASSERT_EQUAL(static_cast<int>(AppResult::InvalidArgument),
+                      static_cast<int>(app.lastConfigurationResult()));
 }
 
-// The hook only reports an index, so it cannot distinguish which capability
-// type was registered first. This case proves that both entries of the unified
-// registry are registered; the order by type remains static evidence of the
-// unified vector, without adding a seam to SetupHooks.
-TEST_CASE("setup registers both capabilities of the unified registry",
-          "[smart_sys_app][door][setup]")
+// The registration hook observes the endpoint/type pair handed to the runtime.
+// This keeps the assertion at the facade boundary without exposing either
+// concrete behavior through the production capability API.
+TEST_CASE("the facade injects capability event types while registering behaviors",
+          "[smart_sys_app][door][setup][debtrem]")
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1, 2)));
-    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1)));
+    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(2)));
 
     const SetupResult result = app.setup();
     TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running), static_cast<int>(result.state));
     TEST_ASSERT_EQUAL_size_t(2, scenario.registerCapabilityCalls);
+    TEST_ASSERT_EQUAL_UINT8(1, scenario.registeredEndpoints[0]);
+    TEST_ASSERT_EQUAL_UINT8(2, scenario.registeredEventTypes[0]);
+    TEST_ASSERT_EQUAL_UINT8(2, scenario.registeredEndpoints[1]);
+    TEST_ASSERT_EQUAL_UINT8(1, scenario.registeredEventTypes[1]);
 }
 
 TEST_CASE("capability pointers remain stable as more capabilities are added", "[smart_sys_app]")
@@ -459,11 +477,11 @@ TEST_CASE("capability pointers remain stable as more capabilities are added", "[
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
     core::SwitchPlugCapability *first =
-        app.addSwitchPlugCapability(makeSwitchConfig(1, 2));
+        app.addSwitchPlugCapability(makeSwitchConfig(1));
     TEST_ASSERT_NOT_NULL(first);
 
     core::SwitchPlugCapability *second =
-        app.addSwitchPlugCapability(makeSwitchConfig(2, 2));
+        app.addSwitchPlugCapability(makeSwitchConfig(2));
     TEST_ASSERT_NOT_NULL(second);
 
     TEST_ASSERT_FALSE(first->state());
@@ -519,7 +537,7 @@ TEST_CASE("setup() with all steps succeeding reaches Running in order", "[smart_
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1, 2)));
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1)));
 
     const SetupResult result = app.setup();
 
@@ -541,8 +559,8 @@ TEST_CASE("setup() registers capabilities once each, in addition order", "[smart
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1, 2)));
-    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(2, 2)));
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1)));
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(2)));
 
     const SetupResult result = app.setup();
 
@@ -630,7 +648,7 @@ TEST_CASE("setup() fails RegisterCapabilities, rolls back and never starts the d
     FakeScenario scenario;
     scenario.registerCapabilityResult = AppResult::Failed;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1, 2)));
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1)));
 
     const SetupResult result = app.setup();
 
@@ -794,7 +812,7 @@ TEST_CASE("the wake LED GPIO cannot collide with a capability, in either order",
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    app::SwitchConfig switchConfig = makeSwitchConfig(1, 2);
+    app::SwitchConfig switchConfig = makeSwitchConfig(1);
     switchConfig.pin = GPIO_NUM_13;
     TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(switchConfig));
 
@@ -903,7 +921,7 @@ TEST_CASE("early sleep requires an expected initial report",
     // only the deadline may authorize the sleep.
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1, 2)));
+    TEST_ASSERT_NOT_NULL(app.addSwitchPlugCapability(makeSwitchConfig(1)));
     TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
                       static_cast<int>(app.configureDeepSleep(makeDeepSleepConfig(400))));
 
@@ -920,7 +938,7 @@ TEST_CASE("an admitted initial report with nothing pending sleeps early",
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    app::SwitchConfig switchConfig = makeSwitchConfig(1, 2);
+    app::SwitchConfig switchConfig = makeSwitchConfig(1);
     // DigitalOutputBehavior publishes synchronously in begin(), so reaching
     // Running is itself the evidence that the initial report was admitted.
     switchConfig.reportOnStart = true;
@@ -987,8 +1005,8 @@ TEST_CASE("capabilities sharing the contact GPIO with divergent pulls are reject
 {
     FakeScenario scenario;
     SmartSysApp app({.deviceId = 1}, makeHooks(scenario));
-    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
-    app::DoorSensorConfig divergent = makeDoorSensorConfig(2, 1);
+    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1)));
+    app::DoorSensorConfig divergent = makeDoorSensorConfig(2);
     divergent.pull = app::DigitalInputPull::PullDown;
     TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(divergent));
 
@@ -1008,8 +1026,8 @@ TEST_CASE("capabilities sharing the contact GPIO with divergent pulls are reject
     // The same GPIO with equal pulls is electrically equivalent and accepted.
     FakeScenario equalScenario;
     SmartSysApp equal({.deviceId = 1}, makeHooks(equalScenario));
-    TEST_ASSERT_NOT_NULL(equal.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
-    TEST_ASSERT_NOT_NULL(equal.addDoorSensorCapability(makeDoorSensorConfig(2, 1)));
+    TEST_ASSERT_NOT_NULL(equal.addDoorSensorCapability(makeDoorSensorConfig(1)));
+    TEST_ASSERT_NOT_NULL(equal.addDoorSensorCapability(makeDoorSensorConfig(2)));
     TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
                       static_cast<int>(equal.configureDeepSleep(config)));
     TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
@@ -1028,7 +1046,7 @@ TEST_CASE("both sources are armed before any terminal operation, in either order
     // checked at ValidateConfiguration, so this order is as valid as the other.
     TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
                       static_cast<int>(app.configureDeepSleep(config)));
-    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
+    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1)));
     TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
                       static_cast<int>(app.setup().state));
 
@@ -1054,7 +1072,7 @@ TEST_CASE("a failed contact preparation blocks the sleep even with the timer arm
     config.contactWakeup.enabled = true;
     TEST_ASSERT_EQUAL(static_cast<int>(AppResult::Ok),
                       static_cast<int>(app.configureDeepSleep(config)));
-    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1, 1)));
+    TEST_ASSERT_NOT_NULL(app.addDoorSensorCapability(makeDoorSensorConfig(1)));
     TEST_ASSERT_EQUAL(static_cast<int>(AppState::Running),
                       static_cast<int>(app.setup().state));
 

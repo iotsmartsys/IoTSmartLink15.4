@@ -142,7 +142,9 @@ struct SmartSysApp::Impl
     // Defined only in smart_sys_app_hardware.cpp (hardware-capable targets).
     static AppResult realInitializePlatform(void *context);
     static AppResult realInitializeNetwork(void *context);
-    static AppResult realRegisterCapability(void *context, std::size_t index);
+    static AppResult realRegisterCapability(void *context, std::size_t index,
+                                            std::uint8_t endpointId,
+                                            std::uint8_t eventType);
     static AppResult realStartDevice(void *context);
     static AppResult realStartReportExecutor(void *context);
     static void realRollbackTransport(void *context);

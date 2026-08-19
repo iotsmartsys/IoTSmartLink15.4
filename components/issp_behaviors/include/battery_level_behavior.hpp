@@ -37,6 +37,8 @@ public:
         Inert = 2,
     };
 
+    using TelemetryStateListener = void (*)(void *context, TelemetryState state);
+
     explicit BatteryLevelBehavior(const BatteryLevelConfig &config);
     ~BatteryLevelBehavior() override;
 
@@ -51,6 +53,7 @@ public:
     IsspCommandResult handle(const IsspCommand &command) override;
     IsspResult quiesce() override;
     TelemetryState telemetryState() const;
+    void setTelemetryStateListener(TelemetryStateListener listener, void *context);
 
 private:
     static constexpr adc_bitwidth_t kBitwidth = ADC_BITWIDTH_12;
@@ -60,6 +63,7 @@ private:
 
     bool validConfig() const;
     bool initializeAdc();
+    void setTelemetryState(TelemetryState state);
     void releaseAdc();
     IsspResult createAndStartTimer();
     void stopAndDeleteTimer();
@@ -75,6 +79,9 @@ private:
     esp_timer_handle_t timer_;
     bool timerStarted_;
     bool inert_;
+    TelemetryState telemetryState_;
+    TelemetryStateListener telemetryStateListener_;
+    void *telemetryStateListenerContext_;
     bool hasPublishedPercentage_;
     std::uint8_t lastPublishedPercentage_;
 };
