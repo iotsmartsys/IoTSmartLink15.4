@@ -894,3 +894,15 @@ O relatório registra separadamente a divergência entre adoção local EKOM 4.6
 e perfis externos 5.0, sem presumir migração ou qualificação do repositório.
 Nenhuma fonte comportamental, código ou configuração foi alterada; build,
 testes, flash, monitor e hardware não foram executados.
+
+### Revisão normativa v0.2 — opção 1
+
+Em 07/09/2026, por ordem explícita do Arquiteto, a v0.2 incorpora a decisão
+para a borda B1: tentativa síncrona limitada e continuação periódica, sem
+report provisório, sem prolongar o deadline e com encerramento permitido sem
+report de presença. Contrato, requisitos, bordas e critérios foram reconciliados,
+preservando bateria, EXT1, porta e a exclusão de testes.
+
+A v0.2 permanece `Draft`, com análise pendente e implementação não iniciada.
+O relatório da v0.1 é histórico e permanece inalterado; esta Autoria não
+classifica a nova versão como `Ready` nem altera a governança do repositório.

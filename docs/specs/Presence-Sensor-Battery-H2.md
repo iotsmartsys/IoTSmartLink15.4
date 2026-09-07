@@ -4,7 +4,7 @@
 
 **Classe da fonte:** Normativa
 
-**Versão:** 0.1
+**Versão:** 0.2
 
 **Estado normativo:** `Active`
 
@@ -15,7 +15,7 @@ Implementabilidade
 
 **Responsável arquitetural:** Marcelo Miranda
 
-**Última atualização:** 19/08/2026
+**Última atualização:** 07/09/2026
 
 **Escopo:** `client_154`, capability de presença, composição de produto e board,
 deep sleep do client e tradução semântica do evento no coordenador
@@ -29,7 +29,9 @@ deep sleep do client e tradução semântica do evento no coordenador
   preserva a seleção estática de exatamente um produto e um board;
 - Altera [`Amends`] `docs/specs/Client-Deep-Sleep.md@v0.11` — acrescenta uma
   entrada digital de presença como fonte EXT1, sem mudar o contrato vigente do
-  contato do sensor de porta;
+  contato do sensor de porta; aplica à presença o contrato vigente de
+  estabilização pendente, admissão de reports e deadline da seção 6 daquela
+  fonte;
 - Aplica `docs/specs/Client-Battery-Level.md@v0.5` e
   `docs/specs/Client-SDK-Configurable-Features.md@v0.1` à nova composição, com
   os valores concretos desta fonte;
@@ -65,7 +67,9 @@ nova capability como `Presence Sensor`.
 - entrada digital GPIO 14, ativa em HIGH e com pull-up;
 - estabilização inicial, debounce e publicação de transições pelo behavior
   digital reutilizável vigente;
-- report inicial em todo boot operacional;
+- tentativa inicial síncrona em todo boot que inicie a capability, com
+  continuação periódica quando necessário e publicação do primeiro estado
+  confirmado durante a admissão de reports daquele boot;
 - deep sleep com deadline acordado, timer, wake LED e wakeup EXT1 pela entrada;
 - nível de bateria no endpoint 2 e estado da telemetria no endpoint 3;
 - generalização do board existente para `Battery Digital Sensor H2` e dos seus
@@ -169,11 +173,44 @@ tornam defaults.
 | Maioria | 3 |
 | Janelas consecutivas | 2 |
 
-Os parâmetros de debounce reutilizam o precedente do sensor de porta. A
-capability estabiliza e publica o estado inicial sincronamente antes de iniciar
-a amostragem periódica. Depois disso, publica uma vez por transição
-estabilizada. Oscilações que não satisfaçam duas janelas consecutivas com a
-mesma classificação nova não alteram o estado confirmado.
+Os parâmetros de debounce reutilizam o behavior digital vigente. Esta seção
+se refere exclusivamente ao sinal digital do PIR/radar no GPIO 14, não à
+medição de tensão da bateria.
+
+Em cada boot que alcance o início da capability, seu estado começa não
+confirmado. A tentativa inicial é síncrona e limitada a
+`samplesPerWindow * consecutiveWindows` amostras: dez amostras nesta
+composição, espaçadas pelo período configurado de 10 ms. Não há espera
+síncrona adicional até o sinal estabilizar. A duração nominal de amostragem é
+100 ms; isso não cria garantia de tempo físico exato do scheduler.
+
+A classificação usa janelas não sobrepostas de cinco amostras, maioria de
+três e duas janelas consecutivas concordantes. Se essa condição for satisfeita
+na tentativa inicial e o publisher admitir o report, o primeiro estado é
+publicado sincronamente antes de iniciar o timer periódico.
+
+Se a tentativa inicial terminar sem confirmação, o boot prossegue sem tratar
+a falta de convergência como falha de inicialização. A amostragem periódica
+continua a cada 10 ms, preservando o histórico do classificador obtido na
+fase síncrona e os mesmos critérios de debounce. Não reinicia as janelas
+apenas por passar ao timer, não publica leitura provisória e não substitui o
+estado desconhecido por `detected` ou `undetected`. Falhas reais de GPIO,
+criação ou início do timer conservam os resultados de erro vigentes.
+
+O primeiro estado cuja publicação seja admitida é o report inicial, mesmo
+quando obtido pelo timer. Ele é publicado uma única vez pelo behavior;
+permanência no mesmo estado não gera repetição. Depois disso, cada transição
+confirmada gera um novo report. Oscilações que não satisfaçam duas janelas
+consecutivas concordantes com a nova classificação não mudam o estado
+confirmado.
+
+Se o publisher recusar uma tentativa de publicação, essa tentativa não conta
+como publicação inicial admitida nem confirma o novo estado. O classificador
+continua pelo caminho vigente e pode tentar novamente a publicação de um
+estado estabilizado enquanto houver amostragem e admissão. Publicação nesta
+fonte significa admissão pelo publisher, não recepção pelo coordenador: ACK,
+retry e entrega permanecem sob seus contratos, e retransmissão não é um novo
+report lógico do behavior.
 
 ### 6.2 Deep sleep
 
@@ -191,9 +228,37 @@ que alcance a sequência terminal, independentemente da causa do wakeup e de
 `StartDevice` ter sido alcançado. Timer e entrada são fontes independentes e
 ambas são armadas antes da operação terminal.
 
-O estado lógico não é persistido entre boots. Como `reportOnStart=true`, cada
-wakeup estabiliza e publica o nível corrente pelo único caminho normal da
-capability. Não há report especial criado pela causa EXT1.
+O estado lógico e o histórico do debounce não são persistidos entre boots.
+Com `reportOnStart=true`, cada boot que inicie a capability executa a tentativa
+da seção 6.1, qualquer que seja a causa do wakeup. Não há report especial
+criado pela causa EXT1 nem garantia de report de presença em todo boot.
+
+Enquanto a publicação inicial de presença não tiver sido admitida, ela
+permanece pendente e impede sleep antecipado. Publicação de bateria ou fila
+de reports vazia não substitui essa evidência. Se a publicação inicial ocorrer
+posteriormente, a prontidão para sleep antecipado é reavaliada pelo lifecycle
+vigente, sem dispensar os demais predicados de quiescência e entrega.
+
+Com deep sleep habilitado, ausência de convergência ou de publicação inicial
+admitida não reinicia nem prolonga o deadline. Ao atingi-lo, o lifecycle segue
+a sequência terminal vigente, podendo encerrar o boot sem qualquer report de
+presença. Não força um valor para completar a telemetria, não espera uma nova
+janela e não persiste uma publicação pendente para o próximo boot. A ausência
+do report não representa `undetected` e não cria novo valor ou evento no host.
+
+O deadline default de 30 segundos é contado desde a entrada em `setup()`.
+Preserva a janela não preemptível de `InitializePlatform`, o fechamento da
+admissão e a quiescência previstos em `Client-Deep-Sleep.md`, seção 6: não é
+um teto isolado de tempo físico até dormir. Uma publicação concorrente com o
+encerramento usa exclusivamente a admissão vigente; depois de fechada, não há
+publicação compensatória ou reabertura. Falha no preparo de wakeup continua
+bloqueando o sleep, e a arbitragem com factory reset permanece preservada.
+
+O rearme EXT1 independe de confirmação lógica ou de report de presença: usa
+sempre o nível elétrico lido no preparo, inclusive no boot sem convergência.
+Com deep sleep desabilitado, não há deadline de energia nem sleep provocado
+por esta funcionalidade; a estabilização periódica continua enquanto o runtime
+permanecer operacional, sem publicar estado provisório.
 
 Não existe rate limit: repique ou transições sucessivas podem provocar ciclos
 acordados completos consecutivos.
@@ -207,6 +272,11 @@ A bateria aplica integralmente `Client-Battery-Level.md`:
 - `emptyMv=3300`, `fullMv=4150`, 8 amostras espaçadas por 5 ms e delta de 5%;
 - com deep sleep habilitado, uma medição e publicação em todo boot operacional;
 - ADC e divisor recebidos do board sem redescoberta pela fachada.
+
+A ausência de estado confirmado ou de report de presença não suprime nem
+posterga a bateria ou o estado de sua telemetria. Cada capability mantém seus
+gatilhos, condições de publicação e falhas vigentes; não há espera pela
+estabilização do PIR além da tentativa síncrona limitada da seção 6.1.
 
 O factory reset usa o botão do board, ativo em LOW, com GPIO default 9, hold de
 10 segundos e polling de 20 ms. A arbitragem vigente com deep sleep é
@@ -244,12 +314,17 @@ sua tradução para o host; não recebe dependência de código do client.
   board, incluindo a nova combinação presença + `Battery Digital Sensor H2`.
 - **`PRESENCE-002`:** a composição publica endpoint 1, event type 5 e valor 1
   para HIGH estabilizado, ou valor 0 para LOW estabilizado.
-- **`PRESENCE-003`:** a capability publica o estado estabilizado em todo boot
-  operacional e cada transição estabilizada posterior uma única vez.
+- **`PRESENCE-003`:** a capability realiza a tentativa inicial síncrona
+  limitada da seção 6.1 e continua pelo timer quando necessário. Publica uma
+  única vez o primeiro estado confirmado cuja publicação seja admitida e cada
+  transição confirmada posterior, sem valor provisório. Um boot pode terminar
+  sem report de presença conforme a seção 6.2.
 - **`PRESENCE-004`:** comandos para a capability retornam `Unsupported` e não
   alteram GPIO ou estado confirmado.
 - **`PRESENCE-005`:** deep sleep usa deadline de 30 segundos, timer de 180
-  minutos, LED de 200 ms e GPIO 14 como fonte EXT1 alternada.
+  minutos, LED de 200 ms e GPIO 14 como fonte EXT1 alternada. Presença inicial
+  pendente impede sleep antecipado, mas não prorroga o deadline nem impede o
+  encerramento forçado pelas regras da seção 6.2.
 - **`PRESENCE-006`:** o preparo do wakeup reaplica entrada com pull-up e arma o
   nível oposto ao lido; falha de configuração do GPIO ou EXT1 bloqueia o sleep
   conforme o contrato vigente.
@@ -277,7 +352,14 @@ sua tradução para o host; não recebe dependência de código do client.
 - Falha ao preparar uma fonte de wakeup solicitada impede a entrada em deep
   sleep; as regras vigentes de diagnóstico e quiescência permanecem aplicáveis.
 - HIGH ou LOW persistente não gera reports repetidos dentro do mesmo boot além
-  do report inicial.
+  do primeiro report admitido.
+- Duas janelas iniciais discordantes deixam presença pendente; o timer continua
+  a classificação sem report provisório. Se não houver confirmação e admissão
+  antes do fechamento normal da admissão, o boot pode terminar sem report de
+  presença, sem impedir a telemetria de bateria ou o preparo de EXT1.
+- Boot que não alcance o início da capability não executa a tentativa de
+  presença nem fabrica report inicial; os caminhos de falha e encerramento
+  do lifecycle vigente permanecem aplicáveis.
 - Uma transição ocorrida depois de armar EXT1 e antes do sleep pode provocar
   wakeup imediato; isso não é classificado como perda do evento.
 - Repique ou atividade contínua podem elevar consumo porque não existe rate
@@ -294,13 +376,33 @@ sua tradução para o host; não recebe dependência de código do client.
 - **`PRESENCE-AC-002 — Identidade`:** inspeção confronta endpoint 1, event type
   5, `deviceId=0x15400002` e injeção do tipo pela fachada com a ADR-0005.
 - **`PRESENCE-AC-003 — Entrada`:** inspeção confronta GPIO 14, HIGH ativo,
-  pull-up e os parâmetros de debounce; evidência futura em hardware distingue
-  report inicial, `detected`, `undetected` e ausência de repetição estável.
+  pull-up, debounce e os seguintes cenários de `PRESENCE-002` e `PRESENCE-003`:
+  (a) duas janelas iniciais HIGH ou LOW concordantes e publisher disponível
+  produzem, respectivamente, um report 1 ou 0 antes do timer;
+  (b) janelas iniciais discordantes não publicam nem abortam o boot, e a
+  continuação periódica publica o primeiro estado estabilizado uma única vez;
+  (c) sinal estável após publicação não repete report, e transição confirmada
+  posterior publica uma vez;
+  (d) tentativa de publicação recusada não confirma estado nem conta como
+  admissão inicial, e a amostragem permite nova tentativa pelo caminho vigente.
+  Inspeção confronta fluxo, estado e ordem de chamadas; evidência futura em
+  hardware distingue temporalmente os reports e níveis físicos. Não se cria
+  teste automatizado ou infraestrutura de injeção de falha neste recorte.
 - **`PRESENCE-AC-004 — Wakeup`:** inspeção confronta o rearme EXT1 alternado e
   os valores de 30 segundos, 180 minutos e 200 ms; somente hardware futuro pode
-  demonstrar wakeup nos dois sentidos e ausência de wakeup espúrio.
+  demonstrar wakeup nos dois sentidos e ausência de wakeup espúrio. Para
+  `PRESENCE-005` e `PRESENCE-006`, inspeção também confronta o cenário de
+  oscilação sem convergência até o deadline: não há sleep antecipado por fila
+  vazia ou bateria publicada, o deadline não é estendido e a sequência terminal
+  pode dormir sem report de presença, armando EXT1 pelo nível elétrico atual.
+  Report admitido antes do fechamento segue o fluxo normal; tentativa depois
+  dele não cria report compensatório. Com deep sleep desabilitado, a mesma
+  oscilação mantém amostragem periódica sem acionar sleep. Hardware futuro
+  observa esses comportamentos; falhas de preparo conservam o bloqueio vigente.
 - **`PRESENCE-AC-005 — Bateria`:** inspeção e build confrontam endpoints,
-  parâmetros e recursos; funcionamento e percentual real dependem de hardware.
+  parâmetros e recursos; inspeção confronta também que presença pendente não
+  condiciona os gatilhos de bateria e de estado da telemetria (`PRESENCE-007`).
+  Funcionamento e percentual real dependem de hardware.
 - **`PRESENCE-AC-006 — Coordenador`:** build C6 e inspeção confrontam o registro
   do tipo 5 e sua tradução; somente execução futura demonstra a linha entregue
   ao host.
@@ -329,6 +431,18 @@ Em 19/08/2026, o Arquiteto confirmou:
 - `deviceId=0x15400002`;
 - proibição explícita de criar ou alterar testes neste recorte.
 
-Não permanece decisão normativa aberta nesta versão. A escrita desta v0.1 e
-sua submissão à Análise de Implementabilidade foram autorizadas pelo Arquiteto
-em 19/08/2026.
+A escrita da v0.1 e sua submissão à Análise de Implementabilidade foram
+autorizadas pelo Arquiteto em 19/08/2026.
+
+Em 07/09/2026, o Arquiteto escolheu e autorizou registrar a opção 1 para a
+entrada digital do PIR/radar: tentativa inicial síncrona limitada, continuação
+pelo timer sem convergência, primeiro report confirmado uma única vez e
+encerramento permitido sem report de presença ao atingir o deadline, conforme
+as seções 6.1 e 6.2. Essa decisão substitui na v0.2 a garantia incondicional de
+publicação síncrona e de report de presença em todo boot. Preserva bateria,
+EXT1, debounce, comportamento do sensor de porta e exclusão de testes.
+
+Não permanece decisão funcional aberta nesta versão. A v0.2 é encaminhada à
+Análise de Implementabilidade; esta escrita não estabelece `Ready` nem inicia
+implementação. O escopo da ordem é documental e não migra a governança local
+ou aprova Repository Engineering Contract e Repository Readiness.
