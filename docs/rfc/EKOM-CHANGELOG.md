@@ -919,3 +919,15 @@ A qualificação do repositório permanece separada: `AGENTS.md` declara 5.0,
 mas contrato aprovado, avaliação e habilitação do alcance não foram localizados.
 O `Ready` da tarefa não supre Repository Readiness. Implementação não iniciada;
 nenhum build, teste, flash, monitor ou hardware executado nesta análise.
+
+### Implementação da v0.2
+
+Após a reversão do `AGENTS.md` para EKOM 4.6 em `b0c2969`, o Arquiteto
+reiterou a ordem de implementação da v0.2. Capability, composição, board
+generalizado, integração EXT1 e registro semântico 5 foram implementados,
+conforme `docs/reports/presence-sensor-battery-h2/implementation/2026-09-07T201126Z-v0.2-d2e5d43e-implementation.md`.
+
+Builds finais de presença, porta, tomada e exemplo H2, além do coordenador C6,
+terminaram com código 0. Nenhum teste foi criado, alterado ou executado; flash,
+monitor e hardware permanecem `Not Executed`. A entrega segue para Revisão,
+sem conclusão do workflow por autoridade do agente.

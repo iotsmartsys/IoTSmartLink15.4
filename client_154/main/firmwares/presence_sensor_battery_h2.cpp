@@ -7,8 +7,8 @@ using namespace iotsmartsys;
 
 namespace
 {
-constexpr std::uint32_t kDeviceId = 0x15400001;
-constexpr std::uint8_t kDoorEndpointId = 1;
+constexpr std::uint32_t kDeviceId = 0x15400002;
+constexpr std::uint8_t kPresenceEndpointId = 1;
 constexpr std::uint8_t kBatteryEndpointId = 2;
 constexpr bool kReportOnStart = true;
 constexpr std::uint32_t kSamplePeriodMs = 10;
@@ -79,12 +79,12 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
     const BatteryMeasurementResource &battery = selectedBatteryMeasurement();
 #endif
 
-    smartSysApp.addDoorSensorCapability({
+    smartSysApp.addPresenceSensorCapability({
         .pin = input.pin,
         .activeHigh = input.activeHigh,
         .pull = mapPull(input.pull),
         .reportOnStart = kReportOnStart,
-        .endpointId = kDoorEndpointId,
+        .endpointId = kPresenceEndpointId,
         .samplePeriodMs = kSamplePeriodMs,
         .samplesPerWindow = kSamplesPerWindow,
         .majorityThreshold = kMajorityThreshold,
@@ -131,11 +131,11 @@ iotsmartsys::SetupResult startSelectedProductFirmware()
             .onMode = app::WakeLedOnMode::DurationMs,
             .onTimeMs = kWakeLedOnTimeMs,
         },
-        // The timer is the periodic sign of life; the contact is the event, so
+        // The timer is the periodic sign of life; the presence input is the event, so
         // a transition is reported when it happens and not only at the next
-        // period. The GPIO is the one the board offers as the dry-contact
+        // period. The GPIO is the one the board offers as the digital presence
         // input, which is also the capability registered above.
-        .contactWakeup = {
+        .presenceWakeup = {
             .enabled = true,
             .pin = input.pin,
         },

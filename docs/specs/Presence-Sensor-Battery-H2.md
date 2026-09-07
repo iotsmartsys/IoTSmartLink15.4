@@ -8,10 +8,9 @@
 
 **Estado normativo:** `Active`
 
-**Estado da implementação:** Não iniciada [`Not Started`]
+**Estado da implementação:** Implementada; builds concluídos; hardware `Not Executed`
 
-**Estado do workflow:** Rascunho [`Draft`]; submetida à Análise de
-Implementabilidade
+**Estado do workflow:** Encaminhada à Revisão; implementação autorizada da v0.2
 
 **Responsável arquitetural:** Marcelo Miranda
 

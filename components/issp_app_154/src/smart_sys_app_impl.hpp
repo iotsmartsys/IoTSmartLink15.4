@@ -40,6 +40,7 @@ struct SmartSysApp::Impl
 
     core::SwitchPlugCapability *addSwitchPlugCapability(const app::SwitchConfig &config);
     core::DoorSensorCapability *addDoorSensorCapability(const app::DoorSensorConfig &config);
+    core::PresenceSensorCapability *addPresenceSensorCapability(const app::PresenceSensorConfig &config);
     core::BatteryLevelCapability *addBatteryLevelCapability(
         const app::BatteryLevelConfig &config);
     AppResult configureFactoryResetButton(const app::PushButtonConfig &config);
@@ -112,6 +113,12 @@ struct SmartSysApp::Impl
     /// external wakeup for the opposite one. Idempotent, and reached even when
     /// SetupStage::StartDevice was never completed.
     AppResult prepareContactWakeup();
+    AppResult prepareDigitalWakeup(gpio_num_t pin, app::DigitalInputPull pull,
+                                   const char *source);
+    bool presenceWakeupEnabled() const;
+    const app::PresenceSensorConfig *matchingPresenceConfig() const;
+    AppResult validatePresenceWakeup() const;
+    AppResult preparePresenceWakeup();
 
     /// First platform operation of SetupStage::InitializePlatform: records the
     /// boot cause and configures and lights the LED, before NVS, commissioning,
@@ -183,6 +190,13 @@ struct SmartSysApp::Impl
     std::array<std::optional<core::DoorSensorCapability>, kMaxCapabilities>
         doorSensorCapabilities_;
     std::size_t doorSensorCount_;
+
+    std::array<app::PresenceSensorConfig, kMaxCapabilities> presenceSensorConfigs_;
+    std::array<std::optional<issp::DigitalInputBehavior>, kMaxCapabilities>
+        presenceSensorBehaviors_;
+    std::array<std::optional<core::PresenceSensorCapability>, kMaxCapabilities>
+        presenceSensorCapabilities_;
+    std::size_t presenceSensorCount_;
 
     std::array<app::BatteryLevelConfig, kMaxCapabilities> batteryConfigs_;
     std::array<std::optional<issp::BatteryLevelBehavior>, kMaxCapabilities>

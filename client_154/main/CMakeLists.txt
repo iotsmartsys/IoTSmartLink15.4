@@ -15,9 +15,19 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     elseif(CONFIG_IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2)
         list(APPEND srcs "firmwares/door_sensor_battery_h2.cpp")
         set(selected_product "Door sensor battery H2")
-        set(required_resources dry_contact_input user_button)
+        set(required_resources digital_input user_button)
         if(CONFIG_IOTSMARTLINK154_ENABLE_DEEP_SLEEP)
-            list(APPEND required_resources wake_led dry_contact_wakeup)
+            list(APPEND required_resources wake_led digital_input_wakeup)
+        endif()
+        if(CONFIG_IOTSMARTLINK154_ENABLE_BATTERY_LEVEL)
+            list(APPEND required_resources battery_measurement)
+        endif()
+    elseif(CONFIG_IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2)
+        list(APPEND srcs "firmwares/presence_sensor_battery_h2.cpp")
+        set(selected_product "Presence sensor battery H2")
+        set(required_resources digital_input user_button)
+        if(CONFIG_IOTSMARTLINK154_ENABLE_DEEP_SLEEP)
+            list(APPEND required_resources wake_led digital_input_wakeup)
         endif()
         if(CONFIG_IOTSMARTLINK154_ENABLE_BATTERY_LEVEL)
             list(APPEND required_resources battery_measurement)
@@ -32,18 +42,18 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
         list(APPEND srcs "boards/current_client_esp32h2_wiring.cpp")
         set(selected_board "Current client ESP32-H2 wiring")
         set(offered_resources digital_output user_button)
-    elseif(CONFIG_IOTSMARTLINK154_BOARD_DOOR_SENSOR_BATTERY_H2)
-        list(APPEND srcs "boards/door_sensor_battery_h2.cpp")
-        set(selected_board "Door Sensor Battery H2")
-        # dry_contact_wakeup is offered only because this board wires its dry
-        # contact to a GPIO the target accepts as an external wakeup source.
-        set(offered_resources dry_contact_input user_button wake_led
-                              dry_contact_wakeup battery_measurement)
+    elseif(CONFIG_IOTSMARTLINK154_BOARD_BATTERY_DIGITAL_SENSOR_H2)
+        list(APPEND srcs "boards/battery_digital_sensor_h2.cpp")
+        set(selected_board "Battery Digital Sensor H2")
+        # digital_input_wakeup is offered only because this board wires its digital
+        # input to a GPIO the target accepts as an external wakeup source.
+        set(offered_resources digital_input user_button wake_led
+                              digital_input_wakeup battery_measurement)
     else()
         message(FATAL_ERROR
             "No board model selected in the App Client menu for "
             "IDF_TARGET=${IDF_TARGET}. 'Current client ESP32-H2 wiring' and "
-            "'Door Sensor Battery H2' are compatible with "
+            "'Battery Digital Sensor H2' are compatible with "
             "esp32h2 only; run 'idf.py set-target esp32h2' or add a board "
             "model for this target.")
     endif()

@@ -7,9 +7,9 @@ file(READ "${packet_file}" packet)
 
 string(REGEX MATCHALL "\n\\|[ \t]*[0-9]+[ \t]*\\|" registry_types "${registry}")
 list(LENGTH registry_types registry_type_count)
-if(NOT registry_type_count EQUAL 4)
+if(NOT registry_type_count EQUAL 5)
     message(FATAL_ERROR
-        "event registry mismatch: ADR-0005 allocated type set must be exactly 1,2,3,4; "
+        "event registry mismatch: ADR-0005 allocated type set must be exactly 1,2,3,4,5; "
         "found ${registry_type_count} numeric entries")
 endif()
 
@@ -27,25 +27,27 @@ string(REGEX MATCHALL
        "#define[ \t]+IOT154_EVENT_[A-Z0-9_]+[ \t]+[0-9]+"
        packet_types "${packet_registry}")
 list(LENGTH packet_types packet_type_count)
-if(NOT packet_type_count EQUAL 4)
+if(NOT packet_type_count EQUAL 5)
     message(FATAL_ERROR
-        "event registry mismatch: coordinator allocated type set must be exactly 1,2,3,4; "
+        "event registry mismatch: coordinator allocated type set must be exactly 1,2,3,4,5; "
         "found ${packet_type_count} IOT154_EVENT definitions: ${packet_types}")
 endif()
 
-set(expected_types 1 2 3 4)
+set(expected_types 1 2 3 4 5)
 set(registry_capabilities
     "Sensor de porta"
     "Plug comutável"
     "Nível de bateria em percentual"
-    "Estado da telemetria de bateria")
+    "Estado da telemetria de bateria"
+    "Sensor de presença")
 set(packet_macros
     IOT154_EVENT_DOOR
     IOT154_EVENT_POWER
     IOT154_EVENT_BATTERY_LEVEL_PERCENT
-    IOT154_EVENT_BATTERY_TELEMETRY_STATE)
+    IOT154_EVENT_BATTERY_TELEMETRY_STATE
+    IOT154_EVENT_PRESENCE)
 
-foreach(index RANGE 0 3)
+foreach(index RANGE 0 4)
     list(GET expected_types ${index} expected_type)
     list(GET registry_capabilities ${index} capability)
     list(GET packet_macros ${index} macro)

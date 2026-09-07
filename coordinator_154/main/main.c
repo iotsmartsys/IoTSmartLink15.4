@@ -440,6 +440,8 @@ static const char *type_from_event(uint8_t event_type)
     {
     case IOT154_EVENT_DOOR:
         return "Door Sensor";
+    case IOT154_EVENT_PRESENCE:
+        return "Presence Sensor";
     case IOT154_EVENT_POWER:
         return "Switch Plug";
     case IOT154_EVENT_BATTERY_LEVEL_PERCENT:
@@ -453,6 +455,17 @@ static const char *type_from_event(uint8_t event_type)
 
 static const char *value_from_event(uint8_t event_type, uint8_t value, char *fallback, size_t fallback_len)
 {
+    if (event_type == IOT154_EVENT_PRESENCE)
+    {
+        if (value == 1U)
+        {
+            return "detected";
+        }
+        if (value == 0U)
+        {
+            return "undetected";
+        }
+    }
     if (event_type == IOT154_EVENT_DOOR)
     {
         return value == 1 ? "open" : "closed";

@@ -19,9 +19,16 @@ config IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2
         One dry-contact input on endpoint 1, with factory reset. The product
         publishes event type 1 for open and closed transitions. Battery
         powered: it enables deep sleep and requires a board offering the
-        wake_led, dry_contact_wakeup and battery_measurement resources, waking
+        wake_led, digital_input_wakeup and battery_measurement resources, waking
         both by the periodic timer and by a transition of the dry contact. It
         publishes battery level on endpoint 2 with event type 3.
+
+config IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2
+    bool "Presence sensor battery H2"
+    help
+        Read-only presence on endpoint 1 (event type 5), battery level on
+        endpoint 2 and battery telemetry state on endpoint 3. Requires the
+        Battery Digital Sensor H2 board resources for the enabled features.
 
 endchoice
 
@@ -41,24 +48,24 @@ config IOTSMARTLINK154_BOARD_CURRENT_CLIENT_ESP32H2_WIRING
         prototype. Electrical details belong exclusively to the selected board
         source. Compatible with ESP32-H2 only.
 
-config IOTSMARTLINK154_BOARD_DOOR_SENSOR_BATTERY_H2
-    bool "Door Sensor Battery H2"
+config IOTSMARTLINK154_BOARD_BATTERY_DIGITAL_SENSOR_H2
+    bool "Battery Digital Sensor H2"
     depends on IDF_TARGET_ESP32H2
     help
-        Battery-powered ESP32-H2 door sensor board. Electrical details belong
+        Battery-powered ESP32-H2 digital sensor board. Electrical details belong
         exclusively to the selected board source.
 
 endchoice
 
 menu "Firmware features"
-    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2
+    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2 || IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2
 
 config IOTSMARTLINK154_ENABLE_DEEP_SLEEP
     bool "Enable deep sleep"
     default y
-    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2
+    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2 || IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2
     help
-        Enables the product's periodic timer, dry-contact wakeup and wake LED.
+        Enables the product's periodic timer, digital-input wakeup and wake LED.
 
 config IOTSMARTLINK154_MAX_AWAKE_TIME_SECONDS
     int "Maximum awake time (seconds)"
@@ -68,6 +75,7 @@ config IOTSMARTLINK154_MAX_AWAKE_TIME_SECONDS
 
 config IOTSMARTLINK154_WAKEUP_INTERVAL_MINUTES
     int "Periodic wake-up interval (minutes)"
+    default 180 if IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2
     default 15
     range 1 2147483647
     depends on IOTSMARTLINK154_ENABLE_DEEP_SLEEP
@@ -75,7 +83,7 @@ config IOTSMARTLINK154_WAKEUP_INTERVAL_MINUTES
 config IOTSMARTLINK154_ENABLE_BATTERY_LEVEL
     bool "Enable battery level capability"
     default y
-    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2
+    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2 || IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2
 
 config IOTSMARTLINK154_BATTERY_READING_INTERVAL_MINUTES
     int "Battery reading interval (minutes)"
@@ -91,7 +99,7 @@ config IOTSMARTLINK154_FACTORY_RESET_GPIO
     int "Factory reset GPIO"
     default 9
     range 0 27
-    depends on IOTSMARTLINK154_PRODUCT_SINGLE_SMART_PLUG || IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2
+    depends on IOTSMARTLINK154_PRODUCT_SINGLE_SMART_PLUG || IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2 || IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2
 
 endmenu
 
