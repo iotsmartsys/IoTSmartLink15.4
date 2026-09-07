@@ -43,6 +43,19 @@ struct DoorSensorConfig
     std::uint8_t consecutiveWindows;
 };
 
+struct PresenceSensorConfig
+{
+    gpio_num_t pin;
+    bool activeHigh;
+    DigitalInputPull pull;
+    bool reportOnStart;
+    std::uint8_t endpointId;
+    std::uint32_t samplePeriodMs;
+    std::uint8_t samplesPerWindow;
+    std::uint8_t majorityThreshold;
+    std::uint8_t consecutiveWindows;
+};
+
 struct BatteryLevelConfig
 {
     adc_unit_t unit;
@@ -106,6 +119,13 @@ struct ContactWakeupConfig
     gpio_num_t pin;
 };
 
+// Additive presence source; only one digital EXT1 source may be enabled.
+struct PresenceWakeupConfig
+{
+    bool enabled;
+    gpio_num_t pin;
+};
+
 struct DeepSleepConfig
 {
     bool enabled;
@@ -114,7 +134,8 @@ struct DeepSleepConfig
     WakeLedConfig wakeLed;
     // Appended last, so a composition that does not declare it stays valid and
     // the field remains inert.
-    ContactWakeupConfig contactWakeup;
+    ContactWakeupConfig contactWakeup{};
+    PresenceWakeupConfig presenceWakeup{};
 };
 
 } // namespace iotsmartsys::app
@@ -146,6 +167,19 @@ public:
     using StateFn = bool (*)(void *context);
 
     DoorSensorCapability(StateFn stateFn, void *context);
+    bool state() const;
+
+private:
+    StateFn stateFn_;
+    void *context_;
+};
+
+class PresenceSensorCapability
+{
+public:
+    using StateFn = bool (*)(void *context);
+
+    PresenceSensorCapability(StateFn stateFn, void *context);
     bool state() const;
 
 private:
@@ -275,6 +309,9 @@ public:
 
     core::DoorSensorCapability *
     addDoorSensorCapability(const app::DoorSensorConfig &config);
+
+    core::PresenceSensorCapability *
+    addPresenceSensorCapability(const app::PresenceSensorConfig &config);
 
     core::BatteryLevelCapability *
     addBatteryLevelCapability(const app::BatteryLevelConfig &config);

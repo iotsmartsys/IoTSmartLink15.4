@@ -79,19 +79,18 @@ constexpr std::uint32_t causeBit(esp_sleep_wakeup_cause_t cause)
 // read as the bitmap of every source that woke the chip. The singular
 // esp_sleep_get_wakeup_cause() reports only the first one it finds -- the timer
 // -- which would hide a simultaneous transition of the contact.
-const char *wakeupCauseName(std::uint32_t causes)
+const char *wakeupCauseName(std::uint32_t causes, bool presence)
 {
     if ((causes & causeBit(ESP_SLEEP_WAKEUP_UNDEFINED)) != 0U)
     {
         return "cold_boot_or_reset";
     }
-    // The external wakeup is armed only for the dry contact, so ESP_SLEEP_WAKEUP_EXT1
-    // identifies a transition of the contact.
+    // EXT1 identifies the digital source selected by this composition.
     const bool timer = (causes & causeBit(ESP_SLEEP_WAKEUP_TIMER)) != 0U;
     const bool contact = (causes & causeBit(ESP_SLEEP_WAKEUP_EXT1)) != 0U;
     if (timer && contact)
     {
-        return "timer_and_contact";
+        return presence ? "timer_and_presence" : "timer_and_contact";
     }
     if (timer)
     {
@@ -99,7 +98,7 @@ const char *wakeupCauseName(std::uint32_t causes)
     }
     if (contact)
     {
-        return "contact";
+        return presence ? "presence" : "contact";
     }
     return "other";
 }
@@ -198,6 +197,63 @@ AppResult SmartSysApp::Impl::validateContactWakeup() const
     return AppResult::Ok;
 }
 
+bool SmartSysApp::Impl::presenceWakeupEnabled() const
+{
+    return deepSleepConfigured_ && deepSleepConfig_.enabled &&
+           deepSleepConfig_.presenceWakeup.enabled;
+}
+
+const app::PresenceSensorConfig *SmartSysApp::Impl::matchingPresenceConfig() const
+{
+    for (std::size_t index = 0; index < presenceSensorCount_; ++index)
+    {
+        if (presenceSensorConfigs_[index].pin == deepSleepConfig_.presenceWakeup.pin)
+        {
+            return &presenceSensorConfigs_[index];
+        }
+    }
+    return nullptr;
+}
+
+AppResult SmartSysApp::Impl::validatePresenceWakeup() const
+{
+    if (!presenceWakeupEnabled())
+    {
+        return AppResult::Ok;
+    }
+
+    // The correspondence is validated here, and not while configuring, so the
+    // order between registering the capability and configureDeepSleep() stays
+    // insignificant during AppState::Configuring.
+    const app::PresenceSensorConfig *match = matchingPresenceConfig();
+    if (match == nullptr)
+    {
+        ESP_LOGE(kTag,
+                 "presence_wakeup rejected reason=no_matching_capability gpio=%d",
+                 static_cast<int>(deepSleepConfig_.presenceWakeup.pin));
+        return AppResult::InvalidArgument;
+    }
+
+    // With more than one capability on that GPIO, divergent pulls make the
+    // electrical preparation indeterminate; equal pulls are equivalent, so any
+    // match supplies the same input configuration to reapply.
+    for (std::size_t index = 0; index < presenceSensorCount_; ++index)
+    {
+        if (presenceSensorConfigs_[index].pin != deepSleepConfig_.presenceWakeup.pin)
+        {
+            continue;
+        }
+        if (presenceSensorConfigs_[index].pull != match->pull)
+        {
+            ESP_LOGE(kTag,
+                     "presence_wakeup rejected reason=divergent_pull gpio=%d",
+                     static_cast<int>(deepSleepConfig_.presenceWakeup.pin));
+            return AppResult::InvalidArgument;
+        }
+    }
+    return AppResult::Ok;
+}
+
 AppResult SmartSysApp::Impl::configureDeepSleep(const app::DeepSleepConfig &config)
 {
     if (state_ != AppState::Configuring)
@@ -241,6 +297,18 @@ AppResult SmartSysApp::Impl::configureDeepSleep(const app::DeepSleepConfig &conf
         }
     }
 
+    if (config.contactWakeup.enabled && config.presenceWakeup.enabled)
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return AppResult::InvalidArgument;
+    }
+    if (config.presenceWakeup.enabled &&
+        !esp_sleep_is_valid_wakeup_gpio(config.presenceWakeup.pin))
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return AppResult::InvalidArgument;
+    }
+
     if (config.contactWakeup.enabled)
     {
         // Eligibility comes from the capability the target declares; the facade
@@ -279,6 +347,10 @@ AppResult SmartSysApp::Impl::configureDeepSleep(const app::DeepSleepConfig &conf
         for (std::size_t index = 0; !collides && index < doorSensorCount_; ++index)
         {
             collides = doorSensorConfigs_[index].pin == config.wakeLed.pin;
+        }
+        for (std::size_t index = 0; !collides && index < presenceSensorCount_; ++index)
+        {
+            collides = presenceSensorConfigs_[index].pin == config.wakeLed.pin;
         }
         if (collides)
         {
@@ -425,11 +497,12 @@ AppResult SmartSysApp::Impl::beginPlatformPowerPolicy()
     }
 
     const std::uint32_t causes = esp_sleep_get_wakeup_causes();
-    ESP_LOGI(kTag, "boot_cause=%s timer_wakeup=%d contact_wakeup=%d raw=0x%08lx",
-             wakeupCauseName(causes),
+    ESP_LOGI(kTag, "boot_cause=%s timer_wakeup=%d contact_wakeup=%d raw=0x%08lx presence_wakeup=%d",
+             wakeupCauseName(causes, presenceWakeupEnabled()),
              (causes & causeBit(ESP_SLEEP_WAKEUP_TIMER)) != 0U ? 1 : 0,
-             (causes & causeBit(ESP_SLEEP_WAKEUP_EXT1)) != 0U ? 1 : 0,
-             static_cast<unsigned long>(causes));
+             (causes & causeBit(ESP_SLEEP_WAKEUP_EXT1)) != 0U && !presenceWakeupEnabled() ? 1 : 0,
+             static_cast<unsigned long>(causes),
+             (causes & causeBit(ESP_SLEEP_WAKEUP_EXT1)) != 0U && presenceWakeupEnabled() ? 1 : 0);
 
     if (!deepSleepConfig_.wakeLed.enabled)
     {
@@ -516,6 +589,22 @@ bool SmartSysApp::Impl::readyForEarlyQuiescence() const
         // publication succeeded; initial_stabilization_pending is not that
         // confirmation and keeps the device awake.
         if (!doorSensorBehaviors_[index]->hasConfirmedState())
+        {
+            return false;
+        }
+    }
+
+    for (std::size_t index = 0; index < presenceSensorCount_; ++index)
+    {
+        if (!presenceSensorConfigs_[index].reportOnStart)
+        {
+            continue;
+        }
+        ++expected;
+        // hasConfirmedState() is only true after a required initial
+        // publication succeeded; initial_stabilization_pending is not that
+        // confirmation and keeps the device awake.
+        if (!presenceSensorBehaviors_[index]->hasConfirmedState())
         {
             return false;
         }
@@ -608,44 +697,62 @@ AppResult SmartSysApp::Impl::prepareContactWakeup()
         return hooks_.prepareContactWakeup(hooks_.context, contact.pin, match->pull);
     }
 
+    return prepareDigitalWakeup(contact.pin, match->pull, "contact_wakeup");
+}
+
+AppResult SmartSysApp::Impl::preparePresenceWakeup()
+{
+    const app::PresenceSensorConfig *match = matchingPresenceConfig();
+    if (match == nullptr)
+    {
+        return AppResult::Failed;
+    }
+    return prepareDigitalWakeup(deepSleepConfig_.presenceWakeup.pin, match->pull,
+                                "presence_wakeup");
+}
+
+AppResult SmartSysApp::Impl::prepareDigitalWakeup(gpio_num_t pin,
+                                                app::DigitalInputPull pull,
+                                                const char *source)
+{
     // Reapplying the input mode and the pull is idempotent and leaves the pad in
     // a defined state even when StartDevice was never reached, so the arming
     // never depends on DigitalInputBehavior::begin().
     gpio_config_t gpioConfig{};
-    gpioConfig.pin_bit_mask = 1ULL << static_cast<std::uint32_t>(contact.pin);
+    gpioConfig.pin_bit_mask = 1ULL << static_cast<std::uint32_t>(pin);
     gpioConfig.mode = GPIO_MODE_INPUT;
-    gpioConfig.pull_up_en = match->pull == app::DigitalInputPull::PullUp
+    gpioConfig.pull_up_en = pull == app::DigitalInputPull::PullUp
                                 ? GPIO_PULLUP_ENABLE
                                 : GPIO_PULLUP_DISABLE;
-    gpioConfig.pull_down_en = match->pull == app::DigitalInputPull::PullDown
+    gpioConfig.pull_down_en = pull == app::DigitalInputPull::PullDown
                                   ? GPIO_PULLDOWN_ENABLE
                                   : GPIO_PULLDOWN_DISABLE;
     gpioConfig.intr_type = GPIO_INTR_DISABLE;
     const esp_err_t configResult = gpio_config(&gpioConfig);
     if (configResult != ESP_OK)
     {
-        ESP_LOGE(kTag, "contact_wakeup pad config failed gpio=%d result=%d",
-                 static_cast<int>(contact.pin), static_cast<int>(configResult));
+        ESP_LOGE(kTag, "%s pad config failed gpio=%d result=%d", source,
+                 static_cast<int>(pin), static_cast<int>(configResult));
         return AppResult::Failed;
     }
 
     // The base of the rearming is exclusively this electrical reading: the
     // logical state confirmed by the debounce takes no part in it.
-    const int observedLevel = gpio_get_level(contact.pin);
+    const int observedLevel = gpio_get_level(pin);
     const esp_sleep_ext1_wakeup_mode_t mode = observedLevel != 0
                                                   ? ESP_EXT1_WAKEUP_ANY_LOW
                                                   : ESP_EXT1_WAKEUP_ANY_HIGH;
     const esp_err_t armResult = esp_sleep_enable_ext1_wakeup_io(
-        1ULL << static_cast<std::uint32_t>(contact.pin), mode);
+        1ULL << static_cast<std::uint32_t>(pin), mode);
     if (armResult != ESP_OK)
     {
-        ESP_LOGE(kTag, "contact_wakeup arm failed gpio=%d result=%d",
-                 static_cast<int>(contact.pin), static_cast<int>(armResult));
+        ESP_LOGE(kTag, "%s arm failed gpio=%d result=%d", source,
+                 static_cast<int>(pin), static_cast<int>(armResult));
         return AppResult::Failed;
     }
 
-    ESP_LOGI(kTag, "contact_wakeup armed gpio=%d observed_level=%d wake_level=%d",
-             static_cast<int>(contact.pin), observedLevel,
+    ESP_LOGI(kTag, "%s armed gpio=%d observed_level=%d wake_level=%d", source,
+             static_cast<int>(pin), observedLevel,
              observedLevel != 0 ? 0 : 1);
     return AppResult::Ok;
 }
@@ -712,8 +819,17 @@ bool SmartSysApp::Impl::runTerminalSequence(bool forced)
         }
     }
 
+    if (deepSleepConfig_.presenceWakeup.enabled &&
+        preparePresenceWakeup() != AppResult::Ok)
+    {
+        ESP_LOGE(kTag, "deep_sleep aborted reason=presence_wakeup_rejected");
+        releaseDeepSleepTransition();
+        return false;
+    }
+
     if (!deepSleepConfig_.timerWakeup.enabled &&
-        !deepSleepConfig_.contactWakeup.enabled)
+        !deepSleepConfig_.contactWakeup.enabled &&
+        !deepSleepConfig_.presenceWakeup.enabled)
     {
         // Intentional absence of a source does not abort: the device will only
         // wake by reset or a new power-up.

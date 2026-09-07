@@ -22,6 +22,7 @@ namespace
 
 constexpr char kTag[] = "SmartSysApp";
 constexpr std::uint8_t kDoorSensorEventType = 1U;
+constexpr std::uint8_t kPresenceSensorEventType = 5U;
 constexpr std::uint8_t kSwitchPlugEventType = 2U;
 
 bool switchStateThunk(void *context)
@@ -29,7 +30,7 @@ bool switchStateThunk(void *context)
     return static_cast<issp::DigitalOutputBehavior *>(context)->state();
 }
 
-bool doorSensorStateThunk(void *context)
+bool digitalInputStateThunk(void *context)
 {
     return static_cast<issp::DigitalInputBehavior *>(context)->state();
 }
@@ -73,6 +74,16 @@ bool DoorSensorCapability::state() const
     return stateFn_(context_);
 }
 
+PresenceSensorCapability::PresenceSensorCapability(StateFn stateFn, void *context)
+    : stateFn_(stateFn), context_(context)
+{
+}
+
+bool PresenceSensorCapability::state() const
+{
+    return stateFn_(context_);
+}
+
 } // namespace core
 
 SmartSysApp::Impl::Impl(const app::SmartSysAppConfig &config,
@@ -94,6 +105,10 @@ SmartSysApp::Impl::Impl(const app::SmartSysAppConfig &config,
       doorSensorBehaviors_{},
       doorSensorCapabilities_{},
       doorSensorCount_(0),
+      presenceSensorConfigs_{},
+      presenceSensorBehaviors_{},
+      presenceSensorCapabilities_{},
+      presenceSensorCount_(0),
       batteryConfigs_{},
       batteryBehaviors_{},
       batteryCapabilities_{},
@@ -267,7 +282,7 @@ SmartSysApp::Impl::addDoorSensorCapability(const app::DoorSensorConfig &config)
     doorSensorConfigs_[doorSensorCount_] = config;
     doorSensorBehaviors_[doorSensorCount_].emplace(behaviorConfig);
     doorSensorCapabilities_[doorSensorCount_].emplace(
-        &doorSensorStateThunk,
+        &digitalInputStateThunk,
         static_cast<void *>(&*doorSensorBehaviors_[doorSensorCount_]));
     core::DoorSensorCapability *capability =
         &*doorSensorCapabilities_[doorSensorCount_];
@@ -276,6 +291,70 @@ SmartSysApp::Impl::addDoorSensorCapability(const app::DoorSensorConfig &config)
         behaviorConfig.endpointId, behaviorConfig.eventType};
     ++behaviorCount_;
     ++doorSensorCount_;
+    return capability;
+}
+
+core::PresenceSensorCapability *
+SmartSysApp::Impl::addPresenceSensorCapability(const app::PresenceSensorConfig &config)
+{
+    if (state_ != AppState::Configuring)
+    {
+        recordConfigurationFailure(AppResult::Failed);
+        return nullptr;
+    }
+    const bool validPull = config.pull == app::DigitalInputPull::Floating ||
+                           config.pull == app::DigitalInputPull::PullUp ||
+                           config.pull == app::DigitalInputPull::PullDown;
+    if (!GPIO_IS_VALID_GPIO(config.pin) || config.endpointId == 0U || !validPull ||
+        config.samplePeriodMs == 0U ||
+        config.samplesPerWindow == 0U || config.majorityThreshold == 0U ||
+        config.majorityThreshold > config.samplesPerWindow ||
+        config.consecutiveWindows == 0U)
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return nullptr;
+    }
+    if (hasOccupiedEndpoint(config.endpointId))
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return nullptr;
+    }
+    if (collidesWithWakeLed(config.pin))
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return nullptr;
+    }
+    if (behaviorCount_ >= kMaxCapabilities || presenceSensorCount_ >= kMaxCapabilities)
+    {
+        recordConfigurationFailure(AppResult::Failed);
+        return nullptr;
+    }
+
+    const issp::DigitalInputConfig behaviorConfig = {
+        .endpointId = config.endpointId,
+        .eventType = kPresenceSensorEventType,
+        .pin = config.pin,
+        .activeLevel = config.activeHigh ? 1U : 0U,
+        .pull = mapInputPull(config.pull),
+        .reportOnStart = config.reportOnStart,
+        .samplePeriodMs = config.samplePeriodMs,
+        .samplesPerWindow = config.samplesPerWindow,
+        .majorityThreshold = config.majorityThreshold,
+        .consecutiveWindows = config.consecutiveWindows,
+    };
+
+    presenceSensorConfigs_[presenceSensorCount_] = config;
+    presenceSensorBehaviors_[presenceSensorCount_].emplace(behaviorConfig);
+    presenceSensorCapabilities_[presenceSensorCount_].emplace(
+        &digitalInputStateThunk,
+        static_cast<void *>(&*presenceSensorBehaviors_[presenceSensorCount_]));
+    core::PresenceSensorCapability *capability =
+        &*presenceSensorCapabilities_[presenceSensorCount_];
+    behaviors_[behaviorCount_] = &*presenceSensorBehaviors_[presenceSensorCount_];
+    endpointEventPairs_[behaviorCount_] = {
+        behaviorConfig.endpointId, behaviorConfig.eventType};
+    ++behaviorCount_;
+    ++presenceSensorCount_;
     return capability;
 }
 
@@ -423,8 +502,14 @@ SetupResult SmartSysApp::Impl::setup()
         recordConfigurationFailure(batteryResult);
         return fail(SetupStage::ValidateConfiguration, batteryResult);
     }
-    // Checked only here, so the order between registering the dry-contact
+    // Checked only here, so the order between registering the digital-input
     // capability and configureDeepSleep() stays insignificant while Configuring.
+    const AppResult presenceResult = validatePresenceWakeup();
+    if (presenceResult != AppResult::Ok)
+    {
+        recordConfigurationFailure(presenceResult);
+        return fail(SetupStage::ValidateConfiguration, presenceResult);
+    }
     const AppResult contactResult = validateContactWakeup();
     if (contactResult != AppResult::Ok)
     {
@@ -564,6 +649,12 @@ core::DoorSensorCapability *
 SmartSysApp::addDoorSensorCapability(const app::DoorSensorConfig &config)
 {
     return impl().addDoorSensorCapability(config);
+}
+
+core::PresenceSensorCapability *
+SmartSysApp::addPresenceSensorCapability(const app::PresenceSensorConfig &config)
+{
+    return impl().addPresenceSensorCapability(config);
 }
 
 core::BatteryLevelCapability *

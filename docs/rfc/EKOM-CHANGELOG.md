@@ -877,3 +877,65 @@ Com essa decisão, a v0.2 foi encerrada como Concluída [`Done`] e
 `EKOM-DEBT-0001` a `EKOM-DEBT-0005` foram quitados. O registro de encerramento
 está em
 `docs/reports/technical-debt-remediation/validation/2026-08-19T184122Z-v0.2-7eb191f-hardware-validation-and-closure.md`.
+
+## EKOM-CHG-0010 — Sensor de presença a bateria H2
+
+**Estado:** Fechada [`Closed`] — v0.2 Concluída [`Done`] por decisão do Arquiteto em 07/09/2026
+
+**Especificação relacionada:** `docs/specs/Presence-Sensor-Battery-H2.md` v0.1
+(`EKOM-PRESENCE-001`)
+
+A análise da revisão `44bd1dc` classificou a v0.1 como
+`Not Ready — Specification Defect`: falta contrato para ausência de
+estabilização inicial, conciliando publicação síncrona e deadline acordado.
+Relatório: `docs/reports/presence-sensor-battery-h2/analysis/2026-09-07T194045Z-v0.1-373a6d1b-implementability-analysis.md`.
+
+O relatório registra separadamente a divergência entre adoção local EKOM 4.6
+e perfis externos 5.0, sem presumir migração ou qualificação do repositório.
+Nenhuma fonte comportamental, código ou configuração foi alterada; build,
+testes, flash, monitor e hardware não foram executados.
+
+### Revisão normativa v0.2 — opção 1
+
+Em 07/09/2026, por ordem explícita do Arquiteto, a v0.2 incorpora a decisão
+para a borda B1: tentativa síncrona limitada e continuação periódica, sem
+report provisório, sem prolongar o deadline e com encerramento permitido sem
+report de presença. Contrato, requisitos, bordas e critérios foram reconciliados,
+preservando bateria, EXT1, porta e a exclusão de testes.
+
+A v0.2 permanece `Draft`, com análise pendente e implementação não iniciada.
+O relatório da v0.1 é histórico e permanece inalterado; esta Autoria não
+classifica a nova versão como `Ready` nem altera a governança do repositório.
+
+### Análise da v0.2
+
+A revisão `95e26d2` recebeu classificação técnica `Ready`, conforme
+`docs/reports/presence-sensor-battery-h2/analysis/2026-09-07T195422Z-v0.2-a5290532-implementability-analysis.md`.
+B1 foi descartado para a v0.2 após confronto da decisão incorporada com
+behavior e lifecycle vigentes; 12 requisitos, oito critérios e cinco débitos
+foram confrontados, sem novo bloqueador funcional.
+
+A qualificação do repositório permanece separada: `AGENTS.md` declara 5.0,
+mas contrato aprovado, avaliação e habilitação do alcance não foram localizados.
+O `Ready` da tarefa não supre Repository Readiness. Implementação não iniciada;
+nenhum build, teste, flash, monitor ou hardware executado nesta análise.
+
+### Implementação da v0.2
+
+Após a reversão do `AGENTS.md` para EKOM 4.6 em `b0c2969`, o Arquiteto
+reiterou a ordem de implementação da v0.2. Capability, composição, board
+generalizado, integração EXT1 e registro semântico 5 foram implementados,
+conforme `docs/reports/presence-sensor-battery-h2/implementation/2026-09-07T201126Z-v0.2-d2e5d43e-implementation.md`.
+
+Builds finais de presença, porta, tomada e exemplo H2, além do coordenador C6,
+terminaram com código 0. Nenhum teste foi criado, alterado ou executado; flash,
+monitor e hardware permanecem `Not Executed`. A entrega segue para Revisão,
+sem conclusão do workflow por autoridade do agente.
+
+### Encerramento da v0.2
+
+Em 07/09/2026, o Arquiteto determinou o encerramento e autorizou integração em
+`main`, commit e push. Registro: `docs/reports/presence-sensor-battery-h2/validation/2026-09-07T201542Z-v0.2-54489d6-architectural-closure.md`.
+Builds e inspeções permanecem as evidências entregues; nenhuma nova revisão
+formal ou validação física foi declarada. Testes e hardware conservam
+`Not Executed`.

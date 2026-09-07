@@ -27,11 +27,11 @@ enum class InputPull : std::uint8_t
     PullDown,
 };
 
-// A board that also offers the dry_contact_wakeup resource (declared in the
+// A board that also offers the digital_input_wakeup resource (declared in the
 // CMake composition, not here) states that this same pin is eligible as an
 // external wakeup source on its target. The physical capability stays with the
 // board; using it as a wakeup source stays a product policy.
-struct DryContactInputResource
+struct DigitalInputResource
 {
     gpio_num_t pin;
     bool activeHigh;
@@ -64,7 +64,7 @@ struct BatteryMeasurementResource
 // with invented pins.
 const DigitalOutputResource &selectedDigitalOutput();
 const UserButtonResource &selectedUserButton();
-const DryContactInputResource &selectedDryContactInput();
+const DigitalInputResource &selectedDigitalInput();
 const WakeLedResource &selectedWakeLed();
 const BatteryMeasurementResource &selectedBatteryMeasurement();
 

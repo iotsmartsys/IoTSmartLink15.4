@@ -3,7 +3,7 @@
 #include "soc/adc_channel.h"
 
 #ifndef CONFIG_IDF_TARGET_ESP32H2
-#error "Board model 'Door Sensor Battery H2' supports only IDF_TARGET=esp32h2."
+#error "Board model 'Battery Digital Sensor H2' supports only IDF_TARGET=esp32h2."
 #endif
 
 namespace client154
@@ -11,8 +11,8 @@ namespace client154
 namespace
 {
 // GPIO 14 is inside the range the ESP32-H2 accepts as an external wakeup
-// source, which is what lets this board offer the dry_contact_wakeup resource.
-constexpr DryContactInputResource kDryContactInput = {
+// source, which is what lets this board offer the digital_input_wakeup resource.
+constexpr DigitalInputResource kDigitalInput = {
     .pin = GPIO_NUM_14,
     .activeHigh = true,
     .pull = InputPull::PullUp,
@@ -32,9 +32,9 @@ constexpr BatteryMeasurementResource kBatteryMeasurement = {
     .rTopOhms = 470000U,
     .rBottomOhms = 220000U,
 };
-static_assert(kUserButton.pin != kDryContactInput.pin,
+static_assert(kUserButton.pin != kDigitalInput.pin,
               "App Client composition rejected: factory reset GPIO collides "
-              "with dry_contact_input");
+              "with digital_input");
 #if CONFIG_IOTSMARTLINK154_ENABLE_DEEP_SLEEP
 static_assert(kUserButton.pin != kWakeLed.pin,
               "App Client composition rejected: factory reset GPIO collides "
@@ -48,9 +48,9 @@ static_assert(kUserButton.pin !=
 #endif
 }
 
-const DryContactInputResource &selectedDryContactInput()
+const DigitalInputResource &selectedDigitalInput()
 {
-    return kDryContactInput;
+    return kDigitalInput;
 }
 
 const UserButtonResource &selectedUserButton()

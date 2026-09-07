@@ -8,10 +8,13 @@
 
 **Emenda do tipo de evento 4 aceita pelo Arquiteto em:** 18/08/2026
 
+**Emenda do tipo de evento 5 aceita pelo Arquiteto em:** 19/08/2026
+
 **Decisores:** Arquiteto humano
 
-**Especificações relacionadas:** `docs/specs/Client-Battery-Level.md` e
-`docs/specs/Technical-Debt-Remediation.md`
+**Especificações relacionadas:** `docs/specs/Client-Battery-Level.md`,
+`docs/specs/Technical-Debt-Remediation.md` e
+`docs/specs/Presence-Sensor-Battery-H2.md`
 
 **Habilita:** `EKOM-BATTERY-001`
 
@@ -107,12 +110,15 @@ integral permanecem sob a lacuna `EKM-GAP-0002`.
 | 2 | Plug comutável | ligado, desligado e alternar | `docs/specs/ISSP-Configurable-Bootstrap.md`; `docs/specs/Firmware-Variants-Menuconfig.md` |
 | 3 | Nível de bateria em percentual | 0 a 100 | `docs/specs/Client-Battery-Level.md` |
 | 4 | Estado da telemetria de bateria | 0 calibrado, 1 aproximado, 2 inerte | `docs/specs/Technical-Debt-Remediation.md` |
+| 5 | Sensor de presença | 1 detected, 0 undetected | `docs/specs/Presence-Sensor-Battery-H2.md` |
 
 Esta ADR registra a alocação e a estabilidade de cada tipo; o domínio detalhado
 e o comportamento permanecem com a fonte indicada na última coluna. Os tipos 1
-a 3 descrevem o que já existe em código do coordenador; o tipo 4 fica reservado
-globalmente pela emenda aceita, ainda que uma composição não habilite bateria e
-não registre nem publique essa capability.
+a 4 descrevem o que já existe em código do coordenador. O tipo 4 permanece
+reservado globalmente ainda que uma composição não habilite bateria e não
+registre nem publique essa capability. O tipo 5 fica alocado globalmente pela
+emenda aceita; sua implementação permanece sob
+`docs/specs/Presence-Sensor-Battery-H2.md`.
 
 **Regra de alocação.** Um tipo de evento tem significado global e estável: uma
 vez atribuído, não é reutilizado com outro significado, em nenhum endpoint. Um

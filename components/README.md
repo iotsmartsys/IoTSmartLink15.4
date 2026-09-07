@@ -19,6 +19,9 @@ Este diretório contém os componentes reutilizáveis do runtime ISSP:
   do produto;
 - `issp_app_154`: fachada pública `iotsmartsys::SmartSysApp`; compõe por
   delegação `issp_core`, `issp_behaviors` e `issp_transport_154`, além de
+  expor `addPresenceSensorCapability(PresenceSensorConfig)` para a capability
+  somente leitura de evento 5, com `PresenceWakeupConfig`/`presenceWakeup` como
+  fonte EXT1 aditiva em `DeepSleepConfig`, e
   possuir o factory reset local (`FactoryResetService`,
   `ResetButtonMonitor`, realocados de `client_154/main/reset`); seu único
   header público, `SmartSysApp.h`, não inclui nenhum header `issp_*` nem
