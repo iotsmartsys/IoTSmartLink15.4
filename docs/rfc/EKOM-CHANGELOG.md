@@ -877,3 +877,20 @@ Com essa decisão, a v0.2 foi encerrada como Concluída [`Done`] e
 `EKOM-DEBT-0001` a `EKOM-DEBT-0005` foram quitados. O registro de encerramento
 está em
 `docs/reports/technical-debt-remediation/validation/2026-08-19T184122Z-v0.2-7eb191f-hardware-validation-and-closure.md`.
+
+## EKOM-CHG-0010 — Sensor de presença a bateria H2
+
+**Estado:** Análise registrada; implementação não iniciada
+
+**Especificação relacionada:** `docs/specs/Presence-Sensor-Battery-H2.md` v0.1
+(`EKOM-PRESENCE-001`)
+
+A análise da revisão `44bd1dc` classificou a v0.1 como
+`Not Ready — Specification Defect`: falta contrato para ausência de
+estabilização inicial, conciliando publicação síncrona e deadline acordado.
+Relatório: `docs/reports/presence-sensor-battery-h2/analysis/2026-09-07T194045Z-v0.1-373a6d1b-implementability-analysis.md`.
+
+O relatório registra separadamente a divergência entre adoção local EKOM 4.6
+e perfis externos 5.0, sem presumir migração ou qualificação do repositório.
+Nenhuma fonte comportamental, código ou configuração foi alterada; build,
+testes, flash, monitor e hardware não foram executados.
