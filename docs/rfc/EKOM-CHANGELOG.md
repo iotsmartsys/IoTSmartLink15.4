@@ -906,3 +906,16 @@ preservando bateria, EXT1, porta e a exclusão de testes.
 A v0.2 permanece `Draft`, com análise pendente e implementação não iniciada.
 O relatório da v0.1 é histórico e permanece inalterado; esta Autoria não
 classifica a nova versão como `Ready` nem altera a governança do repositório.
+
+### Análise da v0.2
+
+A revisão `95e26d2` recebeu classificação técnica `Ready`, conforme
+`docs/reports/presence-sensor-battery-h2/analysis/2026-09-07T195422Z-v0.2-a5290532-implementability-analysis.md`.
+B1 foi descartado para a v0.2 após confronto da decisão incorporada com
+behavior e lifecycle vigentes; 12 requisitos, oito critérios e cinco débitos
+foram confrontados, sem novo bloqueador funcional.
+
+A qualificação do repositório permanece separada: `AGENTS.md` declara 5.0,
+mas contrato aprovado, avaliação e habilitação do alcance não foram localizados.
+O `Ready` da tarefa não supre Repository Readiness. Implementação não iniciada;
+nenhum build, teste, flash, monitor ou hardware executado nesta análise.
