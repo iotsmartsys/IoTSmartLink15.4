@@ -20,7 +20,7 @@ oferece uma ponte JSON-lines por UART para o host.
 | `coordinator_154` em ESP32-C6 | Suportado | Decisão | ADR-0003 |
 | ESP32-C3 e QEMU | Não suportados | Decisão | ADR-0003 |
 | Single smart plug e Door sensor battery H2 | Implementados | Fato observado | Especificação de variantes |
-| Presence sensor battery H2 | Implementado, builds concluídos; hardware não executado; usa Battery Digital Sensor H2 junto com porta | Fato observado | Presence-Sensor-Battery-H2.md v0.2 |
+| Presence sensor battery H2 | v0.2 concluída por decisão do Arquiteto; builds concluídos; hardware não executado; board Battery Digital Sensor H2 compartilhado com porta | Fato observado | Presence-Sensor-Battery-H2.md v0.2 |
 
 ## 3. Arquitetura
 

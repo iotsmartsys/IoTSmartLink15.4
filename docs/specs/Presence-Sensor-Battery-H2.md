@@ -10,7 +10,7 @@
 
 **Estado da implementação:** Implementada; builds concluídos; hardware `Not Executed`
 
-**Estado do workflow:** Encaminhada à Revisão; implementação autorizada da v0.2
+**Estado do workflow:** Concluída [`Done`] por decisão do Arquiteto em 07/09/2026
 
 **Responsável arquitetural:** Marcelo Miranda
 
@@ -445,3 +445,13 @@ Não permanece decisão funcional aberta nesta versão. A v0.2 é encaminhada à
 Análise de Implementabilidade; esta escrita não estabelece `Ready` nem inicia
 implementação. O escopo da ordem é documental e não migra a governança local
 ou aprova Repository Engineering Contract e Repository Readiness.
+
+## 12. Encerramento
+
+Em 07/09/2026, o Arquiteto determinou o encerramento da v0.2 e autorizou sua
+integração em `main`, com commit e push. A fonte permanece `Active`.
+Testes, flash, monitor e hardware permanecem `Not Executed`; a decisão não
+constitui nova evidência de execução ou revisão formal.
+
+Registro da decisão: `docs/reports/presence-sensor-battery-h2/validation/2026-09-07T201542Z-v0.2-54489d6-architectural-closure.md`.
+Nova necessidade ou evidência material exige decisão de reabertura.

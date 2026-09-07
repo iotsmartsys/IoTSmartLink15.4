@@ -880,7 +880,7 @@ está em
 
 ## EKOM-CHG-0010 — Sensor de presença a bateria H2
 
-**Estado:** Análise registrada; implementação não iniciada
+**Estado:** Fechada [`Closed`] — v0.2 Concluída [`Done`] por decisão do Arquiteto em 07/09/2026
 
 **Especificação relacionada:** `docs/specs/Presence-Sensor-Battery-H2.md` v0.1
 (`EKOM-PRESENCE-001`)
@@ -931,3 +931,11 @@ Builds finais de presença, porta, tomada e exemplo H2, além do coordenador C6,
 terminaram com código 0. Nenhum teste foi criado, alterado ou executado; flash,
 monitor e hardware permanecem `Not Executed`. A entrega segue para Revisão,
 sem conclusão do workflow por autoridade do agente.
+
+### Encerramento da v0.2
+
+Em 07/09/2026, o Arquiteto determinou o encerramento e autorizou integração em
+`main`, commit e push. Registro: `docs/reports/presence-sensor-battery-h2/validation/2026-09-07T201542Z-v0.2-54489d6-architectural-closure.md`.
+Builds e inspeções permanecem as evidências entregues; nenhuma nova revisão
+formal ou validação física foi declarada. Testes e hardware conservam
+`Not Executed`.
