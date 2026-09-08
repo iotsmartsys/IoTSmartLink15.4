@@ -1118,3 +1118,15 @@ altera contrato nem habilita áreas excluídas.
 **Limites:** código/configurações/testes preservados; nenhum build, teste,
 flash, monitor ou hardware executado. Nenhum débito aceito/reaberto. Conclusão
 e integração permanecem decisões humanas.
+
+### Implementação autorizada da preparação v0.1
+
+Marcelo Miranda autorizou explicitamente implementar `ISSP-Typed-Values.md`
+v0.1, incluindo builds canônicos. Estado registrado mecanicamente como
+In Progress; requisitos analisados preservados. Implementação entregue para
+Revisão em `docs/reports/issp-typed-values/implementation/2026-09-08T194643Z-v0.1-6f534630-implementation.md`: codecs v3, Int32/Float32, admissão canônica, fingerprint
+tipado e formatação de duas casas, mantendo produtores atuais inteiros.
+Treze builds concluídos com saída 0; testes criados/adaptados e compilados,
+mas não executados. Guarda documental do delta e diff check aprovados.
+SDK existente v6.0.1-dirty preservado. Não houve flash, hardware, merge ou
+conclusão humana; a especificação percentual dependente não foi promovida.

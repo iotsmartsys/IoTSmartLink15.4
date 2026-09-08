@@ -54,14 +54,14 @@ IsspResult DigitalOutputBehavior::begin(IBehaviorStatePublisher &publisher)
         const IsspReport initialReport{
             .endpointId = config_.endpointId,
             .eventType = config_.eventType,
-            .value = static_cast<std::uint8_t>(state_ ? 1U : 0U),
+            .value = IsspValue(static_cast<std::uint8_t>(state_ ? 1U : 0U)),
         };
         const IsspResult publishResult = publisher_->publishState(initialReport);
         ESP_LOGI("DIGITAL_OUTPUT_START",
                  "initial_report endpoint=%u event=%u value=%u result=%u",
                  static_cast<unsigned>(initialReport.endpointId),
                  static_cast<unsigned>(initialReport.eventType),
-                 static_cast<unsigned>(initialReport.value),
+                 static_cast<unsigned>(initialReport.value.bits),
                  static_cast<unsigned>(publishResult));
         if (publishResult != IsspResult::Ok)
         {
@@ -117,7 +117,7 @@ IsspCommandResult DigitalOutputBehavior::handle(const IsspCommand &command)
     const IsspReport report{
         .endpointId = config_.endpointId,
         .eventType = config_.eventType,
-        .value = static_cast<std::uint8_t>(state_ ? 1U : 0U),
+        .value = IsspValue(static_cast<std::uint8_t>(state_ ? 1U : 0U)),
     };
 
     const IsspResult publishResult = publisher_->publishState(report);

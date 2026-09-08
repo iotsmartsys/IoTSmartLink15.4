@@ -14,10 +14,11 @@ extern "C" {
 #define IOT154_CENTRAL_ADDR 0x0001
 #define IOT154_SENSOR_ADDR 0x1001
 #define IOT154_BROADCAST_ADDR 0xffff
-/// ISSP v2: fixed 20-byte payload carrying the client-generated report_id.
-/// v1 frames are rejected by length and version; there is no fallback,
-/// translation or silent mixed operation.
-#define IOT154_VERSION 2
+/// ISSP v3: fixed 24-byte payload; no legacy fallback.
+#define IOT154_VERSION 3
+#define IOT154_PAYLOAD_LEN 24
+#define IOT154_VALUE_INT32 0
+#define IOT154_VALUE_FLOAT32 1
 
 #define IOT154_MSG_DATA 1
 #define IOT154_MSG_ACK 2
@@ -58,7 +59,7 @@ _Static_assert(IOT154_EVENT_BATTERY_TELEMETRY_STATE == 4,
 #define IOT154_ADDR_MODE_SHORT 2
 #define IOT154_ADDR_MODE_EXT 3
 
-typedef struct __attribute__((packed)) {
+typedef struct {
     uint8_t version;
     uint8_t msg_type;
     uint32_t device_id;
@@ -68,14 +69,14 @@ typedef struct __attribute__((packed)) {
     uint64_t report_id;
     uint8_t endpoint_id;
     uint8_t event_type;
-    uint8_t value;
+    uint8_t value_type;
+    uint32_t value; /* Int32 two's-complement or Float32 bits, not a native wire field. */
     uint8_t checksum;
 } iot154_packet_t;
 
-_Static_assert(sizeof(iot154_packet_t) == 20, "ISSP v2 payload must be 20 bytes");
-_Static_assert(IOT154_MAC_HEADER_EXT_LEN + sizeof(iot154_packet_t) + IOT154_FCS_LEN <=
+_Static_assert(IOT154_MAC_HEADER_EXT_LEN + IOT154_PAYLOAD_LEN + IOT154_FCS_LEN <=
                    IOT154_MAX_FRAME_LEN,
-               "largest ISSP v2 frame must fit the IEEE 802.15.4 MAC limit");
+               "largest ISSP v3 frame must fit the IEEE 802.15.4 MAC limit");
 
 typedef struct {
     uint8_t src_mode;
@@ -87,12 +88,55 @@ typedef struct {
     bool dst_broadcast;
 } iot154_frame_info_t;
 
-/// @brief Return an 8-bit additive checksum over packet bytes except checksum.
+/// Explicit little-endian serialization, independent of native struct layout.
+static inline void iot154_packet_encode_body(const iot154_packet_t *packet, uint8_t *bytes)
+{
+    bytes[0] = packet->version;
+    bytes[1] = packet->msg_type;
+    for (unsigned i = 0; i < 4; ++i) bytes[2 + i] = (uint8_t)(packet->device_id >> (8 * i));
+    bytes[6] = (uint8_t)packet->seq;
+    bytes[7] = (uint8_t)(packet->seq >> 8);
+    for (unsigned i = 0; i < 8; ++i) bytes[8 + i] = (uint8_t)(packet->report_id >> (8 * i));
+    bytes[16] = packet->endpoint_id;
+    bytes[17] = packet->event_type;
+    bytes[18] = packet->value_type;
+    for (unsigned i = 0; i < 4; ++i) bytes[19 + i] = (uint8_t)(packet->value >> (8 * i));
+}
+
+static inline void iot154_packet_encode(const iot154_packet_t *packet, uint8_t *bytes)
+{
+    iot154_packet_encode_body(packet, bytes);
+    bytes[23] = packet->checksum;
+}
+
+static inline void iot154_packet_decode(const uint8_t *bytes, iot154_packet_t *packet)
+{
+    memset(packet, 0, sizeof(*packet));
+    packet->version = bytes[0];
+    packet->msg_type = bytes[1];
+    for (unsigned i = 0; i < 4; ++i) packet->device_id |= (uint32_t)bytes[2 + i] << (8 * i);
+    packet->seq = (uint16_t)bytes[6] | ((uint16_t)bytes[7] << 8);
+    for (unsigned i = 0; i < 8; ++i) packet->report_id |= (uint64_t)bytes[8 + i] << (8 * i);
+    packet->endpoint_id = bytes[16];
+    packet->event_type = bytes[17];
+    packet->value_type = bytes[18];
+    for (unsigned i = 0; i < 4; ++i) packet->value |= (uint32_t)bytes[19 + i] << (8 * i);
+    packet->checksum = bytes[23];
+}
+
+static inline bool iot154_value_is_canonical(uint8_t type, uint32_t bits)
+{
+    return type == IOT154_VALUE_INT32 ||
+           (type == IOT154_VALUE_FLOAT32 && (bits & 0x7f800000U) != 0x7f800000U &&
+            bits != 0x80000000U);
+}
+
 static inline uint8_t iot154_checksum(const iot154_packet_t *packet)
 {
-    const uint8_t *bytes = (const uint8_t *)packet;
+    uint8_t bytes[IOT154_PAYLOAD_LEN];
+    iot154_packet_encode_body(packet, bytes);
     uint8_t sum = 0;
-    for (size_t i = 0; i < sizeof(*packet) - 1; ++i) {
+    for (size_t i = 0; i < IOT154_PAYLOAD_LEN - 1; ++i) {
         sum = (uint8_t)(sum + bytes[i]);
     }
     return sum;
@@ -107,28 +151,30 @@ static inline void iot154_packet_finalize(iot154_packet_t *packet)
 /// @brief Validate the message type against the report_id it carries.
 ///
 /// The wire ACK type stays single: a non-zero id identifies the ACK of a
-/// report, zero the ACK of a command. Unknown types keep their existing
-/// handling further down the receive path.
+/// report, zero the ACK of a command. Unknown message types are rejected.
 static inline bool iot154_packet_report_id_is_consistent(const iot154_packet_t *packet)
 {
     switch (packet->msg_type) {
     case IOT154_MSG_DATA:
         return packet->report_id != 0;
     case IOT154_MSG_ACK:
-        return true;
+        return packet->value_type == IOT154_VALUE_INT32 && packet->value <= IOT154_ACK_STATUS_INVALID;
     case IOT154_MSG_DISCOVERY_REQ:
+        return packet->report_id == 0 && packet->value_type == IOT154_VALUE_INT32 && packet->value == 0;
     case IOT154_MSG_DISCOVERY_RESP:
+        return packet->report_id == 0 && packet->value_type == IOT154_VALUE_INT32 && packet->value <= IOT154_ACK_STATUS_INVALID;
     case IOT154_MSG_CMD:
-        return packet->report_id == 0;
+        return packet->report_id == 0 && packet->value_type == IOT154_VALUE_INT32 && packet->value <= IOT154_VALUE_TOGGLE;
     default:
-        return true;
+        return false;
     }
 }
 
 /// @brief Validate protocol version, checksum and the type/report_id combination.
 static inline bool iot154_packet_is_valid(const iot154_packet_t *packet)
 {
-    return packet->version == IOT154_VERSION && packet->checksum == iot154_checksum(packet) &&
+    return packet != NULL && iot154_value_is_canonical(packet->value_type, packet->value) &&
+           packet->version == IOT154_VERSION && packet->checksum == iot154_checksum(packet) &&
            iot154_packet_report_id_is_consistent(packet);
 }
 
@@ -181,7 +227,7 @@ static inline size_t iot154_build_frame(uint8_t *frame,
                                         const iot154_packet_t *packet)
 {
     const uint16_t fcf = 0x9841;
-    frame[0] = IOT154_MAC_HEADER_LEN + sizeof(*packet) + IOT154_FCS_LEN;
+    frame[0] = IOT154_MAC_HEADER_LEN + IOT154_PAYLOAD_LEN + IOT154_FCS_LEN;
     frame[1] = (uint8_t)(fcf & 0xff);
     frame[2] = (uint8_t)(fcf >> 8);
     frame[3] = mac_seq;
@@ -191,7 +237,7 @@ static inline size_t iot154_build_frame(uint8_t *frame,
     frame[7] = (uint8_t)(dst_addr >> 8);
     frame[8] = (uint8_t)(src_addr & 0xff);
     frame[9] = (uint8_t)(src_addr >> 8);
-    memcpy(&frame[1 + IOT154_MAC_HEADER_LEN], packet, sizeof(*packet));
+    iot154_packet_encode(packet, &frame[1 + IOT154_MAC_HEADER_LEN]);
     return frame[0] + 1;
 }
 
@@ -203,7 +249,7 @@ static inline size_t iot154_build_ext_frame(uint8_t *frame,
                                             const iot154_packet_t *packet)
 {
     const uint16_t fcf = 0xdc41;
-    frame[0] = IOT154_MAC_HEADER_EXT_LEN + sizeof(*packet) + IOT154_FCS_LEN;
+    frame[0] = IOT154_MAC_HEADER_EXT_LEN + IOT154_PAYLOAD_LEN + IOT154_FCS_LEN;
     frame[1] = (uint8_t)(fcf & 0xff);
     frame[2] = (uint8_t)(fcf >> 8);
     frame[3] = mac_seq;
@@ -211,7 +257,7 @@ static inline size_t iot154_build_ext_frame(uint8_t *frame,
     frame[5] = (uint8_t)(IOT154_PAN_ID >> 8);
     memcpy(&frame[6], dst_ext, IOT154_EXT_ADDR_LEN);
     memcpy(&frame[14], src_ext, IOT154_EXT_ADDR_LEN);
-    memcpy(&frame[1 + IOT154_MAC_HEADER_EXT_LEN], packet, sizeof(*packet));
+    iot154_packet_encode(packet, &frame[1 + IOT154_MAC_HEADER_EXT_LEN]);
     return frame[0] + 1;
 }
 
@@ -222,7 +268,7 @@ static inline size_t iot154_build_broadcast_from_ext_frame(uint8_t *frame,
                                                            const iot154_packet_t *packet)
 {
     const uint16_t fcf = 0xd841;
-    frame[0] = IOT154_MAC_HEADER_SHORT_EXT_LEN + sizeof(*packet) + IOT154_FCS_LEN;
+    frame[0] = IOT154_MAC_HEADER_SHORT_EXT_LEN + IOT154_PAYLOAD_LEN + IOT154_FCS_LEN;
     frame[1] = (uint8_t)(fcf & 0xff);
     frame[2] = (uint8_t)(fcf >> 8);
     frame[3] = mac_seq;
@@ -231,14 +277,14 @@ static inline size_t iot154_build_broadcast_from_ext_frame(uint8_t *frame,
     frame[6] = (uint8_t)(IOT154_BROADCAST_ADDR & 0xff);
     frame[7] = (uint8_t)(IOT154_BROADCAST_ADDR >> 8);
     memcpy(&frame[8], src_ext, IOT154_EXT_ADDR_LEN);
-    memcpy(&frame[1 + IOT154_MAC_HEADER_SHORT_EXT_LEN], packet, sizeof(*packet));
+    iot154_packet_encode(packet, &frame[1 + IOT154_MAC_HEADER_SHORT_EXT_LEN]);
     return frame[0] + 1;
 }
 
 /// @brief Extract addressing metadata and protocol payload from an 802.15.4 frame.
 static inline bool iot154_parse_frame_info(const uint8_t *frame, iot154_frame_info_t *info, iot154_packet_t *packet)
 {
-    if (frame[0] < IOT154_MAC_HEADER_LEN + sizeof(*packet) + IOT154_FCS_LEN) {
+    if (frame[0] < IOT154_MAC_HEADER_LEN + IOT154_PAYLOAD_LEN + IOT154_FCS_LEN) {
         return false;
     }
 
@@ -310,13 +356,13 @@ static inline bool iot154_parse_frame_info(const uint8_t *frame, iot154_frame_in
     }
 
     const size_t mac_header_len = pos - 1;
-    /* ISSP v2 carries a fixed 20 byte payload: a frame longer than the header
+    /* ISSP v3 carries a fixed 24 byte payload: a frame longer than the header
        plus that payload is refused just like a truncated one. */
-    if (frame[0] != mac_header_len + sizeof(*packet) + IOT154_FCS_LEN) {
+    if (frame[0] != mac_header_len + IOT154_PAYLOAD_LEN + IOT154_FCS_LEN) {
         return false;
     }
 
-    memcpy(packet, &frame[pos], sizeof(*packet));
+    iot154_packet_decode(&frame[pos], packet);
     return iot154_packet_is_valid(packet);
 }
 

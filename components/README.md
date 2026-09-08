@@ -143,3 +143,15 @@ transports ou garantia para outros targets.
 Comportamento e contratos normativos permanecem definidos em
 `docs/specs/ISSP-Architecture.md`, `docs/specs/ISSP-Commissioning.md` e
 `docs/specs/ISSP-Reusable-Components.md`.
+
+## Reports tipados — ISSP v3
+
+O contrato `docs/specs/ISSP-Typed-Values.md` v0.1 define payload de 24 bytes.
+Na API técnica do core, `IsspReport::value` usa `IsspValue`: construção integral
+como `IsspValue(65)` preserva Int32; `IsspValue::floating(65.87F)` cria Float32.
+Inteiros fora de Int32, tipos inválidos e não finitos são recusados na admissão;
+−0 é normalizado para +0. Tipo e bits acompanham a identidade durante retries.
+O coordenador mantém codec independente, sem cópia de structs nativas no wire.
+Essa API permanece interna aos consumidores técnicos, sem exposição pela
+fachada de produto. A preparação mantém os produtores percentuais inteiros;
+sua migração segue `Fractional-Percentage-Reports.md`.

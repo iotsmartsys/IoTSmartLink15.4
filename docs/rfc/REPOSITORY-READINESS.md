@@ -49,3 +49,10 @@ do alcance inicial. O contrato v0.1 e a habilitação humana existente são
 preservados; não há nova aprovação atribuída ao agente. A baseline continua
 v2, e a preparação v3 não foi implementada. A dependência da funcionalidade
 percentual é tratada em sua análise própria, não suprida por esta qualificação.
+
+### Evidência da implementação tipada
+
+A baseline v2 citada no reconfronto acima é a anterior à implementação. A
+preparação v3 está agora em código, com 13 builds concluídos e handoff para
+Revisão em `docs/reports/issp-typed-values/implementation/2026-09-08T194643Z-v0.1-6f534630-implementation.md`. Nenhuma habilitação foi ampliada; a evidência de build
+não significa teste executado nem atualização da bancada.

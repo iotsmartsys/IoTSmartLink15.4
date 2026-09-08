@@ -26,7 +26,8 @@ typedef struct
     uint64_t report_id;
     uint8_t endpoint_id;
     uint8_t event_type;
-    uint8_t value;
+    uint8_t value_type;
+    uint32_t value;
 } report_fingerprint_t;
 
 /// One received DATA frame, already validated for frame, addressing, version,
@@ -38,7 +39,8 @@ typedef struct
     uint16_t seq;
     uint8_t endpoint_id;
     uint8_t event_type;
-    uint8_t value;
+    uint8_t value_type;
+    uint32_t value;
 } report_data_input_t;
 
 typedef enum

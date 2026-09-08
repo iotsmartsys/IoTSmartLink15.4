@@ -124,7 +124,8 @@ TEST_CASE("two high-majority windows publish initial open state", "[digital_inpu
     TEST_ASSERT_TRUE(behavior.hasConfirmedState());
     TEST_ASSERT_TRUE(behavior.state());
     TEST_ASSERT_EQUAL_size_t(1, publisher.count);
-    TEST_ASSERT_EQUAL_UINT8(1, publisher.reports[0].value);
+    TEST_ASSERT_EQUAL_UINT8(1, publisher.reports[0].value.bits);
+    TEST_ASSERT_EQUAL_UINT8(0, static_cast<unsigned>(publisher.reports[0].value.type));
 }
 
 TEST_CASE("two low-majority windows publish initial closed state", "[digital_input]")
@@ -137,7 +138,8 @@ TEST_CASE("two low-majority windows publish initial closed state", "[digital_inp
     feed(behavior, kLowWindow);
     feed(behavior, kLowWindow);
     TEST_ASSERT_FALSE(behavior.state());
-    TEST_ASSERT_EQUAL_UINT8(0, publisher.reports[0].value);
+    TEST_ASSERT_EQUAL_UINT8(0, publisher.reports[0].value.bits);
+    TEST_ASSERT_EQUAL_UINT8(0, static_cast<unsigned>(publisher.reports[0].value.type));
 }
 
 TEST_CASE("a stable transition publishes once and duplicates are suppressed",
@@ -155,7 +157,8 @@ TEST_CASE("a stable transition publishes once and duplicates are suppressed",
     feed(behavior, kHighWindow);
     feed(behavior, kHighWindow);
     TEST_ASSERT_EQUAL_size_t(2, publisher.count);
-    TEST_ASSERT_EQUAL_UINT8(1, publisher.reports[1].value);
+    TEST_ASSERT_EQUAL_UINT8(1, publisher.reports[1].value.bits);
+    TEST_ASSERT_EQUAL_UINT8(0, static_cast<unsigned>(publisher.reports[1].value.type));
 }
 
 TEST_CASE("nonconsecutive new classifications do not publish", "[digital_input]")
@@ -261,7 +264,8 @@ TEST_CASE("diverging initial classifications keep begin() ok until convergence",
     TEST_ASSERT_TRUE(behavior.hasConfirmedState());
     TEST_ASSERT_FALSE(behavior.state());
     TEST_ASSERT_EQUAL_size_t(1, publisher.count);
-    TEST_ASSERT_EQUAL_UINT8(0, publisher.reports[0].value);
+    TEST_ASSERT_EQUAL_UINT8(0, publisher.reports[0].value.bits);
+    TEST_ASSERT_EQUAL_UINT8(0, static_cast<unsigned>(publisher.reports[0].value.type));
 }
 
 TEST_CASE("the periodic timer samples at the configured 10 ms cadence",

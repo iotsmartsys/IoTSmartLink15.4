@@ -22,6 +22,7 @@
 #include "iot154_packet.h"
 #include "iot154_radio.h"
 #include "report_data_policy.h"
+#include "report_value.h"
 
 static const char *TAG = "central_154";
 static const EventBits_t RX_DONE_BIT = BIT0;
@@ -251,7 +252,7 @@ static bool diagnostic_extract_mac(const uint8_t *frame,
     *payload_length = 0;
     memset(info, 0, sizeof(*info));
     memset(packet, 0, sizeof(*packet));
-    if (frame == NULL || frame[0] < IOT154_MAC_HEADER_LEN + sizeof(*packet) + IOT154_FCS_LEN)
+    if (frame == NULL || frame[0] < IOT154_MAC_HEADER_LEN + IOT154_PAYLOAD_LEN + IOT154_FCS_LEN)
     {
         *reason = "frame_too_short";
         return false;
@@ -353,16 +354,16 @@ static bool diagnostic_extract_mac(const uint8_t *frame,
     }
 
     const size_t mac_header_length = pos - 1U;
-    const size_t expected_length = mac_header_length + sizeof(*packet) + IOT154_FCS_LEN;
+    const size_t expected_length = mac_header_length + IOT154_PAYLOAD_LEN + IOT154_FCS_LEN;
     if (frame[0] != expected_length)
     {
-        /* ISSP v2 payload is fixed at 20 bytes; the two invalid sizes are
+        /* ISSP v3 payload is fixed at 24 bytes; the two invalid sizes are
            distinguishable diagnostics. */
         *reason = frame[0] < expected_length ? "payload_truncated" : "payload_excessive";
         return false;
     }
     *payload_length = frame[0] - mac_header_length - IOT154_FCS_LEN;
-    memcpy(packet, &frame[pos], sizeof(*packet));
+    iot154_packet_decode(&frame[pos], packet);
     *reason = "ok";
     return true;
 }
@@ -453,51 +454,6 @@ static const char *type_from_event(uint8_t event_type)
     default:
         return "Device";
     }
-}
-
-static const char *value_from_event(uint8_t event_type, uint8_t value, char *fallback, size_t fallback_len)
-{
-    if (event_type == IOT154_EVENT_PRESENCE)
-    {
-        if (value == 1U)
-        {
-            return "detected";
-        }
-        if (value == 0U)
-        {
-            return "undetected";
-        }
-    }
-    if (event_type == IOT154_EVENT_DOOR)
-    {
-        return value == 1 ? "open" : "closed";
-    }
-    if (event_type == IOT154_EVENT_POWER)
-    {
-        if (value == IOT154_VALUE_TOGGLE)
-        {
-            return "toggle";
-        }
-        return value != 0 ? "on" : "off";
-    }
-
-    if (event_type == IOT154_EVENT_BATTERY_TELEMETRY_STATE)
-    {
-        switch (value)
-        {
-        case 0:
-            return "calibrated";
-        case 1:
-            return "approximate";
-        case 2:
-            return "inert";
-        default:
-            break;
-        }
-    }
-
-    snprintf(fallback, fallback_len, "%u", value);
-    return fallback;
 }
 
 static bool extract_host_device_id_and_endpoint_from_capability(const char *capability,
@@ -904,14 +860,20 @@ static bool host_send_event(const uint8_t *src_ext_addr,
                             uint64_t report_id,
                             uint8_t endpoint_id,
                             uint8_t event_type,
-                            uint8_t value)
+                            uint8_t value_type,
+                            uint32_t value)
 {
     char device_text[ISSP154_HOST_DEVICE_ID_BUFFER_SIZE] = {0};
     char capability_text[ISSP154_CAPABILITY_NAME_BUFFER_SIZE] = {0};
-    char value_text[12] = {0};
+    char value_text[REPORT_VALUE_TEXT_SIZE] = {0};
     char event_id_text[ISSP154_HOST_DEVICE_ID_LEN + 1 + IOT154_EVENT_ID_HEX_LEN + 1] = {0};
     char line[ISSP154_HOST_EVENT_JSON_BUFFER_SIZE] = {0};
-    const char *event_value = value_from_event(event_type, value, value_text, sizeof(value_text));
+    if (!report_value_format(event_type, value_type, value, value_text, sizeof(value_text)))
+    {
+        ESP_LOGW(TAG, "event dropped reason=invalid_value");
+        return false;
+    }
+    const char *event_value = value_text;
     format_device_id(src_ext_addr, device_text, sizeof(device_text));
     format_capability_name(device_text, endpoint_id, event_type, capability_text, sizeof(capability_text));
     if (!iot154_format_event_id(device_text, report_id, event_id_text, sizeof(event_id_text)))
@@ -954,6 +916,7 @@ static void send_radio_ack(uint32_t device_id,
         .report_id = report_id,
         .endpoint_id = endpoint_id,
         .event_type = 0,
+        .value_type = IOT154_VALUE_INT32,
         .value = IOT154_ACK_STATUS_OK,
     };
     iot154_packet_finalize(&ack);
@@ -1018,6 +981,7 @@ static bool coordinator_emit_event(void *ctx, const report_data_input_t *input)
                            input->report_id,
                            input->endpoint_id,
                            input->event_type,
+                           input->value_type,
                            input->value);
 }
 
@@ -1055,9 +1019,9 @@ static void log_report_data_outcome(report_data_outcome_t outcome,
     case REPORT_DATA_OUTCOME_UNKNOWN_FORWARDED:
         ESP_LOGI(TAG,
                  "DATA forwarded reason=unknown_origin_join_window dev=0x%08" PRIx32
-                 " seq=%u report_id=%016" PRIX64 " endpoint=%u event=%u value=%u",
+                 " seq=%u report_id=%016" PRIX64 " endpoint=%u event=%u value_type=%u value_bits=%" PRIu32,
                  input->device_id, input->seq, input->report_id,
-                 input->endpoint_id, input->event_type, input->value);
+                 input->endpoint_id, input->event_type, input->value_type, input->value);
         break;
     case REPORT_DATA_OUTCOME_UNKNOWN_LOCAL_UNAVAILABLE:
         ESP_LOGW(TAG,
@@ -1068,9 +1032,9 @@ static void log_report_data_outcome(report_data_outcome_t outcome,
     case REPORT_DATA_OUTCOME_NEW_ACCEPTED:
         ESP_LOGI(TAG,
                  "DATA new dev=0x%08" PRIx32 " seq=%u report_id=%016" PRIX64
-                 " endpoint=%u event=%u value=%u",
+                 " endpoint=%u event=%u value_type=%u value_bits=%" PRIu32,
                  input->device_id, input->seq, input->report_id,
-                 input->endpoint_id, input->event_type, input->value);
+                 input->endpoint_id, input->event_type, input->value_type, input->value);
         break;
     case REPORT_DATA_OUTCOME_NEW_LOCAL_UNAVAILABLE:
         ESP_LOGW(TAG,
@@ -1086,9 +1050,9 @@ static void log_report_data_outcome(report_data_outcome_t outcome,
     case REPORT_DATA_OUTCOME_CONFLICT:
         ESP_LOGW(TAG,
                  "DATA identity conflict dev=0x%08" PRIx32 " seq=%u report_id=%016" PRIX64
-                 " endpoint=%u event=%u value=%u",
+                 " endpoint=%u event=%u value_type=%u value_bits=%" PRIu32,
                  input->device_id, input->seq, input->report_id,
-                 input->endpoint_id, input->event_type, input->value);
+                 input->endpoint_id, input->event_type, input->value_type, input->value);
         break;
     }
 }
@@ -1103,6 +1067,7 @@ static void send_discovery_response(uint32_t device_id, uint16_t seq, const uint
         .seq = seq,
         .endpoint_id = 0,
         .event_type = 0,
+        .value_type = IOT154_VALUE_INT32,
         .value = IOT154_ACK_STATUS_OK,
     };
     iot154_packet_finalize(&response);
@@ -1164,6 +1129,7 @@ static bool transmit_pending_command(void)
         .seq = s_pending_command.sequence,
         .endpoint_id = s_pending_command.endpoint_id,
         .event_type = s_pending_command.event_type,
+        .value_type = IOT154_VALUE_INT32,
         .value = s_pending_command.value,
     };
     iot154_packet_finalize(&command);
@@ -1661,6 +1627,7 @@ void app_main(void)
                     .seq = packet.seq,
                     .endpoint_id = packet.endpoint_id,
                     .event_type = packet.event_type,
+                    .value_type = packet.value_type,
                     .value = packet.value,
                 };
                 report_data_context_t data_context = {.source_address = mac.src_ext};

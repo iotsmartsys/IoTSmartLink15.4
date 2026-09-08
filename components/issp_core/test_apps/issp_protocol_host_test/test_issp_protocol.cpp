@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <initializer_list>
+#include "issp154_mac_frame.h"
 
 #include "issp_protocol.hpp"
 
@@ -28,9 +30,9 @@ unsigned g_tests;
         }                                                                               \
     } while (0)
 
-constexpr std::size_t kVectorSize = 20;
+constexpr std::size_t kVectorSize = 24;
 static_assert(issp::IsspPayloadSize == kVectorSize,
-              "ISSP v2 payload must be 20 bytes");
+              "ISSP v3 payload must be 24 bytes");
 
 // Largest existing frame shape of this target: extended source and extended
 // destination. 21 bytes of MAC header plus the payload plus the 2-byte FCS.
@@ -38,32 +40,32 @@ constexpr std::size_t kExtendedMacHeaderBytes = 21;
 constexpr std::size_t kFcsBytes = 2;
 constexpr std::size_t kMacFrameLimit = 127;
 static_assert(kExtendedMacHeaderBytes + kVectorSize + kFcsBytes <= kMacFrameLimit,
-              "largest ISSP v2 frame must fit the IEEE 802.15.4 MAC limit");
+              "largest ISSP v3 frame must fit the IEEE 802.15.4 MAC limit");
 
 const std::uint8_t kDataTypical[kVectorSize] = {
-    0x02, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD,
-    0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0x02, 0x01, 0x21};
+    0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89,
+    0x67, 0x45, 0x23, 0x01, 0x01, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x22};
 const std::uint8_t kDataMinIdentity[kVectorSize] = {
-    0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04};
+    0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05};
 const std::uint8_t kDataMaxBoundary[kVectorSize] = {
-    0x02, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF2};
+    0x03, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xF3};
 const std::uint8_t kReportAck[kVectorSize] = {
-    0x02, 0x02, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD,
-    0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0x00, 0x00, 0x1F};
+    0x03, 0x02, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89,
+    0x67, 0x45, 0x23, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20};
 const std::uint8_t kCommandAck[kVectorSize] = {
-    0x02, 0x02, 0x02, 0x00, 0x40, 0x15, 0x07, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x65};
+    0x03, 0x02, 0x02, 0x00, 0x40, 0x15, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x66};
 const std::uint8_t kDiscoveryRequest[kVectorSize] = {
-    0x02, 0x03, 0x02, 0x00, 0x40, 0x15, 0x01, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5D};
+    0x03, 0x03, 0x02, 0x00, 0x40, 0x15, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E};
 const std::uint8_t kDiscoveryResponse[kVectorSize] = {
-    0x02, 0x04, 0x02, 0x00, 0x40, 0x15, 0x01, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E};
+    0x03, 0x04, 0x02, 0x00, 0x40, 0x15, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5F};
 const std::uint8_t kCommand[kVectorSize] = {
-    0x02, 0x05, 0x02, 0x00, 0x40, 0x15, 0x07, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x01, 0x01, 0x6A};
+    0x03, 0x05, 0x02, 0x00, 0x40, 0x15, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x03, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x6B};
 
 constexpr std::uint32_t kDeviceId = 0x15400002;
 constexpr std::uint64_t kReportId = 0x0123456789ABCDEFULL;
@@ -135,7 +137,7 @@ void decoders_read_the_golden_vectors()
 void v1_frames_and_wrong_lengths_are_rejected()
 {
     // A v1 frame: 12 bytes, version byte 1. Rejected by length, and rejected by
-    // version even when padded to the v2 length.
+    // version even when padded to the v3 length.
     const std::uint8_t v1Report[12] = {0x01, 0x01, 0x02, 0x00, 0x40, 0x15,
                                        0x02, 0x01, 0x01, 0x02, 0x01, 0x64};
     issp::IsspDecodedReport report{};
@@ -144,13 +146,13 @@ void v1_frames_and_wrong_lengths_are_rejected()
 
     std::uint8_t padded[kVectorSize] = {};
     std::memcpy(padded, v1Report, sizeof(v1Report));
-    padded[19] = 0;
+    padded[23] = 0;
     std::uint8_t sum = 0;
-    for (std::size_t i = 0; i < 19; ++i)
+    for (std::size_t i = 0; i < 23; ++i)
     {
         sum = static_cast<std::uint8_t>(sum + padded[i]);
     }
-    padded[19] = sum;
+    padded[23] = sum;
     CHECK(issp::decodeReport(padded, kVectorSize, report) == issp::IsspResult::Failed);
 
     // Truncation by one byte in either direction is refused.
@@ -168,11 +170,11 @@ void invalid_type_and_identity_combinations_are_rejected()
     std::memcpy(zeroIdentityData, kDataTypical, kVectorSize);
     std::memset(&zeroIdentityData[8], 0, 8);
     std::uint8_t sum = 0;
-    for (std::size_t i = 0; i < 19; ++i)
+    for (std::size_t i = 0; i < 23; ++i)
     {
         sum = static_cast<std::uint8_t>(sum + zeroIdentityData[i]);
     }
-    zeroIdentityData[19] = sum;
+    zeroIdentityData[23] = sum;
     issp::IsspDecodedReport report{};
     CHECK(issp::decodeReport(zeroIdentityData, kVectorSize, report) ==
           issp::IsspResult::Failed);
@@ -189,11 +191,11 @@ void invalid_type_and_identity_combinations_are_rejected()
     std::memcpy(identifiedCommand, kCommand, kVectorSize);
     identifiedCommand[8] = 0x01;
     sum = 0;
-    for (std::size_t i = 0; i < 19; ++i)
+    for (std::size_t i = 0; i < 23; ++i)
     {
         sum = static_cast<std::uint8_t>(sum + identifiedCommand[i]);
     }
-    identifiedCommand[19] = sum;
+    identifiedCommand[23] = sum;
     issp::IsspDecodedCommand command{};
     CHECK(issp::decodeCommand(identifiedCommand, kVectorSize, kDeviceId, command) ==
           issp::IsspResult::Failed);
@@ -202,11 +204,11 @@ void invalid_type_and_identity_combinations_are_rejected()
     std::memcpy(identifiedResponse, kDiscoveryResponse, kVectorSize);
     identifiedResponse[8] = 0x01;
     sum = 0;
-    for (std::size_t i = 0; i < 19; ++i)
+    for (std::size_t i = 0; i < 23; ++i)
     {
         sum = static_cast<std::uint8_t>(sum + identifiedResponse[i]);
     }
-    identifiedResponse[19] = sum;
+    identifiedResponse[23] = sum;
     issp::IsspDecodedDiscoveryResponse response{};
     CHECK(issp::decodeDiscoveryResponse(identifiedResponse, kVectorSize, response) ==
           issp::IsspResult::Failed);
@@ -214,8 +216,128 @@ void invalid_type_and_identity_combinations_are_rejected()
     // A corrupted checksum is refused.
     std::uint8_t corrupted[kVectorSize] = {};
     std::memcpy(corrupted, kDataTypical, kVectorSize);
-    corrupted[19] = static_cast<std::uint8_t>(corrupted[19] + 1U);
+    corrupted[23] = static_cast<std::uint8_t>(corrupted[23] + 1U);
     CHECK(issp::decodeReport(corrupted, kVectorSize, report) == issp::IsspResult::Failed);
+    ++g_tests;
+}
+
+
+// TV-AC-001/002: exact Int32 and canonical binary32 boundaries.
+struct TypedVector { unsigned type; std::uint32_t bits; std::uint8_t wire[24]; };
+const TypedVector kTypedVectors[] = {
+    {0, 0x00000000U, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1E}},
+    {0, 0x00000001U, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1F}},
+    {0, 0xFFFFFFFFU, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x1A}},
+    {0, 0x80000000U, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x80, 0x9E}},
+    {0, 0x7FFFFFFFU, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0x7F, 0x9A}},
+    {0, 0x01000001U, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x00, 0x01, 0x00, 0x00, 0x01, 0x20}},
+    {1, 0x00000000U, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x1F}},
+    {1, 0x3F000000U, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x3F, 0x5E}},
+    {1, 0x4283BD71U, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x01, 0x71, 0xBD, 0x83, 0x42, 0x12}},
+    {1, 0x7F7FFFFFU, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x01, 0xFF, 0xFF, 0x7F, 0x7F, 0x1B}},
+    {1, 0xFF7FFFFFU, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x01, 0xFF, 0xFF, 0x7F, 0xFF, 0x9B}},
+    {1, 0x00000001U, {0x03, 0x01, 0x02, 0x00, 0x40, 0x15, 0x02, 0x01, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01, 0x01, 0xFF, 0x01, 0x01, 0x00, 0x00, 0x00, 0x20}},
+};
+
+void typed_values_match_independent_vectors()
+{
+    for (const auto &vector : kTypedVectors)
+    {
+        issp::IsspValue value;
+        value.type = static_cast<issp::IsspValueType>(vector.type);
+        value.bits = vector.bits;
+        std::uint8_t output[24]{};
+        std::size_t length = 0;
+        CHECK(issp::encodeReport(kDeviceId, 0x0102, kReportId,
+              {.endpointId = 1, .eventType = 255, .value = value}, output, sizeof(output), length) == issp::IsspResult::Ok);
+        CHECK(length == 24 && std::memcmp(output, vector.wire, 24) == 0);
+        issp::IsspDecodedReport decoded{};
+        CHECK(issp::decodeReport(vector.wire, 24, decoded) == issp::IsspResult::Ok);
+        CHECK(decoded.report.value == value);
+    }
+    CHECK(!issp::IsspValue(INT64_C(2147483648)).isValid());
+    CHECK(!issp::IsspValue(INT64_C(-2147483649)).isValid());
+    CHECK(!issp::IsspValue(UINT64_MAX).isValid());
+    CHECK(issp::IsspValue(INT32_MIN).integer() == INT32_MIN);
+    ++g_tests;
+}
+
+void typed_invalid_content_and_controls_are_rejected()
+{
+    const std::uint32_t invalid[] = {0x7f800000, 0xff800000, 0x7fc00000, 0x80000000};
+    for (auto bits : invalid)
+    {
+        auto value = issp::IsspValue::floating(0);
+        value.bits = bits;
+        std::uint8_t wire[24]{};
+        std::size_t length = 99;
+        CHECK(issp::encodeReport(kDeviceId, 1, 1, {.endpointId=1, .eventType=255, .value=value},
+              wire, sizeof(wire), length) == issp::IsspResult::InvalidArgument);
+        CHECK(length == 0);
+        std::memcpy(wire, kDataTypical, 24);
+        wire[18] = 1;
+        for (unsigned i=0; i<4; ++i) wire[19+i] = static_cast<std::uint8_t>(bits >> (8*i));
+        wire[23] = 0;
+        for (unsigned i=0; i<23; ++i) wire[23] += wire[i];
+        issp::IsspDecodedReport decoded{};
+        CHECK(issp::decodeReport(wire, 24, decoded) == issp::IsspResult::Failed);
+    }
+    for (auto original : {kCommand, kCommandAck, kDiscoveryResponse, kDataTypical})
+    {
+        std::uint8_t wire[24];
+        std::memcpy(wire, original, 24);
+        wire[18] = original == kDataTypical ? 2 : 1;
+        wire[23] = 0;
+        for (unsigned i=0; i<23; ++i) wire[23] += wire[i];
+        issp::IsspDecodedReport report{};
+        issp::IsspDecodedAck ack{};
+        issp::IsspDecodedCommand command{};
+        issp::IsspDecodedDiscoveryResponse discovery{};
+        if (original == kDataTypical) CHECK(issp::decodeReport(wire,24,report) == issp::IsspResult::Failed);
+        if (original == kCommand) CHECK(issp::decodeCommand(wire,24,kDeviceId,command) == issp::IsspResult::Failed);
+        if (original == kCommandAck) CHECK(issp::decodeAck(wire,24,ack) == issp::IsspResult::Failed);
+        if (original == kDiscoveryResponse) CHECK(issp::decodeDiscoveryResponse(wire,24,discovery) == issp::IsspResult::Failed);
+    }
+    std::uint8_t legacy[24];
+    std::memcpy(legacy,kDataTypical,24);
+    legacy[0]=2; --legacy[23];
+    issp::IsspDecodedReport decoded{};
+    CHECK(issp::decodeReport(legacy,24,decoded) == issp::IsspResult::Failed);
+    CHECK(issp::decodeReport(legacy,20,decoded) == issp::IsspResult::InvalidArgument);
+    ++g_tests;
+}
+
+// TV-AC-003: exercise the actual MAC code for every message in each shape.
+void mac_shapes_preserve_all_messages()
+{
+    const std::uint8_t address[8] = {1,2,3,4,5,6,7,8};
+    for (auto wire : {kDataTypical,kReportAck,kCommandAck,kDiscoveryRequest,kDiscoveryResponse,kCommand})
+    {
+        for (unsigned shape=0; shape<3; ++shape)
+        {
+            std::uint8_t frame[128]{};
+            std::size_t length=0;
+            if (shape == 0)
+                CHECK(issp154_mac_build_broadcast_from_extended(0x1540,address,1,wire,24,frame,sizeof(frame),&length));
+            if (shape == 1)
+                CHECK(issp154_mac_build_extended_unicast(0x1540,address,address,1,wire,24,frame,sizeof(frame),&length));
+            if (shape == 2)
+            {
+                issp154_mac_source_t destination{};
+                destination.source_address_mode=2;
+                destination.source_pan_id=0x1540;
+                destination.source_address[0]=1;
+                CHECK(issp154_mac_build_reply(&destination,0x1540,2,address,1,wire,24,frame,sizeof(frame),&length));
+            }
+            const std::size_t expected = (shape == 0 ? 15 : (shape == 1 ? 21 : 9)) + 24 + 2 + 1;
+            CHECK(length == expected);
+            const std::uint8_t *payload=nullptr;
+            std::size_t payloadLength=0;
+            issp154_mac_source_t source{};
+            CHECK(issp154_mac_extract_payload_and_source(frame,length,&payload,&payloadLength,&source));
+            CHECK(payloadLength == 24 && std::memcmp(payload,wire,24)==0);
+        }
+    }
     ++g_tests;
 }
 
@@ -223,6 +345,9 @@ void invalid_type_and_identity_combinations_are_rejected()
 
 int main()
 {
+    typed_values_match_independent_vectors();
+    typed_invalid_content_and_controls_are_rejected();
+    mac_shapes_preserve_all_messages();
     encoders_match_the_golden_vectors();
     decoders_read_the_golden_vectors();
     v1_frames_and_wrong_lengths_are_rejected();

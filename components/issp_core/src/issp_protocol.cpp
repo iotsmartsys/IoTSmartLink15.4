@@ -5,10 +5,10 @@ namespace issp
 namespace
 {
 
-// ISSP v2 packed wire format. The client codec and the coordinator codec are
+// ISSP v3 wire format. The client codec and the coordinator codec are
 // separate implementations of this same table and are kept byte-for-byte
 // compatible by shared golden vectors, never by sharing code across targets.
-constexpr std::uint8_t kProtocolVersion = 2;
+constexpr std::uint8_t kProtocolVersion = 3;
 constexpr std::uint8_t kDataMessageType = 1;
 constexpr std::uint8_t kAckMessageType = 2;
 constexpr std::uint8_t kDiscoveryRequestMessageType = 3;
@@ -21,8 +21,9 @@ constexpr std::size_t kSequenceOffset = 6;
 constexpr std::size_t kReportIdOffset = 8;
 constexpr std::size_t kEndpointIdOffset = 16;
 constexpr std::size_t kEventTypeOffset = 17;
-constexpr std::size_t kValueOffset = 18;
-constexpr std::size_t kChecksumOffset = 19;
+constexpr std::size_t kValueTypeOffset = 18;
+constexpr std::size_t kValueOffset = 19;
+constexpr std::size_t kChecksumOffset = 23;
 
 constexpr std::uint8_t kAckStatusOk = 0;
 constexpr std::uint8_t kAckStatusUnsupported = 1;
@@ -118,7 +119,7 @@ std::uint8_t ackStatusToWireValue(IsspAckStatus status)
     return kAckStatusInvalid;
 }
 
-bool ackStatusFromWireValue(std::uint8_t value, IsspAckStatus &status)
+bool ackStatusFromWireValue(std::uint32_t value, IsspAckStatus &status)
 {
     switch (value)
     {
@@ -158,7 +159,8 @@ IsspResult encodeDiscoveryRequest(
     writeUint64LittleEndian(&output[kReportIdOffset], 0);
     output[kEndpointIdOffset] = 0;
     output[kEventTypeOffset] = 0;
-    output[kValueOffset] = 0;
+    output[kValueTypeOffset] = 0;
+    writeUint32LittleEndian(&output[kValueOffset], 0);
     output[kChecksumOffset] = calculateChecksum(output, kChecksumOffset);
     outputLength = IsspPayloadSize;
     return IsspResult::Ok;
@@ -178,13 +180,14 @@ IsspResult decodeDiscoveryResponse(
     if (data[kVersionOffset] != kProtocolVersion ||
         data[kChecksumOffset] != calculateChecksum(data, kChecksumOffset) ||
         data[kMessageTypeOffset] != kDiscoveryResponseMessageType ||
+        data[kValueTypeOffset] != 0 ||
         readUint64LittleEndian(&data[kReportIdOffset]) != 0U)
     {
         return IsspResult::Failed;
     }
 
     IsspAckStatus status{};
-    if (!ackStatusFromWireValue(data[kValueOffset], status))
+    if (!ackStatusFromWireValue(readUint32LittleEndian(&data[kValueOffset]), status))
     {
         return IsspResult::Failed;
     }
@@ -212,6 +215,8 @@ IsspResult decodeCommand(
     if (data[kVersionOffset] != kProtocolVersion ||
         data[kChecksumOffset] != calculateChecksum(data, kChecksumOffset) ||
         data[kMessageTypeOffset] != kCommandMessageType ||
+        data[kValueTypeOffset] != 0 ||
+        readUint32LittleEndian(&data[kValueOffset]) > 2U ||
         readUint64LittleEndian(&data[kReportIdOffset]) != 0U ||
         readUint32LittleEndian(&data[kDeviceIdOffset]) != expectedDeviceId)
     {
@@ -222,7 +227,7 @@ IsspResult decodeCommand(
         .command = {
             .endpointId = data[kEndpointIdOffset],
             .eventType = data[kEventTypeOffset],
-            .value = data[kValueOffset],
+            .value = static_cast<std::uint8_t>(readUint32LittleEndian(&data[kValueOffset])),
         },
         .sequence = readUint16LittleEndian(&data[kSequenceOffset]),
     };
@@ -243,13 +248,14 @@ IsspResult decodeAck(
 
     if (data[kVersionOffset] != kProtocolVersion ||
         data[kChecksumOffset] != calculateChecksum(data, kChecksumOffset) ||
-        data[kMessageTypeOffset] != kAckMessageType)
+        data[kMessageTypeOffset] != kAckMessageType ||
+        data[kValueTypeOffset] != 0)
     {
         return IsspResult::Failed;
     }
 
     IsspAckStatus status{};
-    if (!ackStatusFromWireValue(data[kValueOffset], status))
+    if (!ackStatusFromWireValue(readUint32LittleEndian(&data[kValueOffset]), status))
     {
         return IsspResult::Failed;
     }
@@ -310,6 +316,14 @@ IsspResult decodeReport(
         return IsspResult::Failed;
     }
 
+    IsspValue value;
+    value.type = static_cast<IsspValueType>(data[kValueTypeOffset]);
+    value.bits = readUint32LittleEndian(&data[kValueOffset]);
+    if (!value.isCanonical())
+    {
+        return IsspResult::Failed;
+    }
+
     decodedReport = {
         .deviceId = readUint32LittleEndian(&data[kDeviceIdOffset]),
         .sequence = readUint16LittleEndian(&data[kSequenceOffset]),
@@ -317,7 +331,7 @@ IsspResult decodeReport(
         .report = {
             .endpointId = data[kEndpointIdOffset],
             .eventType = data[kEventTypeOffset],
-            .value = data[kValueOffset],
+            .value = value,
         },
     };
     return IsspResult::Ok;
@@ -353,6 +367,7 @@ IsspResult encodeCommandAck(
     std::size_t outputCapacity,
     std::size_t &outputLength)
 {
+    outputLength = 0;
     if (output == nullptr || outputCapacity < IsspPayloadSize)
     {
         return IsspResult::InvalidArgument;
@@ -366,7 +381,9 @@ IsspResult encodeCommandAck(
     writeUint64LittleEndian(&output[kReportIdOffset], 0);
     output[kEndpointIdOffset] = endpointId;
     output[kEventTypeOffset] = 0;
-    output[kValueOffset] = ackStatusToWireValue(commandResultToAckStatus(commandResult));
+    output[kValueTypeOffset] = 0;
+    writeUint32LittleEndian(&output[kValueOffset],
+                            ackStatusToWireValue(commandResultToAckStatus(commandResult)));
     output[kChecksumOffset] = calculateChecksum(output, kChecksumOffset);
     outputLength = IsspPayloadSize;
     return IsspResult::Ok;
@@ -381,7 +398,9 @@ IsspResult encodeReport(
     std::size_t outputCapacity,
     std::size_t &outputLength)
 {
-    if (output == nullptr || outputCapacity < IsspPayloadSize || reportId == 0U)
+    outputLength = 0;
+    if (output == nullptr || outputCapacity < IsspPayloadSize || reportId == 0U ||
+        !report.value.isCanonical())
     {
         return IsspResult::InvalidArgument;
     }
@@ -393,7 +412,8 @@ IsspResult encodeReport(
     writeUint64LittleEndian(&output[kReportIdOffset], reportId);
     output[kEndpointIdOffset] = report.endpointId;
     output[kEventTypeOffset] = report.eventType;
-    output[kValueOffset] = report.value;
+    output[kValueTypeOffset] = static_cast<std::uint8_t>(report.value.type);
+    writeUint32LittleEndian(&output[kValueOffset], report.value.bits);
     output[kChecksumOffset] = calculateChecksum(output, kChecksumOffset);
     outputLength = IsspPayloadSize;
     return IsspResult::Ok;

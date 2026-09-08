@@ -8,9 +8,9 @@
 namespace issp
 {
 
-/// ISSP v2 fixed payload. The 8-byte report_id at offset 8 replaces the v1
-/// layout; there is no fallback, translation or mixed operation with v1.
-constexpr std::size_t IsspPayloadSize = 20;
+/// ISSP v3 fixed payload with explicit Int32/Float32 content.
+/// Older versions are rejected without fallback or translation.
+constexpr std::size_t IsspPayloadSize = 24;
 
 IsspResult encodeDiscoveryRequest(
     std::uint32_t deviceId,

@@ -46,7 +46,7 @@ não criam autoridade paralela.
 | Registry do coordenador | `docs/specs/ISSP-Coordinator-Paired-Device-Registry.md` | Implementação; validação pendente | `coordinator_154/main/device_registry*` | Build C6; 24 casos não executados | Especificado |
 | Targets e testes | `docs/specs/Repository-Test-Execution-Policy.md`; ADR-0003 | Concluída | guards CMake e test apps | 63 casos preservados e não executados; builds H2/C6 | Revisado |
 | Consolidação ISSP | `docs/specs/ISSP-Consolidation.md` | Concluída | Client e coordenador | Auditoria e hardware históricos | Revisado |
-| Protocolo wire ISSP | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0002` | v2 implementado nos dois codecs; protocolo integral ainda aberto | `issp_protocol.cpp`; `iot154_packet.h` | Vetores dourados host-native em ambos os targets | Cobertura parcial |
+| Protocolo wire ISSP | `docs/specs/ISSP-Typed-Values.md`; `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0002` | v3 implementado nos dois codecs; revisão pendente; protocolo integral ainda aberto | `issp_protocol.cpp`; `iot154_packet.h` | Vetores dourados host-native em ambos os targets | Cobertura parcial |
 | Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 concluída; correlação exige `report_id` | Transporte, executor e coordenador | Análises, implementações e revisões v0.2/v0.3; comportamento funcional relatado validado em hardware | Implementado e validado no caminho funcional; cenários adversos da fronteira UART aceitos sem execução própria |
 | Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.5 Concluída [`Done`]; análise **Pronta** [`Ready`]; ADR-0005 `Accepted` | `components/issp_app_154`; `components/issp_behaviors`; `client_154/main/` | Análise, implementação e revisão v0.5; builds H2 concluídos; testes em hardware executados e aceitos pelo Arquiteto | Implementada, revisada e validada em hardware; riscos residuais preservados e débitos relacionados posteriormente quitados |
 | Features configuráveis do client | `docs/specs/Client-SDK-Configurable-Features.md` (`EKOM-CLIENT-CONFIG-001`); ADR-0002 | v0.1 Concluída [`Done`] por decisão do Arquiteto | `client_154/main/`; lifecycle periódico da bateria | Análise `Ready`; implementação recuperada da execução `32091116616`; hierarquia `App Client` validada pelo Arquiteto; builds H2 default, sem deep sleep, sem bateria e alternativo concluídos | Implementada e aceita pelo Arquiteto; testes, flash, monitor e hardware `Not Executed` |
@@ -55,7 +55,7 @@ não criam autoridade paralela.
 | Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001`; `EKOM-DEBT-0004` | Modelo e tipo 4 implementados; remediação v0.2 Concluída [`Done`] | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client`; `coordinator_154/main` | Análise `Ready`; implementações e revisões; builds H2/C6; validações em hardware aceitas pelo Arquiteto | Implementada e validada; débitos relacionados quitados |
 | Remediação de débitos técnicos | `docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`); ADR-0005 | v0.2 Concluída [`Done`] por decisão do Arquiteto | `components/issp_app_154`; `client_154/main`; `examples/issp_minimal_client`; `coordinator_154/main`; `client_154/sdkconfig` | Análise `Ready`; implementações e revisões; builds H2/C6; validações em hardware declaradas suficientes pelo Arquiteto | Implementação validada; `EKOM-DEBT-0001` a `EKOM-DEBT-0005` quitados |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
-| Valores tipados ISSP | `docs/specs/ISSP-Typed-Values.md` v0.1; ADR-0006 | Draft; análise Ready; implementação não autorizada | Core, transporte, coordenador e consumidores locais | `docs/reports/issp-typed-values/analysis/2026-09-08T160535Z-v0.1-dbc2eeac-implementability-analysis.md` | Preparação v3 especificada; baseline executável ainda v2 |
+| Valores tipados ISSP | `docs/specs/ISSP-Typed-Values.md` v0.1; ADR-0006 | v0.1 In Progress; implementação entregue para Revisão | Core, transporte, coordenador e consumidores locais | `docs/reports/issp-typed-values/analysis/2026-09-08T160535Z-v0.1-dbc2eeac-implementability-analysis.md` | Preparação v3 implementada; 13 builds concluídos; testes/hardware não executados; `docs/reports/issp-typed-values/implementation/2026-09-08T194643Z-v0.1-6f534630-implementation.md` |
 | Percentuais fracionários | `docs/specs/Fractional-Percentage-Reports.md` v0.1; ADR-0006 | Draft; Not Ready — Architectural Prerequisite | Behaviors de luz/bateria e tradução C6 | `docs/reports/fractional-percentage-reports/analysis/2026-09-08T160535Z-v0.1-dbc2eeac-implementability-analysis.md` | Depende da preparação tipada implementada e validada |
 
 ## 3. Árvore de conhecimento
@@ -87,8 +87,8 @@ IoTSmartLink15.4
 │       ├── janela volátil de deduplicação por report_id — v0.3 concluída
 │       └── ponte JSON-lines/UART para o host — tradução do estado de bateria implementada e validada
 ├── Conexão lógica
-│   ├── ISSP sobre IEEE 802.15.4 — baseline v2
-│   └── Evolução documental: valores tipados v3 → percentuais fracionários (dependentes)
+│   ├── ISSP sobre IEEE 802.15.4 — v3 tipado em código, revisão pendente
+│   └── Valores tipados v3 construídos → percentuais fracionários ainda dependentes de validação/reanálise
 ├── Evidência de integração
 │   └── examples/issp_minimal_client
 ├── Conhecimento
@@ -111,11 +111,11 @@ plataforma; client e coordenador não compartilham código de aplicação.
 
 ```mermaid
 flowchart LR
-    TypedDraft["Draft: valores tipados v3 · análise Ready"] -.->|"preparação ainda não implementada"| FractionDraft["Draft: percentuais float · dependência arquitetural"]
+    TypedDraft["Valores tipados v3 · implementados · revisão pendente"] -.->|"dependência ainda sujeita a validação e reanálise"| FractionDraft["Draft: percentuais float · dependência arquitetural"]
     Host["Host"] -->|"commands · JSON-lines/UART"| Coordinator["coordinator_154<br/>ESP32-C6"]
     Coordinator -->|"events and results · JSON-lines/UART"| Host
-    Coordinator -->|"discovery responses · commands · ACKs v2"| Client["client_154<br/>ESP32-H2"]
-    Client -->|"discovery · reports com report_id · ACKs v2"| Coordinator
+    Coordinator -->|"discovery responses · commands · ACKs v3"| Client["client_154<br/>ESP32-H2"]
+    Client -->|"discovery · reports com report_id · ACKs v3"| Coordinator
     Product["Product firmware"] --> Client
     Board["Board model"] --> Product
     DigitalBoard["Battery Digital Sensor H2"] -->|"digital_input + digital_input_wakeup"| BatteryProducts["Porta ou presença"]

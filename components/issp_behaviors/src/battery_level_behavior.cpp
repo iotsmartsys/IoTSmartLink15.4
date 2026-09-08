@@ -391,7 +391,7 @@ IsspResult BatteryLevelBehavior::measureAndMaybePublish()
     const IsspReport report = {
         .endpointId = config_.endpointId,
         .eventType = kEventType,
-        .value = percentage,
+        .value = IsspValue(percentage),
     };
     const IsspResult publishResult = publisher_->publishState(report);
     if (publishResult != IsspResult::Ok)
@@ -404,7 +404,7 @@ IsspResult BatteryLevelBehavior::measureAndMaybePublish()
     ESP_LOGI(kTag, "report endpoint=%u event=%u value=%u battery_mv=%llu",
              static_cast<unsigned>(report.endpointId),
              static_cast<unsigned>(report.eventType),
-             static_cast<unsigned>(report.value), batteryMv);
+             static_cast<unsigned>(report.value.bits), batteryMv);
     return IsspResult::Ok;
 }
 

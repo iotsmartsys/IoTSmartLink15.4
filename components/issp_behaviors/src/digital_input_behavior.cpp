@@ -328,7 +328,7 @@ IsspResult DigitalInputBehavior::publishConfirmedState(bool state, bool initial)
         const IsspReport report = {
             .endpointId = config_.endpointId,
             .eventType = config_.eventType,
-            .value = static_cast<std::uint8_t>(state ? 1U : 0U),
+            .value = IsspValue(static_cast<std::uint8_t>(state ? 1U : 0U)),
         };
         const IsspResult result = publisher_->publishState(report);
         if (result != IsspResult::Ok)
@@ -340,7 +340,7 @@ IsspResult DigitalInputBehavior::publishConfirmedState(bool state, bool initial)
             ESP_LOGI(kTag, "initial_report endpoint=%u event=%u value=%u",
                      static_cast<unsigned>(report.endpointId),
                      static_cast<unsigned>(report.eventType),
-                     static_cast<unsigned>(report.value));
+                     static_cast<unsigned>(report.value.bits));
         }
         else
         {
@@ -360,7 +360,7 @@ IsspResult DigitalInputBehavior::publishConfirmedState(bool state, bool initial)
                      "latency_upper_ms=%lld",
                      static_cast<unsigned>(report.endpointId),
                      static_cast<unsigned>(report.eventType),
-                     static_cast<unsigned>(report.value),
+                     static_cast<unsigned>(report.value.bits),
                      firstDivergenceUs, confirmedUs, upperBoundMs);
         }
     }

@@ -48,9 +48,12 @@ técnicos. `examples/issp_minimal_client` é o segundo consumidor local.
 ## 6. Dados e persistência
 
 Client e coordenador usam NVS para rede e registry. O wire ISSP possui
-implementações nos dois alvos, já no envelope v2 de 20 bytes definido por
-`ISSP-Report-Identity.md` para a identidade de DATA/ACK; o protocolo integral
-ainda não está consolidado em uma única fonte dedicada.
+implementações nos dois alvos, agora com envelope v3 de 24 bytes e valores
+Int32/Float32 de `ISSP-Typed-Values.md` v0.1. A identidade de DATA/ACK continua
+sob `ISSP-Report-Identity.md` nos pontos preservados. A preparação foi
+construída e entregue para Revisão; testes e atualização física não foram
+executados. A migração dos percentuais ainda depende de seu contrato próprio;
+o protocolo integral permanece parcialmente coberto.
 
 ## 7. Integrações e protocolos
 

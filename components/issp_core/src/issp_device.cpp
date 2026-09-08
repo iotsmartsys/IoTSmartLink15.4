@@ -84,8 +84,14 @@ namespace issp
         return IsspResult::Ok;
     }
 
-    IsspResult IsspDevice::publishState(const IsspReport &report)
+    IsspResult IsspDevice::publishState(const IsspReport &input)
     {
+        if (!input.value.isValid())
+        {
+            return IsspResult::InvalidArgument;
+        }
+        IsspReport report = input;
+        report.value.normalizeZero();
         // A configuration without a generator cannot admit a report: there is
         // no identity to give it, and zero is never a valid one.
         if (config_.reportIdGenerator == nullptr)

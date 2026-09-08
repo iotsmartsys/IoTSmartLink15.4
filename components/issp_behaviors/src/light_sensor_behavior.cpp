@@ -78,7 +78,7 @@ IsspResult LightSensorBehavior::begin(IBehaviorStatePublisher &publisher)
     const IsspResult admission = publisher.publishState({
         .endpointId = config_.endpointId,
         .eventType = kEventType,
-        .value = percent,
+        .value = IsspValue(percent),
     });
     if (admission == IsspResult::Ok)
     {

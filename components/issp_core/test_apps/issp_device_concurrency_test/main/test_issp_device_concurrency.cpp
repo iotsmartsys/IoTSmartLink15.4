@@ -137,7 +137,7 @@ TEST_CASE("new generation survives completion of an in-flight report",
 
     issp::IsspPendingReportToken secondToken{};
     TEST_ASSERT_TRUE(device.acquirePendingReport(acquired, secondToken));
-    TEST_ASSERT_EQUAL_UINT8(1, acquired.value);
+    TEST_ASSERT_EQUAL_UINT8(1, acquired.value.bits);
     TEST_ASSERT_TRUE(device.completePendingReport(secondToken, true));
     TEST_ASSERT_EQUAL_size_t(0, device.pendingReportCount());
 }
@@ -313,7 +313,7 @@ TEST_CASE("an update in flight does not disturb the attempt already prepared",
     TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),
                       static_cast<int>(device.preparePendingReport(current)));
     TEST_ASSERT_NOT_EQUAL(inFlight.reportId, current.reportId);
-    TEST_ASSERT_EQUAL_UINT8(1, current.report.value);
+    TEST_ASSERT_EQUAL_UINT8(1, current.report.value.bits);
 }
 
 // REPORT-ID-AC-002: a generator that only yields zero, and one that only yields
@@ -396,6 +396,63 @@ TEST_CASE("concurrent publications hold distinct identities",
         TEST_ASSERT_TRUE(device.completePendingReport(prepared.token, true));
     }
     TEST_ASSERT_EQUAL_size_t(0, device.pendingReportCount());
+}
+
+
+// TV-AC-002/004: invalid admissions are atomic; canonical values survive snapshots.
+TEST_CASE("typed reports reject invalid values and normalize zero", "[issp_device][typed]")
+{
+    FakeTransport transport;
+    FakeReportIds ids;
+    issp::IsspDevice device(configWith(ids),transport);
+    const std::uint32_t invalidBits[] = {0x7f800000U,0xff800000U,0x7fc00000U};
+    for (auto bits : invalidBits)
+    {
+        auto value=issp::IsspValue::floating(0);
+        value.bits=bits;
+        TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::InvalidArgument),
+                          static_cast<int>(device.publishState({.endpointId=1,.eventType=255,.value=value})));
+    }
+    issp::IsspValue unknown;
+    unknown.type=static_cast<issp::IsspValueType>(2);
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::InvalidArgument),
+                      static_cast<int>(device.publishState({.endpointId=1,.eventType=255,.value=unknown})));
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::InvalidArgument),
+                      static_cast<int>(device.publishState({.endpointId=1,.eventType=255,.value=issp::IsspValue(UINT64_MAX)})));
+    TEST_ASSERT_EQUAL_size_t(0,device.pendingReportCount());
+    TEST_ASSERT_EQUAL_UINT32(0,ids.calls);
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),
+                      static_cast<int>(device.publishState({.endpointId=1,.eventType=255,.value=issp::IsspValue::floating(-0.0F)})));
+    issp::IsspPreparedReport prepared{};
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),static_cast<int>(device.preparePendingReport(prepared)));
+    TEST_ASSERT_EQUAL_UINT32(0,prepared.report.value.bits);
+    TEST_ASSERT_EQUAL_UINT8(1,static_cast<unsigned>(prepared.report.value.type));
+}
+
+TEST_CASE("typed report snapshots retain content through retry and replacement", "[issp_device][typed]")
+{
+    FakeTransport transport;
+    FakeReportIds ids;
+    issp::IsspDevice device(configWith(ids),transport);
+    const auto value=issp::IsspValue::floating(65.87F);
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),
+                      static_cast<int>(device.publishState({.endpointId=1,.eventType=255,.value=value})));
+    issp::IsspPreparedReport first{};
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),static_cast<int>(device.preparePendingReport(first)));
+    TEST_ASSERT_TRUE(device.completePendingReport(first.token,false));
+    issp::IsspPreparedReport retry{};
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),static_cast<int>(device.preparePendingReport(retry)));
+    TEST_ASSERT_EQUAL_UINT64(first.reportId,retry.reportId);
+    TEST_ASSERT_TRUE(retry.report.value==value);
+    TEST_ASSERT_EQUAL_MEMORY(&first.payload[18],&retry.payload[18],5);
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),
+                      static_cast<int>(device.publishState({.endpointId=1,.eventType=255,.value=16777217})));
+    TEST_ASSERT_TRUE(device.completePendingReport(retry.token,true));
+    issp::IsspPreparedReport next{};
+    TEST_ASSERT_EQUAL(static_cast<int>(issp::IsspResult::Ok),static_cast<int>(device.preparePendingReport(next)));
+    TEST_ASSERT_NOT_EQUAL(first.reportId,next.reportId);
+    TEST_ASSERT_TRUE(first.report.value==value);
+    TEST_ASSERT_TRUE(next.report.value==issp::IsspValue(16777217));
 }
 
 extern "C" void app_main()

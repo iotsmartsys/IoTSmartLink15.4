@@ -33,6 +33,7 @@ static window_lookup_t window_lookup(size_t registry_index, const report_data_in
         /* Same identity with different content is a conflict, not a retry. */
         if (entry->endpoint_id == input->endpoint_id &&
             entry->event_type == input->event_type &&
+            entry->value_type == input->value_type &&
             entry->value == input->value)
         {
             return WINDOW_LOOKUP_SAME_FINGERPRINT;
@@ -50,6 +51,7 @@ static void window_insert(size_t registry_index, const report_data_input_t *inpu
         .report_id = input->report_id,
         .endpoint_id = input->endpoint_id,
         .event_type = input->event_type,
+        .value_type = input->value_type,
         .value = input->value,
     };
 
@@ -103,6 +105,7 @@ bool report_dedup_window_contains(size_t registry_index,
         .report_id = fingerprint->report_id,
         .endpoint_id = fingerprint->endpoint_id,
         .event_type = fingerprint->event_type,
+        .value_type = fingerprint->value_type,
         .value = fingerprint->value,
     };
     return window_lookup(registry_index, &probe) == WINDOW_LOOKUP_SAME_FINGERPRINT;

@@ -305,8 +305,39 @@ static void registry_policy_still_governs_availability_and_unknown_origin(void)
     ++s_tests;
 }
 
+
+/* TV-AC-004: type and all value bits participate, not rounded presentation. */
+static void typed_fingerprint_preserves_fraction_and_type(void)
+{
+    report_dedup_window_reset_all();
+    recorder_t recorder = {.accept_event = true};
+    report_data_input_t first = report(100,1,0);
+    first.event_type=255;
+    first.value_type=1;
+    first.value=0x4283bd71;
+    CHECK(process(&recorder,DEVICE_REGISTRY_STATE_READY,false,true,0,&first)==REPORT_DATA_OUTCOME_NEW_ACCEPTED);
+    report_data_input_t retry=first;
+    retry.seq=2;
+    CHECK(process(&recorder,DEVICE_REGISTRY_STATE_READY,false,true,0,&retry)==REPORT_DATA_OUTCOME_RETRY_DEDUPLICATED);
+    CHECK(recorder.events==1 && recorder.acks==2);
+    ++retry.value; // Adjacent floats both format as 65.87.
+    CHECK(process(&recorder,DEVICE_REGISTRY_STATE_READY,false,true,0,&retry)==REPORT_DATA_OUTCOME_CONFLICT);
+    retry=first; retry.value_type=0;
+    CHECK(process(&recorder,DEVICE_REGISTRY_STATE_READY,false,true,0,&retry)==REPORT_DATA_OUTCOME_CONFLICT);
+    CHECK(recorder.events==1 && recorder.acks==2);
+    retry=first; retry.report_id=101;
+    recorder.accept_event=false;
+    CHECK(process(&recorder,DEVICE_REGISTRY_STATE_READY,false,true,0,&retry)==REPORT_DATA_OUTCOME_NEW_LOCAL_UNAVAILABLE);
+    CHECK(report_dedup_window_count(0)==1 && recorder.acks==2);
+    recorder.accept_event=true;
+    CHECK(process(&recorder,DEVICE_REGISTRY_STATE_READY,false,true,0,&retry)==REPORT_DATA_OUTCOME_NEW_ACCEPTED);
+    CHECK(recorder.events==2 && recorder.acks==3);
+    ++s_tests;
+}
+
 int main(void)
 {
+    typed_fingerprint_preserves_fraction_and_type();
     retry_is_deduplicated_and_reacked();
     restarted_sequence_no_longer_suppresses_a_report();
     unavailable_local_acceptance_neither_caches_nor_acks();

@@ -4,7 +4,10 @@
 
 **Versão:** 0.1
 
-**Estado:** Rascunho [`Draft`]
+**Estado:** Em andamento [`In Progress`] — implementação da v0.1 autorizada
+explicitamente por Marcelo Miranda em 08/09/2026, incluindo builds canônicos.
+Mudança operacional de estado; requisitos e versão analisados preservados.
+Implementação entregue para Revisão; evidências em `../reports/issp-typed-values/implementation/2026-09-08T194643Z-v0.1-6f534630-implementation.md`.
 
 **Especificação coordenadora:** esta fonte determina a branch
 `spec/issp-typed-values` e prepara a capacidade requerida por

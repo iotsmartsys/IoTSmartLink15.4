@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "issp_value.hpp"
+
 namespace issp
 {
 
@@ -22,7 +24,7 @@ struct IsspReport
 {
     std::uint8_t endpointId;
     std::uint8_t eventType;
-    std::uint8_t value;
+    IsspValue value;
 };
 
 struct IsspPendingReportToken
@@ -48,7 +50,7 @@ using ReportIdGenerator = std::uint64_t (*)(void *context);
 struct IsspDeviceConfig
 {
     std::uint32_t deviceId;
-    /// Required for operational v2 construction: a configuration without a
+    /// Required for operational v3 construction: a configuration without a
     /// generator rejects every report admission.
     ReportIdGenerator reportIdGenerator;
     void *reportIdGeneratorContext;

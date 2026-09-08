@@ -74,7 +74,7 @@ IsspResult BatteryTelemetryStateBehavior::publishIfChanged(
     const IsspReport report = {
         .endpointId = endpointId_,
         .eventType = kEventType,
-        .value = static_cast<std::uint8_t>(state),
+        .value = IsspValue(static_cast<std::uint8_t>(state)),
     };
     const IsspResult result = publisher_->publishState(report);
     if (result == IsspResult::Ok)
