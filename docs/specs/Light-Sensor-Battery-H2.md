@@ -2,12 +2,16 @@
 
 **ID:** `EKOM-LIGHT-001`
 
-**Versão:** 0.3
+**Classe da fonte:** Normativa
 
-**Estado:** Concluída [`Done`] por decisão de Marcelo Miranda, Arquiteto, em
-08/09/2026, com autorização de integração na `main`.
+**Versão:** 0.4
 
-**Evidências preservadas:** análise `Ready` em
+**Estado:** Rascunho [`Draft`] — inclusão de bateria autorizada para registro e análise em 08/09/2026; implementação da v0.4 ainda não autorizada.
+
+**Histórico v0.3:** Concluída [`Done`] por decisão de Marcelo Miranda, Arquiteto,
+em 08/09/2026, com autorização de integração na `main`.
+
+**Evidências históricas preservadas da v0.3:** análise `Ready` em
 `docs/reports/light-sensor-battery-h2/analysis/2026-09-08T145845Z-419138e-99aeff65-implementability-analysis.md`;
 implementação e sete builds concluídos em
 `docs/reports/light-sensor-battery-h2/implementation/2026-09-08T151247Z-v0.3-346114b7-implementation.md`.
@@ -16,7 +20,8 @@ não foi produzida revisão independente nem executados testes, flash, monitor
 ou hardware nesta atuação. Encerramento registrado em `EKOM-CHG-0012`.
 
 **Escopo:** client ESP32-H2 com LDR e ADC, capability de luminosidade, deep
-sleep com intervalo fixo configurável e tradução no coordenador ESP32-C6. A política adaptativa da v0.1 foi retirada por decisão
+sleep com intervalo fixo configurável, medição opcional de bateria na board
+Light Sensor H2 e tradução no coordenador ESP32-C6. A política adaptativa da v0.1 foi retirada por decisão
 do Arquiteto em 08/09/2026.
 
 ## 1. Objetivo e valor publicado
@@ -141,7 +146,7 @@ fontes de wakeup e comportamento dos demais produtos permanecem preservados.
 
 ## 5. Autoridades e versões
 
-Esta v0.3 fecha a cadência e a precisão da v0.2, por decisão do Arquiteto.
+A v0.3 fechou a cadência e a precisão da v0.2, por decisão do Arquiteto.
 Mantém o percentual direto ADC e a retirada dos estados da v0.1. Versões e
 análise anteriores são históricas, preservadas no Git e em `docs/reports/`.
 
@@ -159,7 +164,11 @@ periódica contínua para luminosidade nem alterar as composições existentes.
 Preservar ADR-0001 a ADR-0004, commissioning e identidade de reports nos
 comportamentos não alterados. A ADR-0005 continua alocando evento 6 e domínio
 inteiro 0–100; o arredondamento decidido preserva essa representação e o
-campo de um byte. Não há alteração de layout wire nesta versão.
+domínio semântico. A representação de um byte é histórica: na baseline
+tipada, `ISSP-Typed-Values.md` v0.1 e a ADR-0006 governam o transporte
+Int32/Float32. Esta v0.4 preserva produtores inteiros e não muda o wire.
+A publicação fracionária continua pertencendo a
+`Fractional-Percentage-Reports.md`, fora desta revisão.
 
 O contrato de engenharia v0.1 e o alcance habilitado de
 `docs/rfc/REPOSITORY-READINESS.md` continuam aplicáveis. Esta revisão não
@@ -176,8 +185,13 @@ Em 08/09/2026, o Arquiteto determinou:
 Essas decisões encerram as alternativas abertas na v0.2. A aquisição única
 por boot operacional e o lifecycle descritos na seção 3 delimitam as falhas e
 as tentativas de publicação. `darkRaw`/`brightRaw` e recorte diagnóstico de
-calibração continuam fora do contrato. A análise da v0.3 está registrada no
-relatório indicado no estado acima; a análise do rascunho anterior é histórica.
+calibração continuam fora do contrato. As análises e a implementação da v0.3 permanecem históricas nos relatórios
+indicados acima; sua autorização não se estende automaticamente à v0.4.
+
+Na mesma data, o Arquiteto confirmou que a board de luminosidade utiliza
+exatamente o hardware e a funcionalidade de bateria da board de porta,
+determinou acrescentar esse recurso à Light Sensor H2 e autorizou registrar
+o rascunho e sua análise de implementabilidade. A seção 8 incorpora esse recorte.
 
 ## 7. Critérios de aceite
 
@@ -194,8 +208,91 @@ relatório indicado no estado acima; a análise do rascunho anterior é históri
 | Construção | H2 e C6 afetados compilam; composições existentes preservadas | Builds canônicos da implementação autorizada e inspeção |
 
 Os critérios incorporam as decisões de cadência, ciclo de energia e
-quantização final. A análise de implementabilidade da v0.3 foi registrada como
-`Ready`; a implementação está autorizada e seu estado consta acima.
+quantização final e permanecem aplicáveis na v0.4, acrescidos dos critérios
+da seção 8. A evidência histórica não certifica a nova composição.
 Nenhum artefato de teste automatizado integra este recorte. Execução/coleta de
 testes, flash, monitor e hardware seguem autorização própria. Critérios sem
 evidência permanecem não executados; build não comprova comportamento físico.
+
+
+## 8. Inclusão da bateria na Light Sensor H2 — v0.4
+
+### 8.1 Requisitos e limites
+
+- **LIGHT-BAT-001 — Recurso físico:** manter o board model Light Sensor H2 e
+  seu LDR. Acrescentar `battery_measurement`, acessível pelo contrato existente
+  `selectedBatteryMeasurement()`, com ADC1, canal 0, atenuação de 12 dB,
+  resistor superior de 470 kΩ e inferior de 220 kΩ, como na board Battery
+  Digital Sensor H2 usada pelo sensor de porta. O circuito de luminosidade
+  permanece no canal 1/GPIO2. Não incorporar entrada de porta, LED ou botão
+  como consequência dessa adição.
+- **LIGHT-BAT-002 — Seleção e composição:** oferecer
+  `CONFIG_IOTSMARTLINK154_ENABLE_BATTERY_LEVEL` ao produto Light sensor battery
+  H2, com default habilitado. Quando habilitado, o produto requer o recurso
+  físico de bateria e registra a capability pela fachada com dados obtidos
+  da board. Quando desabilitado, não registra nível nem estado de bateria,
+  não adquire seu canal ADC e não exige o recurso na validação da composição.
+  Preservar a guarda CMake de recursos requeridos/oferecidos e rejeitar
+  composição habilitada sem o recurso correspondente. Manter defaults dos
+  outros produtos.
+- **LIGHT-BAT-003 — Política e identidade:** reutilizar a capability e a
+  política de bateria do produto de porta: `emptyMv=3300`, `fullMv=4150`,
+  oito amostras separadas por 5 ms e `reportDeltaPercent=5`. Luminosidade
+  continua no endpoint 1/evento 6; bateria usa endpoint 2/evento 3 e seu
+  estado de telemetria, criado pela fachada, endpoint 3/evento 4. Preservar
+  unicidade e somente leitura. Preservar cálculo, saturação, calibração,
+  fallback e estados calibrado/aproximado/inerte de `Client-Battery-Level.md`
+  v0.5 e `Technical-Debt-Remediation.md` v0.2. Ambos os percentuais continuam
+  inteiros nesta revisão, inclusive sob transporte tipado.
+- **LIGHT-BAT-004 — Cadência e coexistência:** a bateria faz uma medição
+  inicial por boot operacional, com `samplePeriodMs=0`, e tenta publicar
+  o primeiro percentual válido mesmo sem variação. O produto sempre habilita
+  deep sleep, independentemente do símbolo genérico de opt-in dos produtos
+  digitais. Não oferecer nem consumir intervalo periódico de bateria para
+  luminosidade. Os dois canais devem poder produzir suas medições no mesmo
+  boot sem disputa provocada pela composição pelo ADC1; preservar a aquisição
+  única e a liberação do ADC da luminosidade. Não criar novo gerenciador de
+  ADC, tarefa periódica ou dono de lifecycle.
+- **LIGHT-BAT-005 — Falhas e energia:** preservar as falhas da bateria
+  contratadas nas fontes acima: falha de configuração deixa a telemetria
+  inerte e observável, sem impedir a função principal; erro de aquisição ou
+  amostra inválida não fabrica percentual nem interrompe a luminosidade.
+  A bateria não passa a ser evidência obrigatória de admissão para sono
+  antecipado. Seus reports admitidos e os de estado participam da drenagem
+  vigente. Timer, deadline, ACK, retries, falhas de luminosidade e exceções
+  de encerramento permanecem como nas seções anteriores.
+
+### 8.2 Relações normativas
+
+Esta v0.4 é **New** para a oferta de bateria pela Light Sensor H2 e **Amends**
+`Firmware-Variants-Menuconfig.md` exclusivamente na composição desse produto e
+recursos dessa board. **Amends** `Client-SDK-Configurable-Features.md` v0.1
+somente na elegibilidade da opção de bateria e na ausência do intervalo
+periódico para esse produto com deep sleep permanente. Preserva as políticas
+vigentes dos produtos de porta e presença.
+
+**Preserva** o contrato genérico de `Client-Battery-Level.md` v0.5, a
+observabilidade de `Technical-Debt-Remediation.md` v0.2, `Client-Deep-Sleep.md`
+v0.11 com a emenda da seção 3, as ADRs de fronteiras/composição/identidade e o
+transporte governado pela ADR-0006 e `ISSP-Typed-Values.md` v0.1. A mudança
+não depende de percentuais fracionários, não os implementa e não reclassifica
+sua especificação. Não há nova API compartilhada, política de compatibilidade,
+projeto elétrico ou mudança no coordenador contratada pela inclusão de bateria.
+
+### 8.3 Critérios adicionais de aceite
+
+| Critério / requisito | Resultado observável | Meio |
+|---|---|---|
+| Recurso / LIGHT-BAT-001 | Board Light Sensor H2 oferece medição da bateria com os mesmos parâmetros físicos da board de porta, preservando o LDR | Inspeção de board e declaração de recursos |
+| Seleção / LIGHT-BAT-002 | Bateria habilitada por default; configuração desligada contém somente luminosidade; recurso ausente é rejeitado pela guarda existente | Inspeção e builds canônicos H2 com bateria ligada/desligada |
+| Identidade e política / LIGHT-BAT-003 | Endpoints 1/2/3 e eventos 6/3/4, política e estados existentes, sem publicação fracionária | Inspeção; observação H2/C6/host quando autorizada |
+| Cadência e ADC / LIGHT-BAT-004 | Luminosidade e bateria podem medir no mesmo boot; período de bateria zero, sem opção periódica; aquisição de luminosidade permanece única | Inspeção de configuração e lifetime; observação quando autorizada |
+| Falhas e drenagem / LIGHT-BAT-005 | Falha de bateria não suprime função principal nem fabrica nível; reports admitidos drenam sob lifecycle existente, sem novo requisito de admissão para dormir | Inspeção; falhas controladas e observação quando autorizadas |
+
+Nenhum artefato de teste automatizado novo ou alterado integra a v0.4.
+Os builds canônicos da implementação autorizada seguem a seção 9 do contrato
+aprovado e `Repository-Test-Execution-Policy.md`, cobrindo o produto H2 com
+bateria ligada/desligada e os demais consumidores afetados pelo delta real.
+Build não demonstra a coexistência física em bancada. Testes, coleta, flash,
+monitor e hardware dependem de autorização própria; não foram autorizados
+pela ordem de registro e análise.

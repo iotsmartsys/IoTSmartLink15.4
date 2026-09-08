@@ -1130,3 +1130,28 @@ Treze builds concluídos com saída 0; testes criados/adaptados e compilados,
 mas não executados. Guarda documental do delta e diff check aprovados.
 SDK existente v6.0.1-dirty preservado. Não houve flash, hardware, merge ou
 conclusão humana; a especificação percentual dependente não foi promovida.
+
+
+## EKOM-CHG-0014 — Bateria na board de luminosidade (08/09/2026)
+
+**Ordem humana:** após determinar que a board de luminosidade deve receber
+exatamente o recurso de bateria da board de porta, Marcelo Miranda autorizou
+explicitamente registrar o rascunho apresentado e sua análise de implementabilidade.
+
+**Fonte:** `docs/specs/Light-Sensor-Battery-H2.md` v0.4 Draft. Preserva a board
+Light Sensor H2, acrescenta recurso físico de bateria, seleção default ligada,
+endpoints 2/3 e medição por boot com período zero. A v0.3 Done permanece
+histórica. A inclusão não implementa percentuais fracionários nem altera wire.
+
+**Análise:** `docs/reports/light-sensor-battery-h2/analysis/2026-09-08T203902Z-v0.4-2cd00a8a-implementability-analysis.md`, Pronta [`Ready`]. Autoria e análise pelo mesmo agente,
+sem alegação de independência. ADC compartilhado tem lifetime compatível com
+inicialização sequencial; não exige nova arquitetura. Contrato v0.1 e alcance
+habilitado preservados, sem nova aprovação ou ampliação de readiness.
+
+**Entrega:** documentação em worktree isolada na branch
+`spec/light-sensor-battery-h2`, baseada na preparação tipada `3eac811`.
+A alteração preexistente do Arquiteto em
+`client_154/main/firmwares/light_sensor_battery_h2.cpp` permanece na worktree
+original e não integra este delta. Nenhum código/configuração foi alterado;
+nenhum build, teste, flash, monitor ou hardware executado. Implementação da
+v0.4 depende de ordem explícita; conclusão e integração permanecem humanas.
