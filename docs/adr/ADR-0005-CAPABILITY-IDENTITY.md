@@ -10,11 +10,14 @@
 
 **Emenda do tipo de evento 5 aceita pelo Arquiteto em:** 19/08/2026
 
+**Emenda do tipo de evento 6 aceita pelo Arquiteto em:** 07/09/2026 — confirmação de endpoint 1 e reserva do evento 6 para luminosidade em `EKOM-CHG-0012`
+
 **Decisores:** Arquiteto humano
 
 **Especificações relacionadas:** `docs/specs/Client-Battery-Level.md`,
 `docs/specs/Technical-Debt-Remediation.md` e
-`docs/specs/Presence-Sensor-Battery-H2.md`
+`docs/specs/Presence-Sensor-Battery-H2.md` e
+`docs/specs/Light-Sensor-Battery-H2.md`
 
 **Habilita:** `EKOM-BATTERY-001`
 
@@ -111,6 +114,7 @@ integral permanecem sob a lacuna `EKM-GAP-0002`.
 | 3 | Nível de bateria em percentual | 0 a 100 | `docs/specs/Client-Battery-Level.md` |
 | 4 | Estado da telemetria de bateria | 0 calibrado, 1 aproximado, 2 inerte | `docs/specs/Technical-Debt-Remediation.md` |
 | 5 | Sensor de presença | 1 detected, 0 undetected | `docs/specs/Presence-Sensor-Battery-H2.md` |
+| 6 | Sensor de luminosidade relativa | Percentual inteiro de 0 a 100, sem unidade lux | `docs/specs/Light-Sensor-Battery-H2.md` |
 
 Esta ADR registra a alocação e a estabilidade de cada tipo; o domínio detalhado
 e o comportamento permanecem com a fonte indicada na última coluna. Os tipos 1
@@ -119,6 +123,12 @@ reservado globalmente ainda que uma composição não habilite bateria e não
 registre nem publique essa capability. O tipo 5 fica alocado globalmente pela
 emenda aceita; sua implementação permanece sob
 `docs/specs/Presence-Sensor-Battery-H2.md`.
+
+O tipo 6 fica reservado globalmente para a capability de luminosidade relativa,
+independentemente de produto ou endpoint. Sua implementação permanece pendente
+sob `Light-Sensor-Battery-H2.md`; a alocação não autoriza implementá-la. A futura
+implementação atualiza definição, tradução `Light Sensor` e guarda do registro
+conjuntamente. A guarda atual de cinco tipos ainda não representa essa emenda.
 
 **Regra de alocação.** Um tipo de evento tem significado global e estável: uma
 vez atribuído, não é reutilizado com outro significado, em nenhum endpoint. Um

@@ -4,7 +4,7 @@
 **Estado:** Conditionally Ready
 **Repositório:** IoTSmartLink15.4
 **Contrato e revisão:** [Repository Engineering Contract](REPOSITORY-ENGINEERING-CONTRACT.md), v0.1 Approved — vigente
-**Avaliação vigente:** [avaliação após aprovação](../reports/repository-readiness/2026-09-08T010746Z-v0.1-92b3d036.md)
+**Avaliação vigente:** [avaliação após aprovação](../reports/repository-readiness/2026-09-08T010746Z-v0.1-92b3d036.md), complementada pelo [confronto da alocação do evento 6](../reports/repository-readiness/2026-09-08T012937Z-v0.1-event6-073b9609.md)
 **Decisão humana de habilitação:** Marcelo Miranda, Arquiteto, em 07/09/2026 — alcance inicial abaixo; `EKOM-CHG-0011`, seção Aprovação e habilitação
 
 A adoção da EKOM 5.0 e a aprovação/habilitação são decisões distintas, ambas registradas em `EKOM-CHG-0011`. A manifestação de aprovação foi: “Sim, aprovo o contrato v0.1 e a habilitação desse alcance inicial.” Nenhuma habilitação é retroativa.
@@ -33,3 +33,9 @@ A [avaliação inicial](../reports/repository-readiness/2026-09-08T005734Z-v0.1-
 A guarda global possui falha documental histórica RR-04; a verificação dos documentos novos/alterados é separada. Ausência de campo em relatório antigo não autoriza sua edição nem torna inválido o firmware inteiro. A guarda estrutural não autentica aprovação humana e não é gate automatizado de CI.
 
 A especificação de luminosidade continua com sua análise Not Ready própria; a qualificação não resolve seus bloqueadores nem ordena sua implementação.
+
+A alocação aceita do evento 6 na ADR-0005 preserva as regras de construção e o
+alcance habilitado. A guarda CMake ainda exige cinco eventos: builds C6 ficam
+limitados até implementação autorizada da reconciliação, sem permissão para
+ignorar a guarda. O confronto complementar registra a revisão atual da ADR;
+a aprovação do contrato não foi alterada.

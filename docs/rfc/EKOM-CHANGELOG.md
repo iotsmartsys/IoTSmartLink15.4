@@ -992,3 +992,41 @@ Nova avaliação: `docs/reports/repository-readiness/2026-09-08T010746Z-v0.1-92b
 permanecem fora do alcance e RR-04 é limitação documental histórica não bloqueante
 para as áreas habilitadas. Contrato, registro operacional, mapa e dossiê foram
 reconciliados sem alterar regras técnicas nem ampliar o alcance aprovado.
+
+
+## EKOM-CHG-0012 — Retomada da especificação de luminosidade H2
+
+**Objetivo:** resolver as pendências da especificação de luminosidade após a
+habilitação EKOM 5.0 do alcance de firmware.
+
+**Estado:** rascunho v0.1 (`EKOM-LIGHT-001`), implementação não iniciada.
+A revisão explicita que permanência em NIGHT_SLEEP encerra a seleção de estado,
+sem passar pela regra de ACTIVE, e inclui cinco oráculos de fronteira.
+
+**Pendência:** extremos ADC medidos de calibração, `darkRaw` e `brightRaw`. A análise anterior é
+histórica e não foi editada; esta revisão ainda não recebeu nova análise.
+
+**Fonte:** `docs/specs/Light-Sensor-Battery-H2.md`. A qualificação do repositório
+está habilitada no alcance, sem conceder autorização de implementação ou de
+execução de testes e hardware para esta funcionalidade.
+
+### Decisões de produto confirmadas
+
+Nesta retomada, Marcelo Miranda informou GPIO2 e alimentação de 3,3 V e
+confirmou todos os defaults apresentados: 16 amostras separadas por 5 ms,
+thresholds 5%/8%/40%, delta de 3 pontos, estabilidade de 3 medições e 60 s,
+intervalos 30 s/300 s, crescimento noturno de 300 a 1.800 s com fator 2,
+endpoint 1 e reserva do evento 6 para luminosidade. A ADR-0005 registra o tipo 6
+como alocação aceita; sua implementação e a atualização da guarda CMake são
+pendentes, sem execução de build nesta atuação documental.
+
+Confronto dirigido de qualificação: `docs/reports/repository-readiness/2026-09-08T012937Z-v0.1-event6-073b9609.md`. Regras e habilitação inicial
+preservadas; incompatibilidade temporária da guarda de cinco eventos registrada
+como limitação de construção, sem build executado.
+
+O Arquiteto também confirmou a ligação `3,3 V → LDR → GPIO2 → 10 kΩ → GND` e
+informou que ainda não mediu os extremos. O rascunho declara ADC1/canal 1,
+atenuação de 12 dB e 12 bits para que calibração e produto usem a mesma
+configuração. Essa configuração não fornece por inferência os valores de
+calibração. O circuito e os parâmetros estão registrados; medições continuam
+pendentes de obtenção e incorporação.
