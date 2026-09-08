@@ -133,7 +133,7 @@ fontes de wakeup e comportamento dos demais produtos permanecem preservados.
 - Evento 6 permanece reservado na ADR-0005 para luminosidade. A implementação
   deve reconciliar a guarda do registro, a definição e a tradução no
   coordenador; a guarda da baseline analisada exigia cinco tipos.
-- Coordenador apresenta `Light Sensor`, preservando envelope JSON, nome da
+- Coordenador apresenta `Light Sensor (%)`, preservando envelope JSON, nome da
   capability, identidade de cada admissão, deduplicação e ACK. O valor é o
   inteiro 0–100, formatado em base decimal, sem casa fracionária nem símbolo `%`,
   mantendo o tipo do campo no envelope JSON vigente.
@@ -188,7 +188,7 @@ relatório indicado no estado acima; a análise do rascunho anterior é históri
 | Falha ADC | Leitura inválida não gera report nem valor artificial; erro observável; caminho forçado conserva intervalo configurado | Inspeção e falha controlada quando autorizada |
 | Publicação | Aquisições válidas tentam reportar mesmo percentual inalterado; cada admissão conserva sua identidade | Inspeção e H2/C6/host quando autorizados |
 | Sem estados | Ausência de thresholds, transições, estabilidade, crescimento noturno e retenção RTC da luminosidade | Inspeção do delta |
-| Integração | Host recebe Light Sensor, endpoint 1 e inteiro arredondado em base decimal; evento 6 e layout preservados; comandos recusados | Inspeção e H2/C6/host quando autorizados |
+| Integração | Host recebe Light Sensor (%), endpoint 1 e inteiro arredondado em base decimal; evento 6 e layout preservados; comandos recusados | Inspeção e H2/C6/host quando autorizados |
 | Cadência | Configuração default arma timer de 15 minutos; configuração de 20 minutos arma 20 minutos; zero ou valor fora do limite do timer é rejeitado; não há ciclo de 1 segundo | Inspeção de configuração e observação quando autorizada |
 | Lifecycle | Report admitido participa do sono antecipado; pendentes aguardam ACK até os limites vigentes; erro ADC ou recusa de admissão não habilita sono antecipado; falha de preparo de wakeup interrompe encerramento | Inspeção e observação com/sem ACK e falhas quando autorizadas |
 | Construção | H2 e C6 afetados compilam; composições existentes preservadas | Builds canônicos da implementação autorizada e inspeção |

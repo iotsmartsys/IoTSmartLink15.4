@@ -127,7 +127,7 @@ emenda aceita; sua implementação permanece sob
 O tipo 6 fica reservado globalmente para a capability de luminosidade relativa,
 independentemente de produto ou endpoint. Sua implementação permanece pendente
 sob `Light-Sensor-Battery-H2.md`; a alocação não autoriza implementá-la. A futura
-implementação atualiza definição, tradução `Light Sensor` e guarda do registro
+implementação atualiza definição, tradução `Light Sensor (%)` e guarda do registro
 conjuntamente. A guarda atual de cinco tipos ainda não representa essa emenda.
 
 **Regra de alocação.** Um tipo de evento tem significado global e estável: uma
