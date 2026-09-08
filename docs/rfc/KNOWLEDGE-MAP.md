@@ -16,9 +16,9 @@ organiza; o diagrama, como os alvos separados se conectam.
 |---|---|---|---|
 | Instruções para agentes | `AGENTS.md` | Normativo | Active; EKOM 5.0 |
 | Método e perfis | `/Users/marcelocostamiranda/source/EKM-guidelines` | Normativo externo | EKOM 5.0 vigente |
-| Contrato de engenharia | `docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md` | Normativa proposta | v0.1 Proposed; aprovação pendente |
-| Qualificação do repositório | `docs/rfc/REPOSITORY-READINESS.md` | Operacional | Not Ready; nenhuma implementação habilitada |
-| Avaliação de qualificação | `docs/reports/repository-readiness/2026-09-08T005734Z-v0.1-65e0a87a.md` | Evidência | Avaliação inicial; onze áreas confrontadas; aprovação e habilitação pendentes |
+| Contrato de engenharia | `docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md` | Normativa | v0.1 Approved; Marcelo Miranda, 07/09/2026 |
+| Qualificação do repositório | `docs/rfc/REPOSITORY-READINESS.md` | Operacional | Conditionally Ready; alcance inicial habilitado; raiz e automações excluídos |
+| Avaliação de qualificação | `docs/reports/repository-readiness/2026-09-08T010746Z-v0.1-92b3d036.md` | Evidência | Onze áreas confrontadas; RR-01 resolvido por aprovação humana; alcance inicial Ready |
 | Diretriz local | `docs/rfc/EKOM-GUIDELINES.md` | Normativo local | Active |
 | Mapa | `docs/rfc/KNOWLEDGE-MAP.md` | Normativo | Active |
 | Histórico EKOM | `docs/rfc/EKOM-CHANGELOG.md` | Operacional | Active |
@@ -89,7 +89,7 @@ IoTSmartLink15.4
 │   ├── reports — execuções e evidências
 │   └── rfc
 │       ├── mapa, diretriz local e transações
-│       ├── REPOSITORY-ENGINEERING-CONTRACT — regras propostas de construção
+│       ├── REPOSITORY-ENGINEERING-CONTRACT — v0.1 aprovada, regras de construção
 │       └── REPOSITORY-READINESS — avaliação e habilitação por alcance
 └── Protótipo não classificado
     └── projeto ESP-IDF da raiz
@@ -112,8 +112,8 @@ flowchart LR
     DigitalBoard["Battery Digital Sensor H2"] -->|"digital_input + digital_input_wakeup"| BatteryProducts["Porta ou presença"]
     BatteryProducts --> Product
     Shared["SmartSysApp + ISSP components"] --> Client
-    Contract["Contrato de engenharia<br/>v0.1 Proposed"] --> Qualification["Repository Readiness<br/>Not Ready"]
-    Assessment["Avaliação + decisão humana<br/>habilitação pendente"] --> Qualification
+    Contract["Contrato de engenharia<br/>v0.1 Approved"] --> Qualification["Repository Readiness<br/>Conditionally Ready"]
+    Assessment["Avaliação + decisão humana<br/>alcance inicial habilitado"] --> Qualification
     Qualification -.->|"governa elegibilidade de implementação"| Client
     Qualification -.->|"governa elegibilidade de implementação"| Coordinator
 ```

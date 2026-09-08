@@ -73,8 +73,7 @@ funcional artificial.
 - diretriz local de adoção: `docs/rfc/EKOM-GUIDELINES.md`;
 - arquitetura e contratos: `docs/specs/ISSP-Architecture.md`,
   `docs/specs/ISSP-Commissioning.md` e `components/README.md`;
-- build canônico proposto: contrato de engenharia, seção 9; sua vigência
-  depende de aprovação;
+- build canônico: contrato de engenharia aprovado, seção 9;
 - targets e execução de testes:
   `docs/specs/Repository-Test-Execution-Policy.md`;
 - guarda documental: `python3 tools/validate_ekom_documents.py .`.

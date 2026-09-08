@@ -1,14 +1,14 @@
 # Repository Engineering Contract — IoTSmartLink15.4
 
-**Classe da fonte:** Normativa proposta
-**Estado:** Proposed
+**Classe da fonte:** Normativa
+**Estado:** Approved — vigente
 **Versão:** 0.1
 **Repositório e escopo:** IoTSmartLink15.4; construção de firmware e seus consumidores locais, conforme seção 1
 **Responsável técnico:** Marcelo Miranda — Arquiteto
-**Aprovação:** Pendente
-**Decisão humana:** A adoção da EKOM 5.0 foi determinada em 07/09/2026, conforme `EKOM-CHG-0011`. A ordem não aprova este contrato proposto nem habilita implementação.
+**Aprovação:** Marcelo Miranda, Arquiteto, em 07/09/2026 — v0.1 e alcance inicial da seção 1
+**Decisão humana:** “Sim, aprovo o contrato v0.1 e a habilitação desse alcance inicial.” Decisão de Marcelo Miranda nesta atuação, registrada em `docs/rfc/EKOM-CHANGELOG.md`, `EKOM-CHG-0011`, seção Aprovação e habilitação. O alcance e a avaliação vigente estão em `docs/rfc/REPOSITORY-READINESS.md`.
 
-As regras abaixo serão imperativas após aprovação humana desta versão e de seu alcance. Regras já vigentes nas fontes referenciadas conservam autoridade própria. A seção 13 distingue consolidação de normas e propostas novas; código frequente não é autoridade normativa.
+As regras abaixo são imperativas no alcance aprovado. Regras vigentes nas fontes referenciadas conservam autoridade própria. A seção 13 distingue a consolidação de normas das convenções aprovadas nesta adoção; código frequente não é autoridade normativa.
 
 ## 1. Arquitetura e limites — REC-ARCH
 
@@ -25,7 +25,7 @@ Preservar a arquitetura por componentes e composição estática da ADR-0001 e A
 | `coordinator_154/main/` | Aplicação C independente: rádio, registry, políticas de reports/comandos e ponte UART |
 | `examples/issp_minimal_client` | Consumidor independente de integração; não copiar aplicação client nem iniciar rádio/NVS automaticamente |
 
-O alcance proposto cobre esses diretórios, CMake/Kconfig e configurações dos três projetos, `cmake/` e os test apps dos componentes/coordenador quando contratados por tarefa. Não inclui o firmware diagnóstico da raiz (`EKM-GAP-0007`), implementação do host, serviços externos, instalação de toolchain ou alterações nas automações e scripts de submissão. Esses recortes precisam de avaliação e regras próprias antes de implementação. Documentação e guarda documental existente podem preparar sua qualificação.
+O alcance aprovado cobre esses diretórios, CMake/Kconfig e configurações dos três projetos, `cmake/` e os test apps dos componentes/coordenador quando contratados por tarefa. Não inclui o firmware diagnóstico da raiz (`EKM-GAP-0007`), implementação do host, serviços externos, instalação de toolchain ou alterações nas automações e scripts de submissão. Esses recortes precisam de avaliação e regras próprias antes de implementação. Documentação e guarda documental existente podem preparar sua qualificação.
 
 Verificar por inspeção dos donos e do delta; não redesenhar o coordenador para imitar a fachada C++ do client.
 
@@ -43,7 +43,7 @@ Para código novo, usar nomes em inglês e quatro espaços, sem tabs. Em C++, us
 
 Usar arquivos novos em snake_case e extensões `.cpp/.hpp` ou `.c/.h`; preservar `SmartSysApp.h` como exceção pública existente. Em edição localizada, preservar convenções e posição de chaves do arquivo; não reformatar trechos alheios. Em arquivo novo sem precedente mais específico, usar chaves em linha própria. Comentários devem explicar contrato, motivo ou restrição.
 
-Verificar por revisão do delta e `git diff --check`. Não há formatter canônico versionado; esta proposta não instala ferramenta nem torna a formatação histórica um desvio a corrigir globalmente.
+Verificar por revisão do delta e `git diff --check`. Não há formatter canônico versionado; este contrato não instala ferramenta nem torna a formatação histórica um desvio a corrigir globalmente.
 
 ## 4. Dependências — REC-DEP
 
@@ -107,7 +107,7 @@ Para variante, alterar somente símbolos necessários na cópia; deixar o Kconfi
 
 Construir consumidores materialmente afetados: alteração só de produto requer sua composição; fachada/API compartilhada requer client e exemplo; seleção comum requer composições alcançadas; wire ou tradução no coordenador requer C6 e H2 quando o contrato cruzar ambos. Não compilar C6 artificialmente como consumidor da fachada. Test apps seguem seu vínculo físico e só entram no recorte quando contratados.
 
-Registrar ambiente, comando, composição, resultado terminal e saída. Falha ou build ausente impede declarar implementação concluída. Esta proposta documental não executa build.
+Registrar ambiente, comando, composição, resultado terminal e saída. Falha ou build ausente impede declarar implementação concluída. A aprovação documental não executa nem substitui build.
 
 ## 10. Testes e conformidade — REC-VERIFY
 
@@ -117,9 +117,9 @@ Verificar construção pelas regras REC-BUILD, limites e estilo por inspeção d
 
 Considerar conforme apenas a obrigação sustentada por sua evidência. Não presumir sucesso comportamental a partir de build; declarar `Not Executed` quando aplicável. Ausência de suíte executada nesta adoção não invalida por si só a capacidade de construir dentro das regras.
 
-## 11. Precedentes oficiais propostos — REC-PRECEDENT
+## 11. Precedentes oficiais — REC-PRECEDENT
 
-Os exemplos existem na baseline avaliada e serão oficiais somente após aprovação deste contrato; não legitimam todo o arquivo como norma.
+Os exemplos existem na baseline avaliada e foram oficializados pela aprovação deste contrato; não legitimam todo o arquivo como norma.
 
 | Alteração | Caminho e símbolo | Regra exemplificada | Limite |
 |---|---|---|---|
@@ -139,11 +139,11 @@ Aplicar especificação da tarefa → contrato aprovado → precedentes oficiais
 
 Mudança material deste contrato, de fonte referenciada ou baseline exige reavaliação do alcance afetado. Edição ordinária conforme não exige reaprovação universal. Manter histórico de revisões e avaliações; somente Marcelo Miranda ou responsável técnico humano designado aprova contrato e habilitação.
 
-## 13. Natureza das regras e decisões pendentes
+## 13. Natureza das regras e decisões registradas
 
 **Consolidação de decisões vigentes:** fronteiras, lifecycle, dependências, dados, identidade, targets e permissões remetem às autoridades abaixo, com suas emendas delimitadas. A menção histórica de independência ESP-IDF do core não exclui o FreeRTOS explicitamente preservado pela identidade v0.3.
 
-**Propostas novas a aprovar:** convenções REC-STYLE; operacionalização uniforme dos comandos e seleção de consumidores REC-BUILD; adoção do conjunto de precedentes REC-PRECEDENT; alcance inicial da seção 1. São escolhas proporcionais sugeridas a partir da baseline, não decisões humanas já confirmadas.
+**Convenções aprovadas nesta adoção:** REC-STYLE; operacionalização uniforme dos comandos e seleção de consumidores REC-BUILD; conjunto de precedentes REC-PRECEDENT; alcance inicial da seção 1. Foram propostas a partir da baseline e aprovadas por Marcelo Miranda em 07/09/2026. A aprovação não altera o conteúdo técnico da v0.1 submetida.
 
 **Pendências externas ao alcance inicial:** propósito do diagnóstico raiz; qualificação de alteração/operação das automações e serviços externos. Não foram aceitas como débito técnico. Qualificação não quita lacunas funcionais nem muda estados históricos de especificações.
 

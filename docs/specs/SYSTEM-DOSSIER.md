@@ -69,10 +69,11 @@ implementadas nos dois alvos; a validação em hardware permanece em
 ## Qualificação de engenharia
 
 A EKOM 5.0 foi adotada por decisão do Arquiteto. O contrato v0.1 em
-`docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md` está Proposed; o repositório está
-Not Ready para implementação, conforme `docs/rfc/REPOSITORY-READINESS.md`.
-A avaliação inicial cobre regras de construção dos firmwares, componentes e
-exemplo, mantendo diagnóstico raiz e automações fora da habilitação proposta.
+`docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md` foi aprovado por Marcelo Miranda
+em 07/09/2026; o repositório está Conditionally Ready, conforme
+`docs/rfc/REPOSITORY-READINESS.md`. O alcance inicial Ready cobre firmwares,
+componentes, exemplo, construção e test apps associados; diagnóstico raiz e
+automações permanecem fora da habilitação.
 A adoção não reabre especificações concluídas nem declara sua validação nova.
 
 ## 9. Build, testes e operação

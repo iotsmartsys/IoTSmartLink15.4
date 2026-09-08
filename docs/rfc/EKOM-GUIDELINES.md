@@ -54,10 +54,12 @@ aprovação, sem promoção documental intermediária. Via curta do Consultor se
 seu perfil e não dispensa qualificação. O agente registra In Progress e mantém
 conclusão, reabertura e integração sob autoridade humana.
 
-A proposta v0.1 do contrato é submetida separadamente à aprovação. Enquanto
-pendente, o repositório permanece Not Ready para implementação; documentação e
-análise autorizadas podem preparar a adoção. Seguir o alcance publicado no
-registro de readiness; não inferir autorização de uma execução histórica.
+O contrato v0.1 foi aprovado por Marcelo Miranda em 07/09/2026, com habilitação
+do alcance inicial, conforme `EKOM-CHG-0011`, seção Aprovação e habilitação.
+O repositório está Conditionally Ready: as áreas explicitamente Ready podem
+seguir o workflow, e diagnóstico raiz e automações permanecem excluídos. Seguir
+o alcance publicado no registro de readiness; a decisão não autoriza testes,
+hardware ou implementação funcional sem a ordem aplicável.
 
 A guarda existente continua útil para estrutura do delta; não é necessário
 instalar ou alterar automações para simular autenticação da decisão humana.

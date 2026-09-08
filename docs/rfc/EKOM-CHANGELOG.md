@@ -950,8 +950,9 @@ consolidando regras de construção, avaliação e habilitação por alcance.
 Consultor de Arquitetura: “Vamos adotar a EKOM 5.0 e adequar o repositório
 conforme as exigências dela.” A ordem de adoção não aprova o contrato sugerido.
 
-**Estado:** roteamento e fundação documental adequados; contrato v0.1 Proposed;
-Repository Readiness Not Ready, com aprovação e habilitação pendentes.
+**Estado:** contrato v0.1 aprovado e alcance inicial habilitado por Marcelo
+Miranda em 07/09/2026; Repository Readiness Conditionally Ready. Fundação
+documental entregue; exclusões e permissões operacionais preservadas.
 
 **Resultado:** roteador e adaptadores reconciliados; retirada do gate de
 promoção documental; contrato cobrindo onze áreas mínimas, com nove precedentes
@@ -963,11 +964,31 @@ consumidores. Diagnóstico raiz e automações não foram habilitados por infer�
 `docs/rfc/REPOSITORY-READINESS.md` e `docs/reports/repository-readiness/2026-09-08T005734Z-v0.1-65e0a87a.md`.
 Mapa e dossiê localizam as fontes e a separação entre adoção e habilitação.
 
-**Pendências:** aprovação explícita da v0.1 e do alcance, seguida de avaliação
-com essa decisão; `EKM-GAP-0007` e qualificação própria de automações permanecem
-fora do alcance inicial proposto. Nenhum novo débito técnico foi aceito. A falha
-da guarda global em relatório histórico permanece registrada na avaliação.
+**Pendências remanescentes:** `EKM-GAP-0007` e qualificação própria de automações
+permanecem fora do alcance inicial habilitado. A aprovação da v0.1 foi
+registrada na seção abaixo e confrontada em nova avaliação. Nenhum novo débito
+técnico foi aceito. A falha da guarda global em relatório histórico permanece
+registrada na avaliação.
 
 **Limites:** mudança documental, sem firmware, testes, configuração de build,
 workflows, hardware ou operação externa. Históricos permanecem sob suas versões.
 Os bloqueadores da especificação de luminosidade não são resolvidos pela adoção.
+
+
+### Aprovação e habilitação
+
+Em 07/09/2026, Marcelo Miranda, Arquiteto, declarou: “Sim, aprovo o contrato
+v0.1 e a habilitação desse alcance inicial.” A decisão aprova a versão 0.1 de
+`docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md`, inclusive convenções de estilo,
+build e precedentes, e habilita client H2, produtos/boards, componentes ISSP,
+coordenador C6, exemplo mínimo H2, construção e test apps associados.
+
+Diagnóstico da raiz e alteração/operação das automações, scripts de submissão
+e serviços externos permanecem excluídos. Testes/coleta, flash, monitor e
+hardware conservam autorização própria. A decisão não ordena implementação do
+sensor de luminosidade nem resolve seus bloqueadores funcionais.
+
+Nova avaliação: `docs/reports/repository-readiness/2026-09-08T010746Z-v0.1-92b3d036.md`. RR-01 foi resolvido pela decisão humana; RR-02/RR-03
+permanecem fora do alcance e RR-04 é limitação documental histórica não bloqueante
+para as áreas habilitadas. Contrato, registro operacional, mapa e dossiê foram
+reconciliados sem alterar regras técnicas nem ampliar o alcance aprovado.
