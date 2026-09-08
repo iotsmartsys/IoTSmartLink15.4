@@ -999,12 +999,13 @@ reconciliados sem alterar regras técnicas nem ampliar o alcance aprovado.
 **Objetivo:** resolver as pendências da especificação de luminosidade após a
 habilitação EKOM 5.0 do alcance de firmware.
 
-**Estado:** rascunho v0.1 (`EKOM-LIGHT-001`), implementação não iniciada.
-A revisão explicita que permanência em NIGHT_SLEEP encerra a seleção de estado,
-sem passar pela regra de ACTIVE, e inclui cinco oráculos de fronteira.
+**Estado vigente:** rascunho v0.2 (`EKOM-LIGHT-001`), implementação não iniciada.
+Percentual direto ADC, sem estados adaptativos; precisão e cadência pendentes.
+A v0.1 abaixo permanece como registro das decisões anteriores.
 
-**Pendência:** extremos ADC medidos de calibração, `darkRaw` e `brightRaw`. A análise anterior é
-histórica e não foi editada; esta revisão ainda não recebeu nova análise.
+**Pendências vigentes:** cadência de operação/energia e precisão numérica do
+report. A exigência anterior de extremos medidos foi retirada na v0.2. A análise
+anterior permanece histórica e esta revisão ainda não recebeu nova análise.
 
 **Fonte:** `docs/specs/Light-Sensor-Battery-H2.md`. A qualificação do repositório
 está habilitada no alcance, sem conceder autorização de implementação ou de
@@ -1030,3 +1031,19 @@ atenuação de 12 dB e 12 bits para que calibração e produto usem a mesma
 configuração. Essa configuração não fornece por inferência os valores de
 calibração. O circuito e os parâmetros estão registrados; medições continuam
 pendentes de obtenção e incorporação.
+
+
+### Revisão v0.2 — percentual direto ADC sem estados
+
+Em 08/09/2026, o Arquiteto determinou eliminar as transições de estados e
+forneceu um sketch como referência do valor desejado: `100 × raw / 4095`.
+A especificação foi reescrita para leitura oneshot direta, sem média de 16
+amostras, calibração por extremos, thresholds, estabilidade, crescimento
+noturno ou histórico RTC. A montagem e as identidades já confirmadas permanecem.
+
+O log do sketch usa uma casa decimal e o loop espera 1 segundo. Foram
+apresentadas ao Arquiteto as decisões de precisão publicada e de operação
+contínua versus deep sleep fixo; ambas permanecem explícitas no rascunho.
+A proposta de diagnóstico para obter calibração foi superada e não foi
+implementada ou executada. Não houve mudança de firmware, wire ou ADR nesta
+revisão documental; o evento 6 preserva seu registro até decisão de precisão.

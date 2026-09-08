@@ -32,7 +32,9 @@ A [avaliação inicial](../reports/repository-readiness/2026-09-08T005734Z-v0.1-
 
 A guarda global possui falha documental histórica RR-04; a verificação dos documentos novos/alterados é separada. Ausência de campo em relatório antigo não autoriza sua edição nem torna inválido o firmware inteiro. A guarda estrutural não autentica aprovação humana e não é gate automatizado de CI.
 
-A especificação de luminosidade continua com sua análise Not Ready própria; a qualificação não resolve seus bloqueadores nem ordena sua implementação.
+A especificação de luminosidade v0.2 requer nova análise após fechar cadência
+e precisão; a análise anterior é histórica. A qualificação não ordena sua
+implementação nem substitui a análise da tarefa.
 
 A alocação aceita do evento 6 na ADR-0005 preserva as regras de construção e o
 alcance habilitado. A guarda CMake ainda exige cinco eventos: builds C6 ficam
