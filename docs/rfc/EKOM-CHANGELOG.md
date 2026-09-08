@@ -999,17 +999,19 @@ reconciliados sem alterar regras técnicas nem ampliar o alcance aprovado.
 **Objetivo:** resolver as pendências da especificação de luminosidade após a
 habilitação EKOM 5.0 do alcance de firmware.
 
-**Estado vigente:** v0.3 (`EKOM-LIGHT-001`) Em andamento [`In Progress`].
+**Estado vigente:** v0.3 (`EKOM-LIGHT-001`) Concluída [`Done`] por decisão de
+Marcelo Miranda em 08/09/2026; integração na `main` autorizada.
 O Arquiteto ordenou a atuação como Engenheiro Implementador após o parecer
 `Ready` de `2026-09-08T145845Z-419138e-99aeff65`; implementação e builds
 canônicos autorizados, sem execução de testes ou hardware.
 Percentual inteiro direto ADC por despertar; deep sleep configurável com
-default de 15 minutos; análise `Ready` e implementação entregue para Revisão.
+default de 15 minutos; análise `Ready`, implementação entregue e encerramento
+humano registrado abaixo.
 A v0.1 abaixo permanece como registro das decisões anteriores.
 
-**Pendência vigente:** Revisão da implementação v0.3 e decisão humana de
-suficiência das evidências. Testes e hardware não executados. Extremos medidos
-não integram o contrato; a análise do rascunho anterior permanece histórica.
+**Pendência vigente:** nenhuma impeditiva do encerramento determinado pelo
+Arquiteto. Testes e hardware permanecem não executados; não há revisão
+independente registrada. Extremos medidos não integram o contrato.
 
 **Fonte:** `docs/specs/Light-Sensor-Battery-H2.md`. A qualificação do repositório
 está habilitada no alcance, sem conceder autorização de implementação ou de
@@ -1077,3 +1079,16 @@ Relatório: `docs/reports/light-sensor-battery-h2/implementation/2026-09-08T1512
 capability e tradução do evento 6 implementados. Sete builds canônicos
 concluídos com saída 0; guarda C6 reconciliada. Mapa e localização atualizados.
 Encaminhada à Revisão; sem testes, hardware ou conclusão humana do workflow.
+
+### Encerramento humano e integração
+
+Em 08/09/2026, Marcelo Miranda determinou: “Vamos encerrar a especificaçào e
+promover para a main.” Registra-se v0.3 Concluída [`Done`] e autorização de
+integração da entrega `7dabbc2`, com o presente encerramento documental.
+A decisão humana considera suficientes para esse encerramento as evidências
+entregues; não transforma builds em validação física nem cria revisão
+independente retroativa. Os sete builds e suas limitações permanecem no
+relatório imutável de implementação. Testes, flash, monitor e hardware não
+foram executados nesta atuação. Nenhum requisito funcional foi alterado.
+A alteração local preexistente em `client_154/sdkconfig` foi preservada fora
+da integração; a promoção usa cópia de trabalho isolada.

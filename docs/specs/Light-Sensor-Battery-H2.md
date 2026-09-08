@@ -4,11 +4,16 @@
 
 **Versão:** 0.3
 
-**Estado:** Em andamento [`In Progress`]; implementação da v0.3 autorizada pelo
-Arquiteto nesta atuação, após análise `Ready` registrada em
-`docs/reports/light-sensor-battery-h2/analysis/2026-09-08T145845Z-419138e-99aeff65-implementability-analysis.md`.
-Implementação entregue para Revisão, com evidências e limitações em
+**Estado:** Concluída [`Done`] por decisão de Marcelo Miranda, Arquiteto, em
+08/09/2026, com autorização de integração na `main`.
+
+**Evidências preservadas:** análise `Ready` em
+`docs/reports/light-sensor-battery-h2/analysis/2026-09-08T145845Z-419138e-99aeff65-implementability-analysis.md`;
+implementação e sete builds concluídos em
 `docs/reports/light-sensor-battery-h2/implementation/2026-09-08T151247Z-v0.3-346114b7-implementation.md`.
+A decisão humana encerra o workflow com essas evidências e limitações;
+não foi produzida revisão independente nem executados testes, flash, monitor
+ou hardware nesta atuação. Encerramento registrado em `EKOM-CHG-0012`.
 
 **Escopo:** client ESP32-H2 com LDR e ADC, capability de luminosidade, deep
 sleep com intervalo fixo configurável e tradução no coordenador ESP32-C6. A política adaptativa da v0.1 foi retirada por decisão
