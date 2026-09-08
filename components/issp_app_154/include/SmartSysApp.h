@@ -56,6 +56,14 @@ struct PresenceSensorConfig
     std::uint8_t consecutiveWindows;
 };
 
+struct LightSensorConfig
+{
+    adc_unit_t unit;
+    adc_channel_t channel;
+    adc_atten_t attenuation;
+    std::uint8_t endpointId;
+};
+
 struct BatteryLevelConfig
 {
     adc_unit_t unit;
@@ -187,9 +195,15 @@ private:
     void *context_;
 };
 
-// Registration token for the read-only battery capability. Its observable
+// Registration tokens for read-only capabilities. Their observable
 // state is the ISSP report; no mutable operation or product-selected event type
 // is exposed through the facade.
+class LightSensorCapability
+{
+public:
+    LightSensorCapability() = default;
+};
+
 class BatteryLevelCapability
 {
 public:
@@ -313,6 +327,9 @@ public:
     core::PresenceSensorCapability *
     addPresenceSensorCapability(const app::PresenceSensorConfig &config);
 
+    core::LightSensorCapability *
+    addLightSensorCapability(const app::LightSensorConfig &config);
+
     core::BatteryLevelCapability *
     addBatteryLevelCapability(const app::BatteryLevelConfig &config);
 
@@ -346,7 +363,7 @@ public:
     // the statically allocated stack of the private power-lifecycle task, which
     // exists in every composition even when deep sleep is not configured,
     // because the project allocates task stacks statically.
-    static constexpr std::size_t kImplStorageBytes = 16384;
+    static constexpr std::size_t kImplStorageBytes = 16896;
 
 private:
     Impl &impl();

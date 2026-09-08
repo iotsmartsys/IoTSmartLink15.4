@@ -23,7 +23,7 @@ organiza; o diagrama, como os alvos separados se conectam.
 | Mapa | `docs/rfc/KNOWLEDGE-MAP.md` | Normativo | Active |
 | Histórico EKOM | `docs/rfc/EKOM-CHANGELOG.md` | Operacional | Active |
 | Dossiê do sistema | `docs/specs/SYSTEM-DOSSIER.md` | Informativo | Active |
-| Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0005 Accepted; ADR-0005 com evento 6 alocado e implementação pendente; ADR-0001 com nota de reavaliação de 14/08/2026 |
+| Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0005 Accepted; ADR-0005 com evento 6 alocado e implementação em Revisão; ADR-0001 com nota de reavaliação de 14/08/2026 |
 | Relatórios | `docs/reports/` | Evidência histórica | Roteamento EKOM 5.0 vigente |
 | Débitos técnicos | Seção 7 deste mapa | Normativo | `EKOM-DEBT-0001` a `EKOM-DEBT-0005` Quitados [`Remediated`] |
 | Registros EKM 1.x | `docs/history/ekom-1x/` | Histórico | Superseded para novas atuações |
@@ -49,7 +49,7 @@ não criam autoridade paralela.
 | Enlace ACK/retry | `docs/specs/ISSP-Report-Identity.md`; `EKM-GAP-0006` | Identidade v2 concluída; correlação exige `report_id` | Transporte, executor e coordenador | Análises, implementações e revisões v0.2/v0.3; comportamento funcional relatado validado em hardware | Implementado e validado no caminho funcional; cenários adversos da fronteira UART aceitos sem execução própria |
 | Nível de bateria do client | `docs/specs/Client-Battery-Level.md` (`EKOM-BATTERY-001`); ADR-0005 | v0.5 Concluída [`Done`]; análise **Pronta** [`Ready`]; ADR-0005 `Accepted` | `components/issp_app_154`; `components/issp_behaviors`; `client_154/main/` | Análise, implementação e revisão v0.5; builds H2 concluídos; testes em hardware executados e aceitos pelo Arquiteto | Implementada, revisada e validada em hardware; riscos residuais preservados e débitos relacionados posteriormente quitados |
 | Features configuráveis do client | `docs/specs/Client-SDK-Configurable-Features.md` (`EKOM-CLIENT-CONFIG-001`); ADR-0002 | v0.1 Concluída [`Done`] por decisão do Arquiteto | `client_154/main/`; lifecycle periódico da bateria | Análise `Ready`; implementação recuperada da execução `32091116616`; hierarquia `App Client` validada pelo Arquiteto; builds H2 default, sem deep sleep, sem bateria e alternativo concluídos | Implementada e aceita pelo Arquiteto; testes, flash, monitor e hardware `Not Executed` |
-| Sensor de luminosidade a bateria | `docs/specs/Light-Sensor-Battery-H2.md` (`EKOM-LIGHT-001`) | v0.3 Rascunho; decisões incorporadas; análise pendente | Sem implementação | Análise do rascunho anterior Not Ready; v0.3 publica inteiro direto ADC por despertar; timer configurável de 15 min | Nova análise pendente; evento 6 alocado pela ADR-0005 |
+| Sensor de luminosidade a bateria | `docs/specs/Light-Sensor-Battery-H2.md` (`EKOM-LIGHT-001`) | v0.3 Em andamento [`In Progress`] | `client_154/main/firmwares/light_sensor_battery_h2.cpp`; `client_154/main/boards/light_sensor_h2.cpp`; fachada e behavior; coordenador | Análise v0.3 `Ready`: `docs/reports/light-sensor-battery-h2/analysis/2026-09-08T145845Z-419138e-99aeff65-implementability-analysis.md` | Implementação entregue para Revisão: `docs/reports/light-sensor-battery-h2/implementation/2026-09-08T151247Z-v0.3-346114b7-implementation.md`; sete builds concluídos; testes/hardware não executados |
 | Sensor de presença a bateria | `docs/specs/Presence-Sensor-Battery-H2.md` (`EKOM-PRESENCE-001`); ADR-0005 | v0.2 Concluída [`Done`] por decisão do Arquiteto em 07/09/2026 | `client_154/main/`; `components/issp_app_154`; `components/issp_behaviors`; tradução de eventos do coordenador | Análise v0.1: `docs/reports/presence-sensor-battery-h2/analysis/2026-09-07T194045Z-v0.1-373a6d1b-implementability-analysis.md`; `Not Ready — Specification Defect` histórico; análise v0.2 `Ready`: `docs/reports/presence-sensor-battery-h2/analysis/2026-09-07T195422Z-v0.2-a5290532-implementability-analysis.md`; B1 descartado na nova versão | Implementação: `docs/reports/presence-sensor-battery-h2/implementation/2026-09-07T201126Z-v0.2-d2e5d43e-implementation.md`; builds H2/C6 e exemplo concluídos; hardware não executado |
 | Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001`; `EKOM-DEBT-0004` | Modelo e tipo 4 implementados; remediação v0.2 Concluída [`Done`] | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client`; `coordinator_154/main` | Análise `Ready`; implementações e revisões; builds H2/C6; validações em hardware aceitas pelo Arquiteto | Implementada e validada; débitos relacionados quitados |
 | Remediação de débitos técnicos | `docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`); ADR-0005 | v0.2 Concluída [`Done`] por decisão do Arquiteto | `components/issp_app_154`; `client_154/main`; `examples/issp_minimal_client`; `coordinator_154/main`; `client_154/sdkconfig` | Análise `Ready`; implementações e revisões; builds H2/C6; validações em hardware declaradas suficientes pelo Arquiteto | Implementação validada; `EKOM-DEBT-0001` a `EKOM-DEBT-0005` quitados |
@@ -64,14 +64,17 @@ IoTSmartLink15.4
 │   │   ├── Product firmware
 │   │   │   ├── Single smart plug
 │   │   │   ├── Door sensor battery H2 — door_sensor_battery_h2, com wake_led e digital_input_wakeup
+│   │   │   ├── Light sensor battery H2 — light_sensor_battery_h2, percentual ADC por boot
 │   │   │   └── Presence sensor battery H2 — presence_sensor_battery_h2, v0.2 concluída; hardware não executado
 │   │   ├── Board model
 │   │   │   ├── Current client ESP32-H2 wiring
+│   │   │   ├── Light Sensor H2 — light_sensor_h2, LDR no GPIO2 com resistor de 10 kohm ao GND
 │   │   │   └── Battery Digital Sensor H2 — battery_digital_sensor_h2, recursos digitais compartilhados por porta e presença
 │   │   └── SmartSysApp + componentes ISSP compartilhados
 │   │       ├── Deep sleep opt-in — timer e EXT1 por contato ou presença, selecionados exclusivamente
 │   │       ├── Features via menu `App Client` — energia, bateria e GPIO de reset; v0.1 concluída
 │   │       ├── Identidade de report gerada no client — v0.3 concluída
+│   │       ├── Luminosidade relativa — LightSensorBehavior, endpoint 1 e evento 6
 │   │       ├── Nível de bateria — v0.5 concluída; implementação e hardware aceitos
 │   │       └── Estado da telemetria de bateria — endpoint 3, evento 4; implementação e hardware validados
 │   └── coordinator_154 — ESP32-C6
@@ -112,6 +115,8 @@ flowchart LR
     Board["Board model"] --> Product
     DigitalBoard["Battery Digital Sensor H2"] -->|"digital_input + digital_input_wakeup"| BatteryProducts["Porta ou presença"]
     BatteryProducts --> Product
+    LightBoard["Light Sensor H2 · GPIO2"] -->|"light_measurement"| LightProduct["Luminosidade por boot · timer configurável"]
+    LightProduct --> Product
     Shared["SmartSysApp + ISSP components"] --> Client
     Contract["Contrato de engenharia<br/>v0.1 Approved"] --> Qualification["Repository Readiness<br/>Conditionally Ready"]
     Assessment["Avaliação + decisão humana<br/>alcance inicial habilitado"] --> Qualification

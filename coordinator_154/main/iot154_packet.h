@@ -30,6 +30,7 @@ extern "C" {
 #define IOT154_EVENT_BATTERY_LEVEL_PERCENT 3
 #define IOT154_EVENT_BATTERY_TELEMETRY_STATE 4
 #define IOT154_EVENT_PRESENCE 5
+#define IOT154_EVENT_LIGHT_PERCENT 6
 /* EVENT_REGISTRY_END */
 #define IOT154_ACK_STATUS_OK 0
 #define IOT154_ACK_STATUS_UNSUPPORTED 1
@@ -38,6 +39,7 @@ extern "C" {
 #define IOT154_VALUE_ON 1
 #define IOT154_VALUE_TOGGLE 2
 
+_Static_assert(IOT154_EVENT_LIGHT_PERCENT == 6, "event registry mismatch: type 6");
 _Static_assert(IOT154_EVENT_DOOR == 1, "event registry mismatch: type 1");
 _Static_assert(IOT154_EVENT_POWER == 2, "event registry mismatch: type 2");
 _Static_assert(IOT154_EVENT_BATTERY_LEVEL_PERCENT == 3,

@@ -58,6 +58,18 @@ struct BatteryMeasurementResource
     std::uint32_t rBottomOhms;
 };
 
+// Confirmed light divider: supply -> LDR -> ADC -> fixed resistor -> GND.
+struct LightMeasurementResource
+{
+    adc_unit_t unit;
+    adc_channel_t channel;
+    adc_atten_t attenuation;
+    std::uint32_t supplyMv;
+    std::uint32_t resistorOhms;
+};
+
+const LightMeasurementResource &selectedLightMeasurement();
+
 // A selected board defines only the accessors for resources it offers. CMake
 // rejects an incompatible product/board pair first; these declarations also
 // make stale resource metadata fail at link time instead of producing a board

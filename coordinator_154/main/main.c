@@ -442,6 +442,8 @@ static const char *type_from_event(uint8_t event_type)
         return "Door Sensor";
     case IOT154_EVENT_PRESENCE:
         return "Presence Sensor";
+    case IOT154_EVENT_LIGHT_PERCENT:
+        return "Light Sensor";
     case IOT154_EVENT_POWER:
         return "Switch Plug";
     case IOT154_EVENT_BATTERY_LEVEL_PERCENT:

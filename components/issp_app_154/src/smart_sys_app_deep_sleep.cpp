@@ -610,6 +610,15 @@ bool SmartSysApp::Impl::readyForEarlyQuiescence() const
         }
     }
 
+    for (std::size_t index = 0; index < lightSensorCount_; ++index)
+    {
+        ++expected;
+        if (!lightSensorBehaviors_[index]->hasAdmittedReport())
+        {
+            return false;
+        }
+    }
+
     // No expected initial report means there is no positive evidence at all:
     // absence of a report never amounts to admission, so only the deadline may
     // authorize sleep.

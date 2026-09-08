@@ -29,6 +29,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "idevice_behavior.hpp"
+#include "light_sensor_behavior.hpp"
 #include "issp_limits.hpp"
 
 namespace iotsmartsys
@@ -41,6 +42,7 @@ struct SmartSysApp::Impl
     core::SwitchPlugCapability *addSwitchPlugCapability(const app::SwitchConfig &config);
     core::DoorSensorCapability *addDoorSensorCapability(const app::DoorSensorConfig &config);
     core::PresenceSensorCapability *addPresenceSensorCapability(const app::PresenceSensorConfig &config);
+    core::LightSensorCapability *addLightSensorCapability(const app::LightSensorConfig &config);
     core::BatteryLevelCapability *addBatteryLevelCapability(
         const app::BatteryLevelConfig &config);
     AppResult configureFactoryResetButton(const app::PushButtonConfig &config);
@@ -197,6 +199,12 @@ struct SmartSysApp::Impl
     std::array<std::optional<core::PresenceSensorCapability>, kMaxCapabilities>
         presenceSensorCapabilities_;
     std::size_t presenceSensorCount_;
+
+    std::array<std::optional<issp::LightSensorBehavior>, kMaxCapabilities>
+        lightSensorBehaviors_;
+    std::array<std::optional<core::LightSensorCapability>, kMaxCapabilities>
+        lightSensorCapabilities_;
+    std::size_t lightSensorCount_;
 
     std::array<app::BatteryLevelConfig, kMaxCapabilities> batteryConfigs_;
     std::array<std::optional<issp::BatteryLevelBehavior>, kMaxCapabilities>

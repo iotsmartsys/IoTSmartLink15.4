@@ -30,6 +30,14 @@ config IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2
         endpoint 2 and battery telemetry state on endpoint 3. Requires the
         Battery Digital Sensor H2 board resources for the enabled features.
 
+config IOTSMARTLINK154_PRODUCT_LIGHT_SENSOR_BATTERY_H2
+    bool "Light sensor battery H2"
+    depends on IDF_TARGET_ESP32H2
+    help
+        One direct ADC percentage report on endpoint 1 (event type 6) per boot.
+        Always sleeps using a configurable timer, defaulting to 15 minutes.
+        Requires a board offering light_measurement; no periodic ADC task.
+
 endchoice
 
 choice IOTSMARTLINK154_BOARD_MODEL
@@ -55,10 +63,16 @@ config IOTSMARTLINK154_BOARD_BATTERY_DIGITAL_SENSOR_H2
         Battery-powered ESP32-H2 digital sensor board. Electrical details belong
         exclusively to the selected board source.
 
+config IOTSMARTLINK154_BOARD_LIGHT_SENSOR_H2
+    bool "Light Sensor H2"
+    depends on IDF_TARGET_ESP32H2
+    help
+        Confirmed 3.3 V LDR divider on GPIO2 with a 10 kohm resistor to GND.
+
 endchoice
 
 menu "Firmware features"
-    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2 || IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2
+    depends on IOTSMARTLINK154_PRODUCT_DOOR_SENSOR_BATTERY_H2 || IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2 || IOTSMARTLINK154_PRODUCT_LIGHT_SENSOR_BATTERY_H2
 
 config IOTSMARTLINK154_ENABLE_DEEP_SLEEP
     bool "Enable deep sleep"
@@ -71,14 +85,14 @@ config IOTSMARTLINK154_MAX_AWAKE_TIME_SECONDS
     int "Maximum awake time (seconds)"
     default 30
     range 1 4294967
-    depends on IOTSMARTLINK154_ENABLE_DEEP_SLEEP
+    depends on IOTSMARTLINK154_ENABLE_DEEP_SLEEP || IOTSMARTLINK154_PRODUCT_LIGHT_SENSOR_BATTERY_H2
 
 config IOTSMARTLINK154_WAKEUP_INTERVAL_MINUTES
     int "Periodic wake-up interval (minutes)"
     default 180 if IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2
     default 15
     range 1 2147483647
-    depends on IOTSMARTLINK154_ENABLE_DEEP_SLEEP
+    depends on IOTSMARTLINK154_ENABLE_DEEP_SLEEP || IOTSMARTLINK154_PRODUCT_LIGHT_SENSOR_BATTERY_H2
 
 config IOTSMARTLINK154_ENABLE_BATTERY_LEVEL
     bool "Enable battery level capability"

@@ -4,8 +4,11 @@
 
 **Versão:** 0.3
 
-**Estado:** Rascunho; decisões de cadência e precisão incorporadas;
-análise de implementabilidade da v0.3 pendente; implementação não iniciada.
+**Estado:** Em andamento [`In Progress`]; implementação da v0.3 autorizada pelo
+Arquiteto nesta atuação, após análise `Ready` registrada em
+`docs/reports/light-sensor-battery-h2/analysis/2026-09-08T145845Z-419138e-99aeff65-implementability-analysis.md`.
+Implementação entregue para Revisão, com evidências e limitações em
+`docs/reports/light-sensor-battery-h2/implementation/2026-09-08T151247Z-v0.3-346114b7-implementation.md`.
 
 **Escopo:** client ESP32-H2 com LDR e ADC, capability de luminosidade, deep
 sleep com intervalo fixo configurável e tradução no coordenador ESP32-C6. A política adaptativa da v0.1 foi retirada por decisão
@@ -124,7 +127,7 @@ fontes de wakeup e comportamento dos demais produtos permanecem preservados.
   duplicado e comandos dirigidos à capability, pelo behavior correspondente.
 - Evento 6 permanece reservado na ADR-0005 para luminosidade. A implementação
   deve reconciliar a guarda do registro, a definição e a tradução no
-  coordenador; a guarda vigente ainda exige cinco tipos.
+  coordenador; a guarda da baseline analisada exigia cinco tipos.
 - Coordenador apresenta `Light Sensor`, preservando envelope JSON, nome da
   capability, identidade de cada admissão, deduplicação e ACK. O valor é o
   inteiro 0–100, formatado em base decimal, sem casa fracionária nem símbolo `%`,
@@ -168,8 +171,8 @@ Em 08/09/2026, o Arquiteto determinou:
 Essas decisões encerram as alternativas abertas na v0.2. A aquisição única
 por boot operacional e o lifecycle descritos na seção 3 delimitam as falhas e
 as tentativas de publicação. `darkRaw`/`brightRaw` e recorte diagnóstico de
-calibração continuam fora do contrato. A próxima análise confrontará esta
-versão, sem reutilizar como parecer vigente a análise do rascunho anterior.
+calibração continuam fora do contrato. A análise da v0.3 está registrada no
+relatório indicado no estado acima; a análise do rascunho anterior é histórica.
 
 ## 7. Critérios de aceite
 
@@ -186,8 +189,8 @@ versão, sem reutilizar como parecer vigente a análise do rascunho anterior.
 | Construção | H2 e C6 afetados compilam; composições existentes preservadas | Builds canônicos da implementação autorizada e inspeção |
 
 Os critérios incorporam as decisões de cadência, ciclo de energia e
-quantização final. A classificação de implementabilidade da v0.3 permanece
-pendente; este rascunho não está sendo apresentado como Ready.
+quantização final. A análise de implementabilidade da v0.3 foi registrada como
+`Ready`; a implementação está autorizada e seu estado consta acima.
 Nenhum artefato de teste automatizado integra este recorte. Execução/coleta de
 testes, flash, monitor e hardware seguem autorização própria. Critérios sem
 evidência permanecem não executados; build não comprova comportamento físico.

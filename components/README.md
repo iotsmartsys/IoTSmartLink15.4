@@ -13,7 +13,7 @@ Este diretório contém os componentes reutilizáveis do runtime ISSP:
   de reports; depende de `issp_core`, `ieee802154` e `nvs_flash`;
 - `issp_behaviors`: behaviors reutilizáveis; atualmente expõe
   `DigitalOutputBehavior`, `DigitalInputBehavior`, `BatteryLevelBehavior` e
-  `BatteryTelemetryStateBehavior` e depende de `issp_core`, `esp_adc`,
+  `BatteryTelemetryStateBehavior`, `LightSensorBehavior` e depende de `issp_core`, `esp_adc`,
   `esp_driver_gpio` e `esp_timer`; os behaviors digitais recebem o tipo de
   evento pela configuração construída na fachada e não conhecem a capability
   do produto;
@@ -21,7 +21,10 @@ Este diretório contém os componentes reutilizáveis do runtime ISSP:
   delegação `issp_core`, `issp_behaviors` e `issp_transport_154`, além de
   expor `addPresenceSensorCapability(PresenceSensorConfig)` para a capability
   somente leitura de evento 5, com `PresenceWakeupConfig`/`presenceWakeup` como
-  fonte EXT1 aditiva em `DeepSleepConfig`, e
+  fonte EXT1 aditiva em `DeepSleepConfig`, além de
+  `addLightSensorCapability(LightSensorConfig)` para percentual inteiro do ADC
+  no evento 6, com aquisição única por boot e evidência de admissão para sono
+  antecipado, e
   possuir o factory reset local (`FactoryResetService`,
   `ResetButtonMonitor`, realocados de `client_154/main/reset`); seu único
   header público, `SmartSysApp.h`, não inclui nenhum header `issp_*` nem
@@ -84,7 +87,7 @@ privados em `src/`.
 `issp_app_154` é diferente: `esp_driver_gpio` e `esp_adc` são dependências
 públicas, porque `gpio_num_t` aparece nos tipos públicos `SwitchConfig` e
 `PushButtonConfig` e os tipos `adc_unit_t`, `adc_channel_t` e `adc_atten_t`
-aparecem em `BatteryLevelConfig`, todos em `SmartSysApp.h`. `issp_core` e
+aparecem em `BatteryLevelConfig` e `LightSensorConfig`, todos em `SmartSysApp.h`. `issp_core` e
 `issp_behaviors` são privadas em todo alvo,
 porque `SmartSysApp.h` não inclui nenhum header `issp_*` nem expõe tipos de
 protocolo, transporte ou commissioning: o estado que os usa vive inteiramente em `Impl`,

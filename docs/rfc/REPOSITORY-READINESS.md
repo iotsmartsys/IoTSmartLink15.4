@@ -32,12 +32,11 @@ A [avaliação inicial](../reports/repository-readiness/2026-09-08T005734Z-v0.1-
 
 A guarda global possui falha documental histórica RR-04; a verificação dos documentos novos/alterados é separada. Ausência de campo em relatório antigo não autoriza sua edição nem torna inválido o firmware inteiro. A guarda estrutural não autentica aprovação humana e não é gate automatizado de CI.
 
-A especificação de luminosidade v0.3 incorpora cadência e precisão e requer
-nova análise; a análise anterior é histórica. A qualificação não ordena sua
-implementação nem substitui a análise da tarefa.
-
-A alocação aceita do evento 6 na ADR-0005 preserva as regras de construção e o
-alcance habilitado. A guarda CMake ainda exige cinco eventos: builds C6 ficam
-limitados até implementação autorizada da reconciliação, sem permissão para
-ignorar a guarda. O confronto complementar registra a revisão atual da ADR;
-a aprovação do contrato não foi alterada.
+A especificação de luminosidade v0.3 recebeu análise `Ready` e ordem humana de
+implementação. A reconciliação do evento 6 está implementada: guarda, definição
+e tradução passaram no build C6. Evidência e limitações da implementação:
+`docs/reports/light-sensor-battery-h2/implementation/2026-09-08T151247Z-v0.3-346114b7-implementation.md`.
+A antiga limitação de cinco eventos permanece histórica na avaliação
+complementar; não é bloqueio vigente. A aprovação do contrato v0.1 e as
+exclusões de alcance permanecem. Revisão, testes e hardware não são autorizados
+por esta qualificação.

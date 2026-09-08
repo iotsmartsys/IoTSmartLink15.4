@@ -32,6 +32,10 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
         if(CONFIG_IOTSMARTLINK154_ENABLE_BATTERY_LEVEL)
             list(APPEND required_resources battery_measurement)
         endif()
+    elseif(CONFIG_IOTSMARTLINK154_PRODUCT_LIGHT_SENSOR_BATTERY_H2)
+        list(APPEND srcs "firmwares/light_sensor_battery_h2.cpp")
+        set(selected_product "Light sensor battery H2")
+        set(required_resources light_measurement)
     else()
         message(FATAL_ERROR
             "No product firmware selected in the App Client menu. "
@@ -49,11 +53,15 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
         # input to a GPIO the target accepts as an external wakeup source.
         set(offered_resources digital_input user_button wake_led
                               digital_input_wakeup battery_measurement)
+    elseif(CONFIG_IOTSMARTLINK154_BOARD_LIGHT_SENSOR_H2)
+        list(APPEND srcs "boards/light_sensor_h2.cpp")
+        set(selected_board "Light Sensor H2")
+        set(offered_resources light_measurement)
     else()
         message(FATAL_ERROR
             "No board model selected in the App Client menu for "
             "IDF_TARGET=${IDF_TARGET}. 'Current client ESP32-H2 wiring' and "
-            "'Battery Digital Sensor H2' are compatible with "
+            "'Battery Digital Sensor H2' and 'Light Sensor H2' are compatible with "
             "esp32h2 only; run 'idf.py set-target esp32h2' or add a board "
             "model for this target.")
     endif()

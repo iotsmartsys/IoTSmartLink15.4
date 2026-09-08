@@ -109,6 +109,9 @@ SmartSysApp::Impl::Impl(const app::SmartSysAppConfig &config,
       presenceSensorBehaviors_{},
       presenceSensorCapabilities_{},
       presenceSensorCount_(0),
+      lightSensorBehaviors_{},
+      lightSensorCapabilities_{},
+      lightSensorCount_(0),
       batteryConfigs_{},
       batteryBehaviors_{},
       batteryCapabilities_{},
@@ -355,6 +358,42 @@ SmartSysApp::Impl::addPresenceSensorCapability(const app::PresenceSensorConfig &
         behaviorConfig.endpointId, behaviorConfig.eventType};
     ++behaviorCount_;
     ++presenceSensorCount_;
+    return capability;
+}
+
+core::LightSensorCapability *
+SmartSysApp::Impl::addLightSensorCapability(const app::LightSensorConfig &config)
+{
+    if (state_ != AppState::Configuring)
+    {
+        recordConfigurationFailure(AppResult::Failed);
+        return nullptr;
+    }
+    if (config.endpointId == 0U || hasOccupiedEndpoint(config.endpointId) ||
+        config.unit != ADC_UNIT_1 || config.channel != ADC_CHANNEL_1 ||
+        config.attenuation != ADC_ATTEN_DB_12)
+    {
+        recordConfigurationFailure(AppResult::InvalidArgument);
+        return nullptr;
+    }
+    if (behaviorCount_ >= kMaxCapabilities || lightSensorCount_ >= kMaxCapabilities)
+    {
+        recordConfigurationFailure(AppResult::Failed);
+        return nullptr;
+    }
+    lightSensorBehaviors_[lightSensorCount_].emplace(issp::LightSensorConfig{
+        .unit = config.unit,
+        .channel = config.channel,
+        .attenuation = config.attenuation,
+        .endpointId = config.endpointId,
+    });
+    lightSensorCapabilities_[lightSensorCount_].emplace();
+    auto *capability = &*lightSensorCapabilities_[lightSensorCount_];
+    behaviors_[behaviorCount_] = &*lightSensorBehaviors_[lightSensorCount_];
+    endpointEventPairs_[behaviorCount_] = {
+        config.endpointId, issp::LightSensorBehavior::kEventType};
+    ++behaviorCount_;
+    ++lightSensorCount_;
     return capability;
 }
 
@@ -655,6 +694,12 @@ core::PresenceSensorCapability *
 SmartSysApp::addPresenceSensorCapability(const app::PresenceSensorConfig &config)
 {
     return impl().addPresenceSensorCapability(config);
+}
+
+core::LightSensorCapability *
+SmartSysApp::addLightSensorCapability(const app::LightSensorConfig &config)
+{
+    return impl().addLightSensorCapability(config);
 }
 
 core::BatteryLevelCapability *

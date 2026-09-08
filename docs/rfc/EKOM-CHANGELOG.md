@@ -999,14 +999,17 @@ reconciliados sem alterar regras técnicas nem ampliar o alcance aprovado.
 **Objetivo:** resolver as pendências da especificação de luminosidade após a
 habilitação EKOM 5.0 do alcance de firmware.
 
-**Estado vigente:** rascunho v0.3 (`EKOM-LIGHT-001`), implementação não iniciada.
+**Estado vigente:** v0.3 (`EKOM-LIGHT-001`) Em andamento [`In Progress`].
+O Arquiteto ordenou a atuação como Engenheiro Implementador após o parecer
+`Ready` de `2026-09-08T145845Z-419138e-99aeff65`; implementação e builds
+canônicos autorizados, sem execução de testes ou hardware.
 Percentual inteiro direto ADC por despertar; deep sleep configurável com
-default de 15 minutos; decisões incorporadas e nova análise pendente.
+default de 15 minutos; análise `Ready` e implementação entregue para Revisão.
 A v0.1 abaixo permanece como registro das decisões anteriores.
 
-**Pendência vigente:** análise de implementabilidade da v0.3. Cadência e
-precisão foram confirmadas pelo Arquiteto; extremos medidos deixaram de ser
-exigidos na v0.2. A análise anterior permanece histórica.
+**Pendência vigente:** Revisão da implementação v0.3 e decisão humana de
+suficiência das evidências. Testes e hardware não executados. Extremos medidos
+não integram o contrato; a análise do rascunho anterior permanece histórica.
 
 **Fonte:** `docs/specs/Light-Sensor-Battery-H2.md`. A qualificação do repositório
 está habilitada no alcance, sem conceder autorização de implementação ou de
@@ -1067,3 +1070,10 @@ predicados e contratos. O domínio do evento 6 e o layout wire não mudam.
 A análise da nova versão permanece pendente. Esta atualização documental não
 implementa firmware, não executa build/testes/hardware e não altera estados
 históricos de outras especificações.
+
+### Entrega da implementação v0.3
+
+Relatório: `docs/reports/light-sensor-battery-h2/implementation/2026-09-08T151247Z-v0.3-346114b7-implementation.md`. Aquisição única, percentual inteiro, timer configurável,
+capability e tradução do evento 6 implementados. Sete builds canônicos
+concluídos com saída 0; guarda C6 reconciliada. Mapa e localização atualizados.
+Encaminhada à Revisão; sem testes, hardware ou conclusão humana do workflow.
