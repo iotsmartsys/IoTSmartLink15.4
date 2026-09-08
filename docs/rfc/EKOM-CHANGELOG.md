@@ -999,13 +999,14 @@ reconciliados sem alterar regras técnicas nem ampliar o alcance aprovado.
 **Objetivo:** resolver as pendências da especificação de luminosidade após a
 habilitação EKOM 5.0 do alcance de firmware.
 
-**Estado vigente:** rascunho v0.2 (`EKOM-LIGHT-001`), implementação não iniciada.
-Percentual direto ADC, sem estados adaptativos; precisão e cadência pendentes.
+**Estado vigente:** rascunho v0.3 (`EKOM-LIGHT-001`), implementação não iniciada.
+Percentual inteiro direto ADC por despertar; deep sleep configurável com
+default de 15 minutos; decisões incorporadas e nova análise pendente.
 A v0.1 abaixo permanece como registro das decisões anteriores.
 
-**Pendências vigentes:** cadência de operação/energia e precisão numérica do
-report. A exigência anterior de extremos medidos foi retirada na v0.2. A análise
-anterior permanece histórica e esta revisão ainda não recebeu nova análise.
+**Pendência vigente:** análise de implementabilidade da v0.3. Cadência e
+precisão foram confirmadas pelo Arquiteto; extremos medidos deixaram de ser
+exigidos na v0.2. A análise anterior permanece histórica.
 
 **Fonte:** `docs/specs/Light-Sensor-Battery-H2.md`. A qualificação do repositório
 está habilitada no alcance, sem conceder autorização de implementação ou de
@@ -1047,3 +1048,22 @@ contínua versus deep sleep fixo; ambas permanecem explícitas no rascunho.
 A proposta de diagnóstico para obter calibração foi superada e não foi
 implementada ou executada. Não houve mudança de firmware, wire ou ADR nesta
 revisão documental; o evento 6 preserva seu registro até decisão de precisão.
+
+
+### Revisão v0.3 — cadência e precisão confirmadas
+
+Em 08/09/2026, Marcelo Miranda determinou leitura e publicação em cada
+despertar, intervalo de deep sleep configurável com default de 15 minutos e
+percentual inteiro de 0 a 100, arredondado. A v0.3 incorpora essas decisões,
+com critérios de quantização, configuração do timer e integração ao lifecycle.
+
+O intervalo usa a configuração em minutos já existente; a aquisição é única
+por boot operacional, sem loop de 1 segundo nem novas leituras por retry.
+Erros ADC ou recusa da admissão não habilitam sono antecipado; o caminho
+forçado conserva o intervalo configurado. A relação normativa com deep sleep
+fica limitada à evidência inicial da luminosidade, preservando os demais
+predicados e contratos. O domínio do evento 6 e o layout wire não mudam.
+
+A análise da nova versão permanece pendente. Esta atualização documental não
+implementa firmware, não executa build/testes/hardware e não altera estados
+históricos de outras especificações.

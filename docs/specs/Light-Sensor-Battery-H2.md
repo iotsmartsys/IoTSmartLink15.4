@@ -2,13 +2,13 @@
 
 **ID:** `EKOM-LIGHT-001`
 
-**Versão:** 0.2
+**Versão:** 0.3
 
-**Estado:** Rascunho; precisão publicada e cadência de operação em definição;
-implementação não iniciada.
+**Estado:** Rascunho; decisões de cadência e precisão incorporadas;
+análise de implementabilidade da v0.3 pendente; implementação não iniciada.
 
-**Escopo:** client ESP32-H2 com LDR e ADC, capability de luminosidade e tradução
-no coordenador ESP32-C6. A política adaptativa da v0.1 foi retirada por decisão
+**Escopo:** client ESP32-H2 com LDR e ADC, capability de luminosidade, deep
+sleep com intervalo fixo configurável e tradução no coordenador ESP32-C6. A política adaptativa da v0.1 foi retirada por decisão
 do Arquiteto em 08/09/2026.
 
 ## 1. Objetivo e valor publicado
@@ -30,8 +30,12 @@ inversão por extremos calibrados ou dependência de medições no escuro e sob
 luz forte para definir essa fórmula. `raw = 0` representa 0% e `raw = 4095`
 representa 100%, por definição da escala solicitada.
 
-A precisão transmitida está em definição na seção 6. O log de uma casa decimal
-do sketch não determina, sozinho, a representação no protocolo ISSP.
+Publicar um inteiro de 0 a 100, arredondado para o inteiro mais próximo, com
+meio para cima. O arredondamento é aplicado somente ao percentual final; não
+truncar a divisão antes dele. Uma expressão inteira equivalente para `raw`
+válido é `(100 × raw + 2047) / 4095`, com divisão inteira e intermediário de
+largura suficiente. Não multiplicar por dez nem transmitir fração no wire.
+O diagnóstico de uma casa decimal permanece local.
 
 ## 2. Montagem e aquisição
 
@@ -62,7 +66,7 @@ O mapeamento e a resolução são sustentados pelos headers
 O sketch é a referência para a aquisição e o cálculo; seu loop de demonstração
 não substitui a organização do firmware nem o lifecycle da fachada.
 
-## 3. Operação sem estados adaptativos
+## 3. Uma aquisição por despertar e deep sleep fixo
 
 Eliminar ACTIVE, TRANSITION e NIGHT_SLEEP, thresholds de entrada/saída,
 comparação de delta, contagem/duração de estabilidade, crescimento do intervalo
@@ -70,16 +74,44 @@ e histórico de luminosidade retido em RTC. Nenhum desses elementos participa
 da publicação ou da escolha do próximo intervalo. Não gravar histórico de
 luminosidade em NVS.
 
-O sketch demonstra leitura periódica com espera de 1.000 ms. A escolha entre
-essa operação contínua e deep sleep com intervalo fixo está pendente na seção
-6. A retirada da política adaptativa não altera implicitamente o deep sleep
-dos demais produtos.
+Em cada despertar do deep sleep que alcance o início operacional da capability,
+efetuar uma única aquisição e, se válida, uma tentativa de admissão do report.
+O primeiro boot e os demais resets que alcancem esse mesmo início operacional
+seguem a mesma regra. Não iniciar amostragem periódica a cada segundo nem fazer
+novas leituras durante a espera por ACK. Retries do report admitido permanecem
+sob o executor existente, com a mesma leitura e identidade dessa admissão.
 
-`SmartSysApp` permanece responsável pelo lifecycle. O produto entrega seus
-parâmetros; o behavior integra aquisição e publicação aos contratos existentes.
+O produto habilita deep sleep com wakeup por timer. O intervalo é fixo durante
+a operação da composição e configurável no firmware pelo menu `App Client`,
+em minutos, reutilizando `CONFIG_IOTSMARTLINK154_WAKEUP_INTERVAL_MINUTES` com
+**default de 15 minutos** para luminosidade. Kconfig seleciona o valor e o
+produto o entrega à fachada; componentes compartilhados não leem esse símbolo.
+Validar intervalo positivo e conversão dentro do limite aceito pelo timer,
+conforme `Client-Deep-Sleep.md` v0.11. O tempo de sono é contado desde a entrada
+em deep sleep; aquisição, commissioning, transmissão e encerramento acrescentam
+tempo entre reports. Não mudar o intervalo em função da leitura ou do erro ADC.
+
+`SmartSysApp` permanece dona do lifecycle, deadline e sequência terminal.
+Integrar a evidência de admissão da luminosidade à prontidão para sono
+antecipado. Uma aquisição válida ainda não admitida, falha ADC ou ausência de
+report não constitui essa evidência. Depois de admitido, preservar fechamento
+da admissão, quiescência, espera por reports pendentes e ACK, limite temporal e
+arbitragem com factory reset. Se houver falha ADC ou recusa da tentativa de
+admissão, não refazer a aquisição nesse boot; aguardar o caminho forçado pelo
+deadline e usar o mesmo intervalo configurado para o próximo despertar.
+
+Preservar a janela máxima acordada configurável já oferecida pela composição
+(`CONFIG_IOTSMARTLINK154_MAX_AWAKE_TIME_SECONDS`, default vigente de 30 s),
+entregue pela aplicação à fachada. Preservar as exceções existentes: falha de
+configuração/plataforma que impeça criar o lifecycle não promete entrada em
+sleep; falha no preparo do wakeup interrompe a sequência terminal conforme o
+contrato vigente. Não tratar o deadline como garantia absoluta do tempo físico
+acordado além dos limites de `Client-Deep-Sleep.md`.
+
 Não criar outro dono de rádio, retry, factory reset ou entrada em deep sleep.
-Preservar falhas observáveis e descarte da aquisição inválida; esta mudança de
-fórmula não contrata reboot por erro ADC por copiar `ESP_ERROR_CHECK` do sketch.
+Preservar falhas observáveis e descarte da aquisição inválida; esta mudança não
+contrata reboot por erro ADC por copiar `ESP_ERROR_CHECK` do sketch. Defaults,
+fontes de wakeup e comportamento dos demais produtos permanecem preservados.
 
 ## 4. Organização, identidade e coordenador
 
@@ -94,56 +126,68 @@ fórmula não contrata reboot por erro ADC por copiar `ESP_ERROR_CHECK` do sketc
   deve reconciliar a guarda do registro, a definição e a tradução no
   coordenador; a guarda vigente ainda exige cinco tipos.
 - Coordenador apresenta `Light Sensor`, preservando envelope JSON, nome da
-  capability, identidade de cada admissão, deduplicação e ACK. A precisão
-  numérica transmitida será fechada pela decisão da seção 6.
+  capability, identidade de cada admissão, deduplicação e ACK. O valor é o
+  inteiro 0–100, formatado em base decimal, sem casa fracionária nem símbolo `%`,
+  mantendo o tipo do campo no envelope JSON vigente.
 - Não criar dependência de código entre client e coordenador.
 
 ## 5. Autoridades e versões
 
-Esta v0.2 substitui o contrato de aquisição, normalização e política de
-luminosidade do rascunho v0.1, por ordem do Arquiteto. A v0.1 e sua análise são
-históricas, preservadas no Git e em `docs/reports/`.
+Esta v0.3 fecha a cadência e a precisão da v0.2, por decisão do Arquiteto.
+Mantém o percentual direto ADC e a retirada dos estados da v0.1. Versões e
+análise anteriores são históricas, preservadas no Git e em `docs/reports/`.
 
 Nova especificação para esta capability e composição. A emenda proposta a
 `Firmware-Variants-Menuconfig.md` continua limitada à composição do produto.
-A proposta anterior de intervalo adaptativo em segundos e estado RTC em
-`Client-Deep-Sleep.md` deixa de integrar o recorte. A relação final com sono
-antecipado depende da escolha operacional da seção 6.
+A proposta anterior de intervalo adaptativo em segundos e estado RTC deixa de
+integrar o recorte. **Amends `Client-Deep-Sleep.md` v0.11** somente para incluir
+a evidência de admissão inicial da luminosidade no sono antecipado, conforme
+seção 3. Preservar configuração e validação de timer em minutos, dono do
+lifecycle, quiescência, ACK, deadline e arbitragem. **Amends
+`Client-SDK-Configurable-Features.md` v0.1** para oferecer ao novo produto os
+parâmetros vigentes de intervalo do timer e janela acordada, sem criar operação
+periódica contínua para luminosidade nem alterar as composições existentes.
 
 Preservar ADR-0001 a ADR-0004, commissioning e identidade de reports nos
 comportamentos não alterados. A ADR-0005 continua alocando evento 6 e domínio
-inteiro 0–100; mudança dessa representação exigirá decisão normativa explícita,
-sem reinterpretar silenciosamente o campo de um byte.
+inteiro 0–100; o arredondamento decidido preserva essa representação e o
+campo de um byte. Não há alteração de layout wire nesta versão.
 
 O contrato de engenharia v0.1 e o alcance habilitado de
 `docs/rfc/REPOSITORY-READINESS.md` continuam aplicáveis. Esta revisão não
 classifica implementabilidade nem autoriza implementação, testes ou hardware.
 
-## 6. Decisões ainda necessárias
+## 6. Decisões confirmadas
 
-| Decisão | Alternativas apresentadas ao Arquiteto | Impacto |
-|---|---|---|
-| Cadência e energia | Leitura/publicação a cada 1 segundo sem deep sleep, ou deep sleep com intervalo fixo a definir | Fecha aquisição, próximo ciclo e relação com o lifecycle |
-| Precisão no report | Percentual inteiro 0–100 arredondado, ou uma casa decimal | Inteiro preserva domínio do evento e campo atual; decimal exige definir representação e impacto no contrato wire |
+Em 08/09/2026, o Arquiteto determinou:
 
-A pergunta anterior sobre obter `darkRaw` e `brightRaw` fica superada pela
-mudança de fórmula; nenhum recorte diagnóstico de calibração é necessário
-para satisfazer esta versão.
+- leitura e publicação em cada despertar do deep sleep;
+- intervalo de deep sleep configurável, com default de 15 minutos;
+- publicação do percentual inteiro de 0 a 100, arredondado.
+
+Essas decisões encerram as alternativas abertas na v0.2. A aquisição única
+por boot operacional e o lifecycle descritos na seção 3 delimitam as falhas e
+as tentativas de publicação. `darkRaw`/`brightRaw` e recorte diagnóstico de
+calibração continuam fora do contrato. A próxima análise confrontará esta
+versão, sem reutilizar como parecer vigente a análise do rascunho anterior.
 
 ## 7. Critérios de aceite
 
 | Critério | Resultado observável | Meio |
 |---|---|---|
-| Normalização | `raw=0` → 0%; `raw=819` → 20%; `raw=4095` → 100%; `raw=2048` → aproximadamente 50,01221% antes da quantização | Inspeção e cálculos conhecidos |
-| Aquisição | Uma leitura por aquisição; sem média, extremos calibrados ou histórico adaptativo | Inspeção e observação ADC quando autorizada |
-| Falha ADC | Leitura inválida não gera report nem valor artificial; erro observável | Inspeção e falha controlada quando autorizada |
+| Normalização | Reports: `raw=0` → 0; `raw=20` → 0; `raw=21` → 1; `raw=819` → 20; `raw=2048` → 50; `raw=4095` → 100 | Inspeção e cálculos conhecidos |
+| Aquisição | Uma única leitura no início operacional de cada boot/despertar; sem nova leitura durante espera por ACK, média ou extremos calibrados | Inspeção e observação ADC quando autorizada |
+| Falha ADC | Leitura inválida não gera report nem valor artificial; erro observável; caminho forçado conserva intervalo configurado | Inspeção e falha controlada quando autorizada |
 | Publicação | Aquisições válidas tentam reportar mesmo percentual inalterado; cada admissão conserva sua identidade | Inspeção e H2/C6/host quando autorizados |
 | Sem estados | Ausência de thresholds, transições, estabilidade, crescimento noturno e retenção RTC da luminosidade | Inspeção do delta |
-| Integração | Host recebe Light Sensor, endpoint estável e valor conforme precisão a definir; comandos recusados | Inspeção e H2/C6/host quando autorizados |
+| Integração | Host recebe Light Sensor, endpoint 1 e inteiro arredondado em base decimal; evento 6 e layout preservados; comandos recusados | Inspeção e H2/C6/host quando autorizados |
+| Cadência | Configuração default arma timer de 15 minutos; configuração de 20 minutos arma 20 minutos; zero ou valor fora do limite do timer é rejeitado; não há ciclo de 1 segundo | Inspeção de configuração e observação quando autorizada |
+| Lifecycle | Report admitido participa do sono antecipado; pendentes aguardam ACK até os limites vigentes; erro ADC ou recusa de admissão não habilita sono antecipado; falha de preparo de wakeup interrompe encerramento | Inspeção e observação com/sem ACK e falhas quando autorizadas |
 | Construção | H2 e C6 afetados compilam; composições existentes preservadas | Builds canônicos da implementação autorizada e inspeção |
 
-Os critérios de cadência, ciclo de energia e quantização final serão completados
-após as decisões da seção 6. O rascunho não está sendo apresentado como Ready.
+Os critérios incorporam as decisões de cadência, ciclo de energia e
+quantização final. A classificação de implementabilidade da v0.3 permanece
+pendente; este rascunho não está sendo apresentado como Ready.
 Nenhum artefato de teste automatizado integra este recorte. Execução/coleta de
 testes, flash, monitor e hardware seguem autorização própria. Critérios sem
 evidência permanecem não executados; build não comprova comportamento físico.
