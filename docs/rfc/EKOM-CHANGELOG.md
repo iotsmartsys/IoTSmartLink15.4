@@ -939,3 +939,35 @@ Em 07/09/2026, o Arquiteto determinou o encerramento e autorizou integração em
 Builds e inspeções permanecem as evidências entregues; nenhuma nova revisão
 formal ou validação física foi declarada. Testes e hardware conservam
 `Not Executed`.
+
+
+## EKOM-CHG-0011 — Adoção EKOM 5.0 e qualificação de engenharia
+
+**Objetivo:** adotar EKOM 5.0 antes de retomar a funcionalidade de luminosidade,
+consolidando regras de construção, avaliação e habilitação por alcance.
+
+**Decisão humana:** Marcelo Miranda, Arquiteto, em 07/09/2026, nesta atuação de
+Consultor de Arquitetura: “Vamos adotar a EKOM 5.0 e adequar o repositório
+conforme as exigências dela.” A ordem de adoção não aprova o contrato sugerido.
+
+**Estado:** roteamento e fundação documental adequados; contrato v0.1 Proposed;
+Repository Readiness Not Ready, com aprovação e habilitação pendentes.
+
+**Resultado:** roteador e adaptadores reconciliados; retirada do gate de
+promoção documental; contrato cobrindo onze áreas mínimas, com nove precedentes
+propostos e referências versionadas; avaliação dirigida dos firmwares e
+consumidores. Diagnóstico raiz e automações não foram habilitados por inferência.
+
+**Fontes:** `docs/rfc/EKOM-GUIDELINES.md`,
+`docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md`,
+`docs/rfc/REPOSITORY-READINESS.md` e `docs/reports/repository-readiness/2026-09-08T005734Z-v0.1-65e0a87a.md`.
+Mapa e dossiê localizam as fontes e a separação entre adoção e habilitação.
+
+**Pendências:** aprovação explícita da v0.1 e do alcance, seguida de avaliação
+com essa decisão; `EKM-GAP-0007` e qualificação própria de automações permanecem
+fora do alcance inicial proposto. Nenhum novo débito técnico foi aceito. A falha
+da guarda global em relatório histórico permanece registrada na avaliação.
+
+**Limites:** mudança documental, sem firmware, testes, configuração de build,
+workflows, hardware ou operação externa. Históricos permanecem sob suas versões.
+Os bloqueadores da especificação de luminosidade não são resolvidos pela adoção.

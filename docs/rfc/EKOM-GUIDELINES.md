@@ -1,13 +1,23 @@
-# Diretriz local de adoção do EKOM 4.6
+# Diretriz local de adoção do EKOM 5.0
 
 **Classe da fonte:** Normativa local
 
 **Estado da fonte:** Vigente
 
-O IoTSmartLink15.4 adota o EKOM 4.6 publicado em
+O IoTSmartLink15.4 adota o EKOM 5.0 publicado em
 `/Users/marcelocostamiranda/source/EKM-guidelines`. O método, a governança, os
 perfis e as ADRs do modelo externo prevalecem sobre instruções históricas do
 projeto.
+
+## Decisão de adoção
+
+Marcelo Miranda, como Arquiteto, determinou em 07/09/2026: “Vamos adotar a EKOM
+5.0 e adequar o repositório conforme as exigências dela.” Referência persistente:
+`EKOM-CHG-0011` em `EKOM-CHANGELOG.md`. A migração passa a reger novas atuações;
+registros e conclusões anteriores preservam a versão usada. A decisão não aprova
+o contrato de engenharia sugerido nem habilita implementação retroativamente.
+
+## Escolhas locais
 
 Esta fonte registra somente escolhas locais:
 
@@ -20,7 +30,11 @@ Esta fonte registra somente escolhas locais:
   quitação ou substituição é exclusiva do Arquiteto;
 - especificações permanecem em `docs/specs/`;
 - decisões arquiteturais duráveis ficam em `docs/adr/`;
-- relatórios ficam em `docs/reports/<mudança>/<capacidade>/`;
+- relatórios ficam em `docs/reports/<mudança>/<capacidade>/`; avaliações de
+  qualificação usam `docs/reports/repository-readiness/<identificador-unico>.md`;
+- contrato de construção fica em `docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md`;
+- estado, avaliação e decisão de habilitação ficam em
+  `docs/rfc/REPOSITORY-READINESS.md`;
 - mapa e changelog ativos ficam em `docs/rfc/`;
 - registros anteriores permanecem válidos sob a versão usada e são
   preservados em `docs/history/ekom-1x/` ou no histórico Git.
@@ -30,3 +44,22 @@ As regras de targets, execução de testes e hardware pertencem a
 O build canônico integra toda implementação autorizada de artefato construível,
 conforme a ADR-0008 externa; especificações funcionais não repetem sua
 permissão. Execução de testes e hardware conserva autorização própria.
+
+## Entrada operacional
+
+A qualificação antecede o workflow: contrato aprovado, avaliação válida e
+habilitação humana cobrindo a tarefa. Em alcance habilitado, análise Ready da
+versão corrente e ordem explícita bastam para implementar; a ordem é o ato de
+aprovação, sem promoção documental intermediária. Via curta do Consultor segue
+seu perfil e não dispensa qualificação. O agente registra In Progress e mantém
+conclusão, reabertura e integração sob autoridade humana.
+
+A proposta v0.1 do contrato é submetida separadamente à aprovação. Enquanto
+pendente, o repositório permanece Not Ready para implementação; documentação e
+análise autorizadas podem preparar a adoção. Seguir o alcance publicado no
+registro de readiness; não inferir autorização de uma execução histórica.
+
+A guarda existente continua útil para estrutura do delta; não é necessário
+instalar ou alterar automações para simular autenticação da decisão humana.
+Falhas históricas são registradas sem reescrever relatórios imutáveis. Os
+adaptadores de agentes remetem ao roteador, sem fixar outra versão do método.

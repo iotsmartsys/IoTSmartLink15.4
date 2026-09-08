@@ -5,8 +5,8 @@ para agentes. Leia-o integralmente antes de investigar, editar ou validar.
 
 Este adaptador não cria regras, papéis ou autoridade paralelos. A ordem deve
 identificar capacidade, resultado, recorte e especificação quando aplicável.
-Use o roteamento do `AGENTS.md` para carregar as regras comuns do EKOM 4.4 e
-somente o perfil correspondente.
+Use o roteamento do `AGENTS.md` para carregar as regras comuns da versão EKOM
+adotada e somente o perfil correspondente.
 
 Débito técnico segue a `ADR-0013` do EKOM externo: somente o Arquiteto aceita a
 postergação, determina quitação ou substituição. Agentes identificam candidatos

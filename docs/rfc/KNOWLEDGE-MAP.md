@@ -14,14 +14,17 @@ organiza; o diagrama, como os alvos separados se conectam.
 
 | Área | Fonte | Tipo | Estado |
 |---|---|---|---|
-| Instruções para agentes | `AGENTS.md` | Normativo | Active; EKOM 4.6 |
-| Método e perfis | `/Users/marcelocostamiranda/source/EKM-guidelines` | Normativo externo | EKOM 4.6 vigente |
+| Instruções para agentes | `AGENTS.md` | Normativo | Active; EKOM 5.0 |
+| Método e perfis | `/Users/marcelocostamiranda/source/EKM-guidelines` | Normativo externo | EKOM 5.0 vigente |
+| Contrato de engenharia | `docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md` | Normativa proposta | v0.1 Proposed; aprovação pendente |
+| Qualificação do repositório | `docs/rfc/REPOSITORY-READINESS.md` | Operacional | Not Ready; nenhuma implementação habilitada |
+| Avaliação de qualificação | `docs/reports/repository-readiness/2026-09-08T005734Z-v0.1-65e0a87a.md` | Evidência | Avaliação inicial; onze áreas confrontadas; aprovação e habilitação pendentes |
 | Diretriz local | `docs/rfc/EKOM-GUIDELINES.md` | Normativo local | Active |
 | Mapa | `docs/rfc/KNOWLEDGE-MAP.md` | Normativo | Active |
 | Histórico EKOM | `docs/rfc/EKOM-CHANGELOG.md` | Operacional | Active |
 | Dossiê do sistema | `docs/specs/SYSTEM-DOSSIER.md` | Informativo | Active |
 | Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0005 Accepted; ADR-0001 com nota de reavaliação de 14/08/2026 |
-| Relatórios | `docs/reports/` | Evidência histórica | Roteamento EKOM 4.6 vigente |
+| Relatórios | `docs/reports/` | Evidência histórica | Roteamento EKOM 5.0 vigente |
 | Débitos técnicos | Seção 7 deste mapa | Normativo | `EKOM-DEBT-0001` a `EKOM-DEBT-0005` Quitados [`Remediated`] |
 | Registros EKM 1.x | `docs/history/ekom-1x/` | Histórico | Superseded para novas atuações |
 
@@ -84,7 +87,10 @@ IoTSmartLink15.4
 │   ├── specs — contratos
 │   ├── adr — decisões duráveis
 │   ├── reports — execuções e evidências
-│   └── rfc — mapa, diretriz local e transações
+│   └── rfc
+│       ├── mapa, diretriz local e transações
+│       ├── REPOSITORY-ENGINEERING-CONTRACT — regras propostas de construção
+│       └── REPOSITORY-READINESS — avaliação e habilitação por alcance
 └── Protótipo não classificado
     └── projeto ESP-IDF da raiz
 ```
@@ -106,6 +112,10 @@ flowchart LR
     DigitalBoard["Battery Digital Sensor H2"] -->|"digital_input + digital_input_wakeup"| BatteryProducts["Porta ou presença"]
     BatteryProducts --> Product
     Shared["SmartSysApp + ISSP components"] --> Client
+    Contract["Contrato de engenharia<br/>v0.1 Proposed"] --> Qualification["Repository Readiness<br/>Not Ready"]
+    Assessment["Avaliação + decisão humana<br/>habilitação pendente"] --> Qualification
+    Qualification -.->|"governa elegibilidade de implementação"| Client
+    Qualification -.->|"governa elegibilidade de implementação"| Coordinator
 ```
 
 As setas entre os alvos representam protocolo ISSP sobre IEEE 802.15.4, não

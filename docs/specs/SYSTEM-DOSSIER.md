@@ -6,6 +6,8 @@
 
 **Última auditoria:** 2026-08-12
 
+**Atualização de governança:** 2026-09-07 — adoção EKOM 5.0; não constitui nova auditoria funcional
+
 ## 1. Resumo executivo
 
 O repositório contém os dois extremos de uma solução ISSP sobre IEEE 802.15.4:
@@ -63,6 +65,15 @@ registry trata reinicialização do coordenador. A identidade de report entre
 boots e sua deduplicação seguem `ISSP-Report-Identity.md` e estão
 implementadas nos dois alvos; a validação em hardware permanece em
 `EKM-GAP-0006`.
+
+## Qualificação de engenharia
+
+A EKOM 5.0 foi adotada por decisão do Arquiteto. O contrato v0.1 em
+`docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md` está Proposed; o repositório está
+Not Ready para implementação, conforme `docs/rfc/REPOSITORY-READINESS.md`.
+A avaliação inicial cobre regras de construção dos firmwares, componentes e
+exemplo, mantendo diagnóstico raiz e automações fora da habilitação proposta.
+A adoção não reabre especificações concluídas nem declara sua validação nova.
 
 ## 9. Build, testes e operação
 

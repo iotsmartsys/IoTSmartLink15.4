@@ -1,6 +1,6 @@
 # Instruções permanentes e roteamento EKOM
 
-**Modelo EKOM:** 4.6
+**Modelo EKOM:** 5.0
 
 **Modalidade:** capacidades referenciadas e governança proporcional
 
@@ -36,14 +36,32 @@ Análise de implementabilidade é obrigatória antes da implementação, mas pod
 ser executada na mesma atuação quando autorizada. Challenge é consultivo e
 proporcional ao risco, não um gate universal.
 
-Implementação exige análise `Ready`, promoção registrada e autorização da mesma
-versão. Com esses gates satisfeitos, o build canônico dos entregáveis
-construíveis afetados integra a implementação e não exige cláusula na
-especificação. Coleta ou execução de testes, flash, monitor e hardware exigem
-autorização própria.
+Em repositório habilitado, implementação exige análise `Ready` da versão
+corrente e ordem explícita do Arquiteto para implementá-la. A ordem aprova e
+autoriza a passagem; não existe promoção ou campo documental intermediário.
+O Implementador registra mecanicamente `In Progress` ao iniciar. Ready de outra
+versão ou ordem ambígua não autoriza mutação.
+
+A via curta do Consultor só se aplica quando o Arquiteto determinar que a
+alteração é pequena e ordenar explicitamente implementação sem especificação,
+dentro dos limites do perfil. Ela também exige qualificação do repositório.
+
+Com a entrada satisfeita, o build canônico dos entregáveis construíveis afetados
+integra a implementação. Criação/alteração de testes exige vínculo explícito na
+especificação; coleta/execução, flash, monitor e hardware exigem autorização
+própria. Revisão é o quarto estágio; conclusão e integração são decisões humanas.
+
+Mudança material autorizada inclui commit e push da branch de trabalho, com
+árvore limpa. Não inclui merge, force push, tag, release ou deploy. Para trabalho
+governado por especificação principal, adotar `spec/<slug-do-documento>` conforme
+a regra externa; a fundação documental de governança não exige especificação
+funcional artificial.
 
 ## Fontes locais do projeto
 
+- contrato de engenharia: `docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md`;
+- qualificação e alcance habilitado: `docs/rfc/REPOSITORY-READINESS.md`;
+- avaliações de qualificação: `docs/reports/repository-readiness/`;
 - especificações: `docs/specs/`;
 - ADRs: `docs/adr/`;
 - relatórios: `docs/reports/`;
@@ -55,6 +73,8 @@ autorização própria.
 - diretriz local de adoção: `docs/rfc/EKOM-GUIDELINES.md`;
 - arquitetura e contratos: `docs/specs/ISSP-Architecture.md`,
   `docs/specs/ISSP-Commissioning.md` e `components/README.md`;
+- build canônico proposto: contrato de engenharia, seção 9; sua vigência
+  depende de aprovação;
 - targets e execução de testes:
   `docs/specs/Repository-Test-Execution-Policy.md`;
 - guarda documental: `python3 tools/validate_ekom_documents.py .`.
@@ -88,5 +108,26 @@ autorização própria.
   operacional `In Remediation` quando sustentado pela atuação.
 - Nunca registre segredo, token, chave, header de autorização ou connection
   string no repositório ou em saídas de agentes.
+
+## Qualificação do repositório — EKOM 5.0
+
+Antes de qualquer implementação, ler contrato e registro de readiness acima;
+confirmar revisão aprovada, avaliação válida, decisão humana e cobertura de
+todo o recorte e suas dependências materiais. `Not Ready` bloqueia código,
+testes, configuração e build de implementação. `Conditionally Ready` habilita
+somente áreas explicitamente `Ready` e confirmadas pelo Arquiteto. Ausência,
+insuficiência ou aprovação pendente não pode ser suprida pelo Ready da tarefa.
+Levantamento, proposta, análise e documentação autorizados podem preparar a
+qualificação. A adoção não certifica retroativamente o legado.
+
+Aplicar especificação da tarefa → contrato aprovado → precedentes oficiais →
+código existente → preferência local. Uma especificação não revoga regra
+arquitetural silenciosamente; exceção exige decisão com regra, motivo, alcance
+e validade. Mudança material exige reavaliação do alcance; aprovação vigente
+não é repetida a cada tarefa.
+
+Norma: `docs/REPOSITORY-READINESS.md` na raiz externa EKOM. O validador local é
+estrutural e não autentica aprovação nem substitui esta guarda operacional.
+O estado atual é localizado em `docs/rfc/REPOSITORY-READINESS.md`.
 
 > **Specifications orchestrate. Code implements.**
