@@ -40,3 +40,12 @@ A antiga limitação de cinco eventos permanece histórica na avaliação
 complementar; não é bloqueio vigente. A aprovação do contrato v0.1 e as
 exclusões de alcance permanecem. Revisão, testes e hardware não são autorizados
 por esta qualificação.
+
+## Reconfronto do alcance — valores tipados (08/09/2026)
+
+Avaliação dirigida: `docs/reports/repository-readiness/2026-09-08T160535Z-v0.1-dbc2eeac-typed-values.md`. A decisão arquitetural confirmada
+na ADR-0006 e os dois Drafts mantêm donos, tecnologias e consumidores dentro
+do alcance inicial. O contrato v0.1 e a habilitação humana existente são
+preservados; não há nova aprovação atribuída ao agente. A baseline continua
+v2, e a preparação v3 não foi implementada. A dependência da funcionalidade
+percentual é tratada em sua análise própria, não suprida por esta qualificação.

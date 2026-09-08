@@ -18,12 +18,13 @@ organiza; o diagrama, como os alvos separados se conectam.
 | Método e perfis | `/Users/marcelocostamiranda/source/EKM-guidelines` | Normativo externo | EKOM 5.0 vigente |
 | Contrato de engenharia | `docs/rfc/REPOSITORY-ENGINEERING-CONTRACT.md` | Normativa | v0.1 Approved; Marcelo Miranda, 07/09/2026 |
 | Qualificação do repositório | `docs/rfc/REPOSITORY-READINESS.md` | Operacional | Conditionally Ready; alcance inicial habilitado; raiz e automações excluídos |
+| Reavaliação do alcance tipado | `docs/reports/repository-readiness/2026-09-08T160535Z-v0.1-dbc2eeac-typed-values.md` | Evidência | Alcance inicial preservado, sem nova habilitação |
 | Avaliação de qualificação | `docs/reports/repository-readiness/2026-09-08T010746Z-v0.1-92b3d036.md` | Evidência | Onze áreas confrontadas; RR-01 resolvido por aprovação humana; alcance inicial Ready |
 | Diretriz local | `docs/rfc/EKOM-GUIDELINES.md` | Normativo local | Active |
 | Mapa | `docs/rfc/KNOWLEDGE-MAP.md` | Normativo | Active |
 | Histórico EKOM | `docs/rfc/EKOM-CHANGELOG.md` | Operacional | Active |
 | Dossiê do sistema | `docs/specs/SYSTEM-DOSSIER.md` | Informativo | Active |
-| Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0005 Accepted; ADR-0005 com evento 6 implementado e encerramento humano da luminosidade; ADR-0001 com nota de reavaliação de 14/08/2026 |
+| Decisões arquiteturais | `docs/adr/` | Normativo | ADR-0001 a ADR-0006 Accepted; ADR-0006 registra decisões confirmadas de valores tipados, sem implementação; ADR-0005 com evento 6 implementado e encerramento humano da luminosidade; ADR-0001 com nota de reavaliação de 14/08/2026 |
 | Relatórios | `docs/reports/` | Evidência histórica | Roteamento EKOM 5.0 vigente |
 | Débitos técnicos | Seção 7 deste mapa | Normativo | `EKOM-DEBT-0001` a `EKOM-DEBT-0005` Quitados [`Remediated`] |
 | Registros EKM 1.x | `docs/history/ekom-1x/` | Histórico | Superseded para novas atuações |
@@ -54,6 +55,8 @@ não criam autoridade paralela.
 | Identidade de capability | ADR-0005 `Accepted`; `EKOM-DEBT-0001`; `EKOM-DEBT-0004` | Modelo e tipo 4 implementados; remediação v0.2 Concluída [`Done`] | `components/issp_app_154`; `client_154/main/firmwares`; `examples/issp_minimal_client`; `coordinator_154/main` | Análise `Ready`; implementações e revisões; builds H2/C6; validações em hardware aceitas pelo Arquiteto | Implementada e validada; débitos relacionados quitados |
 | Remediação de débitos técnicos | `docs/specs/Technical-Debt-Remediation.md` (`EKOM-DEBT-REMEDIATION-001`); ADR-0005 | v0.2 Concluída [`Done`] por decisão do Arquiteto | `components/issp_app_154`; `client_154/main`; `examples/issp_minimal_client`; `coordinator_154/main`; `client_154/sdkconfig` | Análise `Ready`; implementações e revisões; builds H2/C6; validações em hardware declaradas suficientes pelo Arquiteto | Implementação validada; `EKOM-DEBT-0001` a `EKOM-DEBT-0005` quitados |
 | Protótipo da raiz | `EKM-GAP-0007` | Não mapeado | `main/`; `sdkconfig` | Nenhuma evidência normativa | Inventariado |
+| Valores tipados ISSP | `docs/specs/ISSP-Typed-Values.md` v0.1; ADR-0006 | Draft; análise Ready; implementação não autorizada | Core, transporte, coordenador e consumidores locais | `docs/reports/issp-typed-values/analysis/2026-09-08T160535Z-v0.1-dbc2eeac-implementability-analysis.md` | Preparação v3 especificada; baseline executável ainda v2 |
+| Percentuais fracionários | `docs/specs/Fractional-Percentage-Reports.md` v0.1; ADR-0006 | Draft; Not Ready — Architectural Prerequisite | Behaviors de luz/bateria e tradução C6 | `docs/reports/fractional-percentage-reports/analysis/2026-09-08T160535Z-v0.1-dbc2eeac-implementability-analysis.md` | Depende da preparação tipada implementada e validada |
 
 ## 3. Árvore de conhecimento
 
@@ -84,7 +87,8 @@ IoTSmartLink15.4
 │       ├── janela volátil de deduplicação por report_id — v0.3 concluída
 │       └── ponte JSON-lines/UART para o host — tradução do estado de bateria implementada e validada
 ├── Conexão lógica
-│   └── ISSP sobre IEEE 802.15.4
+│   ├── ISSP sobre IEEE 802.15.4 — baseline v2
+│   └── Evolução documental: valores tipados v3 → percentuais fracionários (dependentes)
 ├── Evidência de integração
 │   └── examples/issp_minimal_client
 ├── Conhecimento
@@ -107,6 +111,7 @@ plataforma; client e coordenador não compartilham código de aplicação.
 
 ```mermaid
 flowchart LR
+    TypedDraft["Draft: valores tipados v3 · análise Ready"] -.->|"preparação ainda não implementada"| FractionDraft["Draft: percentuais float · dependência arquitetural"]
     Host["Host"] -->|"commands · JSON-lines/UART"| Coordinator["coordinator_154<br/>ESP32-C6"]
     Coordinator -->|"events and results · JSON-lines/UART"| Host
     Coordinator -->|"discovery responses · commands · ACKs v2"| Client["client_154<br/>ESP32-H2"]

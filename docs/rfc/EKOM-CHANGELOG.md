@@ -1092,3 +1092,29 @@ relatório imutável de implementação. Testes, flash, monitor e hardware não
 foram executados nesta atuação. Nenhum requisito funcional foi alterado.
 A alteração local preexistente em `client_154/sdkconfig` foi preservada fora
 da integração; a promoção usa cópia de trabalho isolada.
+
+## EKOM-CHG-0013 — Valores tipados e percentuais fracionários
+
+**Data:** 08/09/2026
+
+**Ordem:** Marcelo Miranda confirmou inteiro/float explícitos, percentuais
+textuais com duas casas e ponto, binários inteiros com traduções preservadas
+e corte de protocolo sem compatibilidade, por haver somente bancada. Em
+seguida autorizou registro conforme EKOM e análise pelo Engenheiro Analista.
+Não houve ordem de implementação, execução de testes ou atualização física.
+
+**Contratos:** `docs/specs/ISSP-Typed-Values.md` v0.1 é coordenador e preparação;
+`docs/specs/Fractional-Percentage-Reports.md` v0.1 depende da baseline tipada
+implementada e validada. Ambos em Draft. ADR-0006 registra somente a decisão
+arquitetural confirmada; larguras/códigos são elaboração técnica do Draft.
+A separação aplica a fronteira EKOM de capacidade transversal independente.
+
+**Análises:** preparação Pronta [`Ready`] em `docs/reports/issp-typed-values/analysis/2026-09-08T160535Z-v0.1-dbc2eeac-implementability-analysis.md`; funcionalidade
+Não pronta — pré-requisito arquitetural em `docs/reports/fractional-percentage-reports/analysis/2026-09-08T160535Z-v0.1-dbc2eeac-implementability-analysis.md`. Autoria e
+análise foram realizadas pelo mesmo agente, sem alegação de independência.
+A avaliação `docs/reports/repository-readiness/2026-09-08T160535Z-v0.1-dbc2eeac-typed-values.md` preserva o alcance já habilitado; não
+altera contrato nem habilita áreas excluídas.
+
+**Limites:** código/configurações/testes preservados; nenhum build, teste,
+flash, monitor ou hardware executado. Nenhum débito aceito/reaberto. Conclusão
+e integração permanecem decisões humanas.
