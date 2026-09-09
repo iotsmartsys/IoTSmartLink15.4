@@ -1169,3 +1169,15 @@ alterado. A alteração preexistente do Arquiteto continua preservada na
 worktree original; a implementação ocorre na worktree da especificação.
 
 Entrega para Revisão: `docs/reports/light-sensor-battery-h2/implementation/2026-09-09T015214Z-v0.4-9eba30c9-implementation.md`. Sete builds canônicos H2 concluídos com saída 0: luminosidade on/off, porta e presença com sono/periódico e tomada. Seleção gerada conferida; guarda documental do delta e diff check aprovados. Nenhum teste/hardware executado; sem merge ou conclusão humana.
+
+
+### Encerramento humano e integração da v0.4
+
+Marcelo Miranda declarou validação em hardware conforme e ordenou encerrar a
+especificação e promover para main, com commit e push. Registra-se v0.4 Done,
+com implementação `c69c0b5` e evidência posterior em `docs/reports/light-sensor-battery-h2/validation/2026-09-09T022704Z-v0.4-a89aef87-human-validation.md`. Os relatórios
+históricos permanecem imutáveis. A integração inclui a baseline tipada ancestral
+sem encerrar sua especificação nem promover a funcionalidade fracionária.
+Nenhum build/teste/hardware novo foi executado pelo agente. A alteração local
+preexistente em `client_154/sdkconfig` foi preservada fora do commit; fechamento
+e integração são realizados em worktree limpa.
