@@ -1155,3 +1155,17 @@ A alteração preexistente do Arquiteto em
 original e não integra este delta. Nenhum código/configuração foi alterado;
 nenhum build, teste, flash, monitor ou hardware executado. Implementação da
 v0.4 depende de ordem explícita; conclusão e integração permanecem humanas.
+
+
+### Implementação autorizada da luminosidade v0.4
+
+Marcelo Miranda ordenou: “Atue como Engenheiro Implementador e implemente a
+especificação v0.4”. Correspondência da análise Ready conferida pelo SHA-256
+`0433583579235771d4614c0a0583cfcff2f09b76bbd8658271355f93cf3c41ab`.
+Estado registrado mecanicamente como In Progress. Board Light Sensor H2,
+produto e seleção CMake/Kconfig recebem a bateria; componentes compartilhados
+e coordenador permanecem preservados. Nenhum artefato de teste foi criado ou
+alterado. A alteração preexistente do Arquiteto continua preservada na
+worktree original; a implementação ocorre na worktree da especificação.
+
+Entrega para Revisão: `docs/reports/light-sensor-battery-h2/implementation/2026-09-09T015214Z-v0.4-9eba30c9-implementation.md`. Sete builds canônicos H2 concluídos com saída 0: luminosidade on/off, porta e presença com sono/periódico e tomada. Seleção gerada conferida; guarda documental do delta e diff check aprovados. Nenhum teste/hardware executado; sem merge ou conclusão humana.

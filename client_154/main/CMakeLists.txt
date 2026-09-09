@@ -36,6 +36,9 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
         list(APPEND srcs "firmwares/light_sensor_battery_h2.cpp")
         set(selected_product "Light sensor battery H2")
         set(required_resources light_measurement)
+        if(CONFIG_IOTSMARTLINK154_ENABLE_BATTERY_LEVEL)
+            list(APPEND required_resources battery_measurement)
+        endif()
     else()
         message(FATAL_ERROR
             "No product firmware selected in the App Client menu. "
@@ -56,7 +59,7 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     elseif(CONFIG_IOTSMARTLINK154_BOARD_LIGHT_SENSOR_H2)
         list(APPEND srcs "boards/light_sensor_h2.cpp")
         set(selected_board "Light Sensor H2")
-        set(offered_resources light_measurement)
+        set(offered_resources light_measurement battery_measurement)
     else()
         message(FATAL_ERROR
             "No board model selected in the App Client menu for "

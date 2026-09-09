@@ -6,7 +6,9 @@
 
 **Versão:** 0.4
 
-**Estado:** Rascunho [`Draft`] — inclusão de bateria autorizada para registro e análise em 08/09/2026; implementação da v0.4 ainda não autorizada.
+**Estado:** Em andamento [`In Progress`] — implementação da v0.4 ordenada explicitamente por Marcelo Miranda em 08/09/2026, após análise Ready.
+
+**Entrega v0.4:** implementação concluída e encaminhada à Revisão; sete builds canônicos H2 com saída 0. Evidências e limitações em `docs/reports/light-sensor-battery-h2/implementation/2026-09-09T015214Z-v0.4-9eba30c9-implementation.md`. Testes e hardware não executados; conclusão humana pendente.
 
 **Histórico v0.3:** Concluída [`Done`] por decisão de Marcelo Miranda, Arquiteto,
 em 08/09/2026, com autorização de integração na `main`.

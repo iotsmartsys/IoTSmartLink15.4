@@ -18,6 +18,14 @@ constexpr LightMeasurementResource kLightMeasurement = {
     .supplyMv = 3300U,
     .resistorOhms = 10000U,
 };
+// Same battery divider as Battery Digital Sensor H2; independent of the LDR.
+constexpr BatteryMeasurementResource kBatteryMeasurement = {
+    .unit = ADC_UNIT_1,
+    .channel = ADC_CHANNEL_0,
+    .attenuation = ADC_ATTEN_DB_12,
+    .rTopOhms = 470000U,
+    .rBottomOhms = 220000U,
+};
 static_assert(ADC1_CHANNEL_1_GPIO_NUM == GPIO_NUM_2,
               "Light Sensor H2 requires ADC1 channel 1 on GPIO2");
 }
@@ -25,6 +33,11 @@ static_assert(ADC1_CHANNEL_1_GPIO_NUM == GPIO_NUM_2,
 const LightMeasurementResource &selectedLightMeasurement()
 {
     return kLightMeasurement;
+}
+
+const BatteryMeasurementResource &selectedBatteryMeasurement()
+{
+    return kBatteryMeasurement;
 }
 
 } // namespace client154
