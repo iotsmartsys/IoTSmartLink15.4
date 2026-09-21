@@ -15,29 +15,29 @@
 
 namespace client154
 {
-namespace
-{
-constexpr DigitalOutputResource kDigitalOutput = {
-    .pin = GPIO_NUM_13,
-    .activeHigh = true,
-};
-constexpr UserButtonResource kUserButton = {
-    .pin = static_cast<gpio_num_t>(CONFIG_IOTSMARTLINK154_FACTORY_RESET_GPIO),
-    .activeLow = true,
-};
-static_assert(kUserButton.pin != kDigitalOutput.pin,
-              "App Client composition rejected: factory reset GPIO collides "
-              "with digital_output");
-}
+    namespace
+    {
+        constexpr DigitalOutputResource kDigitalOutput = {
+            .pin = GPIO_NUM_13,
+            .activeHigh = true,
+        };
+        constexpr UserButtonResource kUserButton = {
+            .pin = static_cast<gpio_num_t>(CONFIG_IOTSMARTLINK154_FACTORY_RESET_GPIO),
+            .activeLow = true,
+        };
+        static_assert(kUserButton.pin != kDigitalOutput.pin,
+                      "App Client composition rejected: factory reset GPIO collides "
+                      "with digital_output");
+    }
 
-const DigitalOutputResource &selectedDigitalOutput()
-{
-    return kDigitalOutput;
-}
+    const DigitalOutputResource &selectedDigitalOutput()
+    {
+        return kDigitalOutput;
+    }
 
-const UserButtonResource &selectedUserButton()
-{
-    return kUserButton;
-}
+    const UserButtonResource &selectedUserButton()
+    {
+        return kUserButton;
+    }
 
 } // namespace client154

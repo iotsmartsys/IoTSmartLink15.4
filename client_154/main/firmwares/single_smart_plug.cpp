@@ -10,42 +10,42 @@ using namespace iotsmartsys;
 
 namespace
 {
-constexpr std::uint32_t kDeviceId = 0x15400001;
-constexpr std::uint8_t kRelayEndpointId = 1;
-constexpr bool kRelayInitialState = false;
-constexpr bool kRelayReportOnStart = true;
-constexpr std::uint32_t kFactoryResetHoldTimeMs = 10000;
-constexpr std::uint32_t kFactoryResetPollIntervalMs = 20;
+    constexpr std::uint32_t kDeviceId = 0x15400001;
+    constexpr std::uint8_t kRelayEndpointId = 1;
+    constexpr bool kRelayInitialState = false;
+    constexpr bool kRelayReportOnStart = true;
+    constexpr std::uint32_t kFactoryResetHoldTimeMs = 10000;
+    constexpr std::uint32_t kFactoryResetPollIntervalMs = 20;
 
-SmartSysApp smartSysApp({
-    .deviceId = kDeviceId,
-});
+    SmartSysApp smartSysApp({
+        .deviceId = kDeviceId,
+    });
 }
 
 namespace client154
 {
 
-iotsmartsys::SetupResult startSelectedProductFirmware()
-{
-    const DigitalOutputResource &output = selectedDigitalOutput();
-    const UserButtonResource &button = selectedUserButton();
+    iotsmartsys::SetupResult startSelectedProductFirmware()
+    {
+        const DigitalOutputResource &output = selectedDigitalOutput();
+        const UserButtonResource &button = selectedUserButton();
 
-    smartSysApp.addSwitchPlugCapability({
-        .pin = output.pin,
-        .activeHigh = output.activeHigh,
-        .initialState = kRelayInitialState,
-        .reportOnStart = kRelayReportOnStart,
-        .endpointId = kRelayEndpointId,
-    });
+        smartSysApp.addSwitchPlugCapability({
+            .pin = output.pin,
+            .activeHigh = output.activeHigh,
+            .initialState = kRelayInitialState,
+            .reportOnStart = kRelayReportOnStart,
+            .endpointId = kRelayEndpointId,
+        });
 
-    smartSysApp.configureFactoryResetButton({
-        .pin = button.pin,
-        .activeLow = button.activeLow,
-        .holdTimeMs = kFactoryResetHoldTimeMs,
-        .pollIntervalMs = kFactoryResetPollIntervalMs,
-    });
+        smartSysApp.configureFactoryResetButton({
+            .pin = button.pin,
+            .activeLow = button.activeLow,
+            .holdTimeMs = kFactoryResetHoldTimeMs,
+            .pollIntervalMs = kFactoryResetPollIntervalMs,
+        });
 
-    return smartSysApp.setup();
-}
+        return smartSysApp.setup();
+    }
 
 } // namespace client154

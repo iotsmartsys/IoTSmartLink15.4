@@ -8,36 +8,36 @@
 
 namespace client154
 {
-namespace
-{
-// 3.3 V -> LDR -> GPIO2 -> 10 kohm -> GND. No calibrated light extremes.
-constexpr LightMeasurementResource kLightMeasurement = {
-    .unit = ADC_UNIT_1,
-    .channel = ADC_CHANNEL_1,
-    .attenuation = ADC_ATTEN_DB_12,
-    .supplyMv = 3300U,
-    .resistorOhms = 10000U,
-};
-// Same battery divider as Battery Digital Sensor H2; independent of the LDR.
-constexpr BatteryMeasurementResource kBatteryMeasurement = {
-    .unit = ADC_UNIT_1,
-    .channel = ADC_CHANNEL_0,
-    .attenuation = ADC_ATTEN_DB_12,
-    .rTopOhms = 470000U,
-    .rBottomOhms = 220000U,
-};
-static_assert(ADC1_CHANNEL_1_GPIO_NUM == GPIO_NUM_2,
-              "Light Sensor H2 requires ADC1 channel 1 on GPIO2");
-}
+    namespace
+    {
+        // 3.3 V -> LDR -> GPIO2 -> 10 kohm -> GND. No calibrated light extremes.
+        constexpr LightMeasurementResource kLightMeasurement = {
+            .unit = ADC_UNIT_1,
+            .channel = ADC_CHANNEL_1,
+            .attenuation = ADC_ATTEN_DB_12,
+            .supplyMv = 3300U,
+            .resistorOhms = 10000U,
+        };
+        // Same battery divider as Battery Digital Sensor H2; independent of the LDR.
+        constexpr BatteryMeasurementResource kBatteryMeasurement = {
+            .unit = ADC_UNIT_1,
+            .channel = ADC_CHANNEL_0,
+            .attenuation = ADC_ATTEN_DB_12,
+            .rTopOhms = 470000U,
+            .rBottomOhms = 220000U,
+        };
+        static_assert(ADC1_CHANNEL_1_GPIO_NUM == GPIO_NUM_2,
+                      "Light Sensor H2 requires ADC1 channel 1 on GPIO2");
+    }
 
-const LightMeasurementResource &selectedLightMeasurement()
-{
-    return kLightMeasurement;
-}
+    const LightMeasurementResource &selectedLightMeasurement()
+    {
+        return kLightMeasurement;
+    }
 
-const BatteryMeasurementResource &selectedBatteryMeasurement()
-{
-    return kBatteryMeasurement;
-}
+    const BatteryMeasurementResource &selectedBatteryMeasurement()
+    {
+        return kBatteryMeasurement;
+    }
 
 } // namespace client154
