@@ -56,7 +56,7 @@ servir aos dois produtos sem atribuir semântica de porta ao hardware.
 
 A capability de porta não é reutilizada como presença: o tipo do evento é a
 natureza da capability conforme a ADR-0005, e o coordenador deve apresentar a
-nova capability como `Presence Sensor`.
+nova capability como `Motion Sensor`.
 
 ## 2. Escopo
 
@@ -104,7 +104,7 @@ nova capability como `Presence Sensor`.
 | Product firmware | `Presence sensor battery H2` |
 | Símbolo proposto | `IOTSMARTLINK154_PRODUCT_PRESENCE_SENSOR_BATTERY_H2` |
 | Device ID | `0x15400002` |
-| Capability principal | `Presence Sensor` |
+| Capability principal | `Motion Sensor` |
 | Endpoint | 1, congelado |
 | Event type | 5, global e estável |
 | Valor ativo | 1, serializado pelo host como `detected` |
@@ -115,7 +115,7 @@ O tipo 5 pertence à capability, não ao produto. O produto não o recebe como
 parâmetro nem pode sobrescrevê-lo. Comando dirigido ao endpoint 1/event type 5
 é reconhecido e respondido com `Unsupported`, sem alterar o estado físico.
 
-O coordenador acrescenta o tipo `Presence Sensor` ao registro já guardado
+O coordenador acrescenta o tipo `Motion Sensor` ao registro já guardado
 contra a ADR-0005. O valor textual é `detected` somente para 1 e `undetected`
 para 0. Esta extensão usa os campos existentes de endpoint, evento e valor;
 nenhuma mudança wire decorre dela.
@@ -332,7 +332,7 @@ sua tradução para o host; não recebe dependência de código do client.
 - **`PRESENCE-008`:** o board generalizado preserva GPIO 14, GPIO 13, GPIO 9,
   ADC1 canal 0 e divisor 470 kΩ/220 kΩ; o produto de porta migra sem mudança
   de comportamento.
-- **`PRESENCE-009`:** o coordenador traduz event type 5 como `Presence Sensor`,
+- **`PRESENCE-009`:** o coordenador traduz event type 5 como `Motion Sensor`,
   1 como `detected` e 0 como `undetected`.
 - **`PRESENCE-010`:** componentes compartilhados não contêm símbolo Kconfig,
   identidade de produto ou pinagem de board.
